@@ -1,0 +1,533 @@
+cik,fund_name,category,form_types,last_filing_date,last_checked,notes
+1982701,AB Private Lending Fund,bdc,10-K|10-Q,2025-11-12,2026-06-02,
+1918712,ARES STRATEGIC INCOME FUND,bdc,10-K|10-Q,2025-11-14,2026-06-02,
+1976336,Antares Private Credit Fund,bdc,10-K|10-Q,2025-11-14,2026-06-02,
+1837532,Apollo Debt Solutions BDC,bdc,10-K|10-Q,2025-11-12,2026-06-02,
+1899017,Bain Capital Private Credit,bdc,10-K|10-Q,2025-11-14,2026-06-02,
+1902649,BlackRock Private Credit Fund,bdc,10-K|10-Q,2025-11-07,2026-06-02,
+1803498,Blackstone Private Credit Fund,bdc,10-K|10-Q,2025-11-13,2026-06-02,
+1655887,Blue Owl Capital Corp II,bdc,10-K|10-Q,2025-11-05,2026-06-02,
+1812554,Blue Owl Credit Income Corp,bdc,10-K|10-Q,2025-11-06,2026-06-02,
+1869453,Blue Owl Technology Income Corp,bdc,10-K|10-Q,2025-11-06,2026-06-02,
+1954360,Crescent Private Credit Income Corp,bdc,10-K|10-Q,2025-11-13,2026-06-02,
+1899996,Fidelity Private Credit Co LLC,bdc,10-K|10-Q,2025-11-12,2026-06-02,
+1890107,First Eagle Private Credit Fund,bdc,10-K|10-Q,2025-11-12,2026-06-02,
+1930087,Golub Capital Private Credit Fund,bdc,10-K|10-Q,2025-11-25,2026-06-02,
+1838126,HPS Corporate Lending Fund,bdc,10-K|10-Q,2025-11-14,2026-06-02,
+1987221,John Hancock Comvest Private Income Fund,bdc,10-K|10-Q,2025-11-14,2026-06-02,
+1911321,Kennedy Lewis Capital Co,bdc,10-K|10-Q,2025-11-13,2026-06-02,
+0001844684,NC SLF Inc,bdc,10-K|10-Q|N-CSR|N-CSRS,,2026-06-02,added from Morningstar; mstar category: Private Debt - Direct Lending
+1911066,Nuveen Churchill Private Capital Income Fund,bdc,10-K|10-Q,2025-11-10,2026-06-02,
+1872371,Oaktree Strategic Credit Fund,bdc,10-K|10-Q,2025-12-18,2026-06-02,
+1923622,PGIM Private Credit Fund,bdc,10-K|10-Q,2025-11-13,2026-06-02,
+1521945,Prospect Floating Rate Alternative Income Fund Inc,bdc,10-K|10-Q,2025-11-12,2026-06-02,
+1901164,T Rowe Price OHA Select Private Credit Fund,bdc,10-K|10-Q,2025-11-05,2026-06-02,
+1913724,TPG Twin Brook Capital Income Fund,bdc,10-K|10-Q,2025-11-12,2026-06-02,
+1577134,Terra Income Fund 6 LLC,bdc,10-K|10-Q,2025-11-07,2026-06-02,
+1748680,1WS Credit Income Fund,interval_fund,N-CSR|N-CSRS,2026-01-09,2026-06-02,
+2012326,AB CarVal Credit Opportunities Fund,interval_fund,N-CSR|N-CSRS,2025-09-05,2026-06-02,
+1467631,ACAP Strategic Fund,interval_fund,N-CSR|N-CSRS,2025-12-01,2026-06-02,
+1843499,AFA ASSET BASED LENDING FUND,interval_fund,N-CSR|N-CSRS,2026-01-09,2026-06-02,
+1516406,AMERICAN REAL ESTATE INCOME FUND,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1995940,AMG Pantheon Credit Solutions Fund,interval_fund,N-CSR|N-CSRS,2025-12-08,2026-06-02,
+2046200,AMG Pantheon Infrastructure Fund LLC,interval_fund,N-CSRS,2025-12-08,2026-06-02,
+1897540,AOG Institutional Fund,interval_fund,N-CSR|N-CSRS,2025-12-08,2026-06-02,
+1905088,ARK Venture Fund,interval_fund,N-CSR|N-CSRS,2025-10-08,2026-06-02,
+1783964,Accordant ODCE Index Fund,interval_fund,N-CSR|N-CSRS,2025-09-04,2026-06-02,
+1777529,Alpha Alternative Assets Fund,interval_fund,N-CSR|N-CSRS,2025-12-23,2026-06-02,
+1697196,AlphaCentric Prime Meridian Income Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1628040,Alternative Credit Income Fund,interval_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1496254,Alternative Strategies Income Fund,interval_fund,N-CSR|N-CSRS,2025-09-08,2026-06-02,
+1740076,American Beacon Apollo Total Return Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1729895,American Beacon Sound Point Enhanced Income Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1716885,Angel Oak Strategic Credit Fund,interval_fund,N-CSR|N-CSRS,2025-10-06,2026-06-02,
+1676197,Apollo Diversified Credit Fund,interval_fund,N-CSR|N-CSRS,2025-09-04,2026-06-02,
+1597634,Apollo Diversified Real Estate Fund,interval_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1758583,Arca US Treasury Fund,interval_fund,N-CSR|N-CSRS,2025-09-08,2026-06-02,
+1754927,Axonic Alternative Income Fund,interval_fund,N-CSR|N-CSRS,2026-01-09,2026-06-02,
+2003867,Axxes Opportunistic Credit Fund,interval_fund,N-CSRS,2025-12-09,2026-06-02,
+1580733,BMO LGM Frontier Markets Equity Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1816314,BNY Mellon Alcentra Opportunistic Global Credit Income Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+2004413,Beacon Pointe Multi-Alternative Fund,interval_fund,N-CSR|N-CSRS,2025-12-09,2026-06-02,
+1336050,"BlackRock Enhanced Government Fund, Inc.",interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1752019,BlackRock HPS Credit Strategies Fund,interval_fund,N-CSR|N-CSRS,2025-09-04,2026-06-02,
+1232860,BlackRock Municipal Credit Alpha Portfolio Inc,interval_fund,N-CSR|N-CSRS,2025-10-03,2026-06-02,
+1710523,Blackstone Floating Rate Enhanced Income Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+2032432,Blackstone Private Multi-Asset Credit Income Fund,interval_fund,N-CSRS,2025-09-03,2026-06-02,
+2059436,Blue Owl Alternative Credit Fund,interval_fund,N-CSRS,2025-08-29,2026-06-02,
+1722837,BlueBay Destra International Event-Driven Credit Fund,interval_fund,N-CSR|N-CSRS,2025-12-09,2026-06-02,
+1892443,Bluerock High Income Institutional Credit Fund,interval_fund,N-CSR|N-CSRS,2025-12-08,2026-06-02,
+1551047,Bluerock Private Real Estate Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+2023164,Booster Income Opportunities Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1810256,Bow River Capital Evergreen Fund,interval_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1745846,Broadstone Real Estate Access Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1902944,CANTOR FITZGERALD INFRASTRUCTURE FUND,interval_fund,N-CSR|N-CSRS,2025-12-09,2026-06-02,
+2079872,CAZ GP Stakes Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1984165,CAZ Strategic Opportunities Fund,interval_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1767074,CIM Real Assets Credit Fund,interval_fund,N-CSR|N-CSRS,2025-12-08,2026-06-02,
+1678124,CION Ares Diversified Credit Fund,interval_fund,N-CSR|N-CSRS,2025-09-05,2026-06-02,
+1997906,CION Grosvenor Infrastructure Fund,interval_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+2001586,"CION Grosvenor Infrastructure Master Fund, LLC",interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1585392,CLA Strategic Allocation Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1937073,Calamos Aksia Alternative Credit Income Fund,interval_fund,N-CSR|N-CSRS,2025-12-03,2026-06-02,
+2063706,Calamos Aksia Hedged Strategies Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+2047442,Calamos Aksia Private Equity Alternatives Fund,interval_fund,N-CSRS,2025-12-03,2026-06-02,
+2029168,Callodine Specialty Income Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1336519,Campbell Multi-Strategy Trust,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+2040315,Capital Group KKR Core Plus plus,interval_fund,N-CSRS,2025-09-05,2026-06-02,
+2040318,Capital Group KKR Multi-Sector plus,interval_fund,N-CSRS,2025-09-05,2026-06-02,
+1517767,Carlyle Credit Income Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1725472,Carlyle Tactical Private Credit Fund,interval_fund,N-CSR|N-CSRS,2025-08-21,2026-06-02,
+1864609,Cascade Private Capital Fund,interval_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1868950,Cashmere Fund,interval_fund,N-CSR|N-CSRS,2025-12-08,2026-06-02,
+2007649,CatalystPerini Strategic Income Fund,interval_fund,N-CSR|N-CSRS,2025-12-08,2026-06-02,
+1307259,Church Capital Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1690996,City National Rochdale Select Strategies Fund,interval_fund,N-CSR|N-CSRS,2025-10-03,2026-06-02,
+1737936,City National Rochdale Strategic Credit Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1762562,Clarion Partners Real Estate Income Fund Inc,interval_fund,N-CSR|N-CSRS,2025-08-26,2026-06-02,
+1735964,Cliffwater Corporate Lending Fund,interval_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1842754,Cliffwater Enhanced Lending Fund,interval_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+2041900,Columbia Credit Income Opportunities Fund,interval_fund,N-CSR,2025-10-03,2026-06-02,
+1996211,Connetic Venture Capital Access Fund,interval_fund,N-CSR|N-CSRS,2025-12-08,2026-06-02,
+2000182,Denali Structured Return Strategy Fund,interval_fund,N-CSR|N-CSRS,2025-12-04,2026-06-02,
+1523289,Destra Multi-Alternative Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+2022290,Diamond Hill Securitized Credit Fund,interval_fund,N-CSR|N-CSRS,2025-08-26,2026-06-02,
+1564930,EGA Frontier Diversified Core Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1751156,ELLINGTON INCOME OPPORTUNITIES FUND,interval_fund,N-CSR|N-CSRS,2025-09-08,2026-06-02,
+2013536,Eagle Point Defensive Income Trust,interval_fund,N-CSR|N-CSRS,2025-11-28,2026-06-02,
+1992148,Eagle Point Enhanced Income Trust,interval_fund,N-CSR|N-CSRS,2025-11-28,2026-06-02,
+1969229,Eaton Vance Floating-Rate Opportunities Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1582138,Equalize Community Development Fund,interval_fund,N-CSR|N-CSRS,2025-09-05,2026-06-02,
+1681717,FIRST TRUST ALTERNATIVE OPPORTUNITIES FUND,interval_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1746332,FNEX Ventures,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1688897,FS Credit Income Fund,interval_fund,N-CSR|N-CSRS,2025-12-30,2026-06-02,
+1685531,FS Energy Total Return Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1737268,FS Multi-Alternative Income Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1949594,Fidelity Multi-Strategy Credit Fund,interval_fund,N-CSR|N-CSRS,2025-08-22,2026-06-02,
+1844890,Finite Solar Finance Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1818416,First Eagle Credit Opportunities Fund,interval_fund,N-CSR|N-CSRS,2025-09-05,2026-06-02,
+2006189,First Eagle Real Estate Debt Fund,interval_fund,N-CSRS,2025-09-05,2026-06-02,
+2050541,First Eagle Tactical Municipal Opportunities Fund,interval_fund,N-CSRS,2025-09-05,2026-06-02,
+2021979,First Trust Enhanced Private Credit Fund,interval_fund,N-CSR|N-CSRS,2025-12-08,2026-06-02,
+1970466,First Trust Hedged Strategies Fund,interval_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1912963,First Trust Private Credit Fund,interval_fund,N-CSR|N-CSRS,2025-12-08,2026-06-02,
+1898303,First Trust Real Assets Fund,interval_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1814390,Flat Rock Core Income Fund,interval_fund,N-CSR|N-CSRS,2025-09-02,2026-06-02,
+1925779,Flat Rock Enhanced Income Fund,interval_fund,N-CSR|N-CSRS,2025-09-02,2026-06-02,
+1732078,Flat Rock Opportunity Fund,interval_fund,N-CSR|N-CSRS,2025-09-02,2026-06-02,
+1603261,Forefront Income Trust,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1857314,Forum Real Estate Income Fund,interval_fund,N-CSR|N-CSRS,2025-09-08,2026-06-02,
+2063946,Franklin BSP Lending Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1794041,Franklin BSP Private Credit Fund,interval_fund,N-CSR|N-CSRS,2025-09-05,2026-06-02,
+1885551,Fundrise Income Real Estate Fund LLC,interval_fund,N-CSR|N-CSRS,2025-08-21,2026-06-02,
+1777677,Fundrise Real Estate Interval Fund LLC,interval_fund,N-CSR|N-CSRS,2025-08-21,2026-06-02,
+1532716,GL Beyond Income Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+2012980,Gemcorp Commodities Alternative Products Fund,interval_fund,N-CSR|N-CSRS,2025-09-05,2026-06-02,
+2026098,Gladstone Alternative Income Fund,interval_fund,N-CSR|N-CSRS,2025-12-04,2026-06-02,
+2052250,GoldenTree Opportunistic Credit Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1796242,Goldman Sachs Real Estate Diversified Income Fund,interval_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+2020510,Hamilton Lane Private Infrastructure Fund,interval_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1812286,Harrison Street Infrastructure Income Fund,interval_fund,N-CSR|N-CSRS,2025-12-03,2026-06-02,
+1687898,Harrison Street Real Assets Fund LLC,interval_fund,N-CSR|N-CSRS,2025-12-03,2026-06-02,
+1515001,Harrison Street Real Estate Fund LLC,interval_fund,N-CSR|N-CSRS,2025-12-03,2026-06-02,
+1768966,Hartford Schroders Opportunistic Income Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1976685,Institutional Investment Strategy Fund,interval_fund,N-CSR|N-CSRS,2025-12-02,2026-06-02,
+1860151,Invesco Dynamic Credit Opportunity Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+853180,Invesco Senior Loan Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1982467,Jackson Credit Opportunities Fund,interval_fund,N-CSR|N-CSRS,2025-11-25,2026-06-02,
+2003497,Jackson Real Assets Fund,interval_fund,N-CSR|N-CSRS,2025-11-25,2026-06-02,
+2035632,John Hancock CQS Asset Backed Securities Fund,interval_fund,N-CSR|N-CSRS,2025-12-30,2026-06-02,
+2008638,John Hancock CQS Multi Asset Credit Fund,interval_fund,N-CSR|N-CSRS,2025-12-30,2026-06-02,
+1885778,John Hancock Marathon Asset-Based Lending Fund,interval_fund,N-CSR|N-CSRS,2025-12-30,2026-06-02,
+1787621,KKR Asset-Based Finance Fund,interval_fund,N-CSR|N-CSRS,2025-12-22,2026-06-02,
+1966776,KKR Asset-Based Income Fund,interval_fund,N-CSR|N-CSRS,2025-08-29,2026-06-02,
+2054992,Lincoln Bain Capital Total Credit Fund,interval_fund,N-CSR|N-CSRS,2025-11-25,2026-06-02,
+1869040,Lind Capital Partners Municipal Credit Income Fund,interval_fund,N-CSR|N-CSRS,2025-10-06,2026-06-02,
+1587236,Little Harbor MultiStrategy Composite Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1855299,Lord Abbett Corporate Opportunities Fund,interval_fund,N-CSR|N-CSRS,2025-09-03,2026-06-02,
+1753712,Lord Abbett Credit Opportunities Fund,interval_fund,N-CSR|N-CSRS,2025-09-03,2026-06-02,
+2005563,Lord Abbett Flexible Income Fund,interval_fund,N-CSR,2025-09-03,2026-06-02,
+1802293,Lord Abbett Floating Rate High Income Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+2029852,Lord Abbett Municipal Opportunities Fund,interval_fund,N-CSR|N-CSRS,2025-12-04,2026-06-02,
+2015849,MA Specialty Credit Income Fund,interval_fund,N-CSR|N-CSRS,2025-09-04,2026-06-02,
+1511699,Managed Portfolio Series,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1988752,Meketa Infrastructure Fund,interval_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1867714,Monachil Credit Income Fund,interval_fund,N-CSR|N-CSRS,2025-09-05,2026-06-02,
+1663712,NEXPOINT REAL ESTATE STRATEGIES FUND,interval_fund,N-CSR|N-CSRS,2025-09-08,2026-06-02,
+1995668,NYLI MacKay Muni Income Opportunities Fund,interval_fund,N-CSR|N-CSRS,2026-01-09,2026-06-02,
+2041175,Neuberger Asset-Based Credit Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1990685,Niagara Income Opportunities Fund,interval_fund,N-CSR|N-CSRS,2025-12-04,2026-06-02,
+1944664,Nomura Alternative Income Fund,interval_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+2035726,Nuveen Enhanced CLO Income Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1777482,Nuveen Enhanced High Yield Municipal Bond Fund,interval_fund,N-CSR|N-CSRS,2025-12-04,2026-06-02,
+1599331,O'Connor EQUUS,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+2051511,Oaktree Asset-Backed Income Fund Inc.,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1870714,Oaktree Diversified Income Fund Inc,interval_fund,N-CSR|N-CSRS,2025-09-04,2026-06-02,
+2000645,Octagon XAI CLO Income Fund,interval_fund,N-CSR|N-CSRS,2025-12-01,2026-06-02,
+2020928,OneAscent Capital Opportunities Fund,interval_fund,N-CSR|N-CSRS,2025-12-08,2026-06-02,
+1907437,Opportunistic Credit Interval Fund,interval_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1989582,PGIM Credit Income Fund,interval_fund,N-CSR|N-CSRS,2025-08-29,2026-06-02,
+1911795,PIMCO California Flexible Municipal Income Fund,interval_fund,N-CSR|N-CSRS,2025-09-05,2026-06-02,
+1688554,PIMCO Flexible Credit Income Fund,interval_fund,N-CSR|N-CSRS,2025-09-05,2026-06-02,
+1851077,PIMCO Flexible Emerging Markets Income Fund,interval_fund,N-CSR|N-CSRS,2025-09-05,2026-06-02,
+1723701,PIMCO Flexible Municipal Income Fund,interval_fund,N-CSR|N-CSRS,2025-09-05,2026-06-02,
+1896329,PIMCO Flexible Real Estate Income Fund,interval_fund,N-CSR|N-CSRS,2025-09-05,2026-06-02,
+1568905,PREDEX,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1608016,Palmer Square Opportunistic Income Fund,interval_fund,N-CSR|N-CSRS,2025-10-09,2026-06-02,
+1570335,"Pathway Capital Opportunity Fund, Inc.",interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1929777,Pender Real Estate Credit Fund,interval_fund,N-CSR|N-CSRS,2025-09-08,2026-06-02,
+2078146,PennantPark Enhanced Income Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1616037,Pioneer ILS Interval Fund,interval_fund,N-CSR|N-CSRS,2026-01-06,2026-06-02,
+1785957,Pioneer Securitized Income Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1965985,Polen Credit Opportunities Fund,interval_fund,N-CSR|N-CSRS,2026-01-05,2026-06-02,
+2071525,Pre-IPO & Growth Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1815609,Primark Meketa Private Equity Investments Fund,interval_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+2016900,Principal Private Credit Fund,interval_fund,N-CSR|N-CSRS,2025-11-25,2026-06-02,
+1756404,Principal Real Asset Fund,interval_fund,N-CSR|N-CSRS,2025-11-25,2026-06-02,
+2017577,Privacore PCAAM Alternative Growth Fund,interval_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+2017579,Privacore PCAAM Alternative Income Fund,interval_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+2066579,Privacore VPC Asset Backed Credit Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1557265,Private Shares Fund,interval_fund,N-CSR|N-CSRS,2025-09-09,2026-06-02,
+2027076,Prospect Enhanced Yield Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+2055004,Pursuit Asset-Based Income Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1959172,Redwood Private Real Estate Debt Fund,interval_fund,N-CSR|N-CSRS,2025-09-05,2026-06-02,
+1557725,Resource Real Estate Diversified Income Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1644771,"RiverNorth Capital & Income Fund, Inc.",interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1679230,RiverPark Floating Rate CMBS Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+2033164,Rockefeller Municipal Opportunities Fund,interval_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1968178,SEI Alternative Income Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+2021225,Sardis Credit Opportunities Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1665056,Sierra Total Return Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1561064,Sound Point Floating Rate Income Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+2006100,StepStone Private Credit Income Fund,interval_fund,N-CSR|N-CSRS,2025-09-08,2026-06-02,
+2066799,StepStone Private Equity Strategies Fund,interval_fund,N-CSRS,2025-12-02,2026-06-02,
+1957892,StepStone Private Infrastructure Fund,interval_fund,N-CSR|N-CSRS,2025-12-02,2026-06-02,
+1581005,Stone Ridge Trust II,interval_fund,N-CSR|N-CSRS,2026-01-09,2026-06-02,
+1629071,Stone Ridge Trust III,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1658645,Stone Ridge Trust V,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1764894,Stone Ridge Trust VI,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1939052,Stone Ridge Trust VIII,interval_fund,N-CSR|N-CSRS,2025-10-09,2026-06-02,
+2028436,T Rowe Price OHA Flexible Credit Income Fund,interval_fund,N-CSR|N-CSRS,2025-08-27,2026-06-02,
+2070546,TCG Strategic Income Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+2036272,TCW Private Asset Income Fund,interval_fund,N-CSRS,2025-09-05,2026-06-02,
+1725295,"Tax-Exempt Private Credit Fund, Inc.",interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1854370,Thirdline Real Estate Income Fund,interval_fund,N-CSR|N-CSRS,2025-12-08,2026-06-02,
+1721413,Thrivent Church Loan & Income Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1691570,USQ Core Real Estate Fund,interval_fund,N-CSR|N-CSRS,2025-12-02,2026-06-02,
+1124959,VOYA CREDIT INCOME FUND,interval_fund,N-CSR|N-CSRS,2025-11-10,2026-06-02,
+1736510,Variant Alternative Income Fund,interval_fund,N-CSR|N-CSRS,2026-01-09,2026-06-02,
+2022674,Variant Alternative Lending Fund,interval_fund,N-CSR|N-CSRS,2026-01-09,2026-06-02,
+1881739,Variant Impact Fund,interval_fund,N-CSR|N-CSRS,2026-01-09,2026-06-02,
+1995568,Voya Enhanced Securitized Income Fund,interval_fund,N-CSR|N-CSRS,2025-11-10,2026-06-02,
+1717976,Weiss Strategic Interval Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+2026275,Wellington Global Multi-Strategy Fund,interval_fund,N-CSR|N-CSRS,2026-01-08,2026-06-02,
+1586009,Wildermuth Fund,interval_fund,N-CSR|N-CSRS,2025-03-03,2026-06-02,
+1807334,Wilshire Private Assets Fund,interval_fund,N-CSR|N-CSRS,2025-12-08,2026-06-02,
+1807333,Wilshire Private Assets Master Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+1626974,Winton Diversified Opportunities Fund,interval_fund,N-CSR|N-CSRS,,2026-06-02,discovered via N-23C3 query; no filings downloaded yet
+2042256,iDirect Private Credit Fund,interval_fund,N-CSR|N-CSRS,2025-12-08,2026-06-02,
+2036029,83 Investment Group Income Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-09,2026-06-02,
+1649363,ABS LongShort Strategies Fund,ncsr_fund,N-CSR|N-CSRS,2026-01-02,2026-06-02,
+1862281,ADAMS STREET PRIVATE EQUITY NAVIGATOR FUND LLC,ncsr_fund,N-CSRS,2025-12-01,2026-06-02,
+1169578,AETOS DISTRESSED INVESTMENT STRATEGIES FUND LLC,ncsr_fund,N-CSR|N-CSRS,2025-09-24,2026-06-02,
+1169583,AETOS LONGSHORT STRATEGIES FUND LLC,ncsr_fund,N-CSR|N-CSRS,2025-09-24,2026-06-02,
+1169580,AETOS MULTI-STRATEGY ARBITRAGE FUND LLC,ncsr_fund,N-CSR|N-CSRS,2025-09-24,2026-06-02,
+1709447,AIP Alternative Lending Fund A,ncsr_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1709406,AIP Alternative Lending Fund P,ncsr_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1609211,AMG Pantheon Fund LLC,ncsr_fund,N-CSR|N-CSRS,2025-12-08,2026-06-02,
+1186641,AQ LongShort Strategies Fund LLC,ncsr_fund,N-CSR|N-CSRS,2025-09-05,2026-06-02,
+1506707,AQ Multi-Strategy Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1186643,AQ Technology Fund LLC,ncsr_fund,N-CSR|N-CSRS,2025-09-05,2026-06-02,
+1499947,Agility Multi-Asset Income Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-08,2026-06-02,
+2026675,Align Alternative Access Fund,ncsr_fund,N-CSRS,2025-12-08,2026-06-02,
+1301483,Alpha Core Strategies Fund,ncsr_fund,N-CSR|N-CSRS,2025-11-18,2026-06-02,
+1327228,Alternative Investment Partners Absolute Return Fund,ncsr_fund,N-CSR|N-CSRS,2025-09-03,2026-06-02,
+1978024,Apollo S3 Private Markets Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-01,2026-06-02,
+2039471,Ardian Access LLC,ncsr_fund,N-CSRS,2025-12-08,2026-06-02,
+1876006,Ares Private Markets Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1830974,Aspiriant Capital Appreciation Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1830921,Aspiriant Real Assets Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1811114,BBR ALO Fund LLC,ncsr_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1833936,BlackRock Alpha Strategies Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-03,2026-06-02,
+1816389,BlackRock Private Investments Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-03,2026-06-02,
+1955857,Brookfield Infrastructure Income Fund Inc,ncsr_fund,N-CSR|N-CSRS,2025-09-05,2026-06-02,
+1780338,CPG Vintage Access Fund III LLC,ncsr_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1826222,CPG Vintage Access Fund IV LLC,ncsr_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1876813,CPG Vintage Access Fund V LLC,ncsr_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1953146,CPG Vintage Access Fund VI LLC,ncsr_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+2001323,CPG Vintage Access Fund VII LLC,ncsr_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1279392,CYPRESS CREEK PRIVATE STRATEGIES MASTER FUND L P,ncsr_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1899610,Carlyle AlpInvest Private Markets Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-01,2026-06-02,
+2044519,Coatue Innovative Strategies Fund,ncsr_fund,N-CSRS,2025-09-02,2026-06-02,
+2033620,Coller Private Credit Secondaries,ncsr_fund,N-CSRS,2025-12-04,2026-06-02,
+1969180,Coller Secondaries Private Equity Opportunities Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-04,2026-06-02,
+1918767,Constitution Capital Access Fund LLC,ncsr_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+2045371,Corient Registered Alternatives Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+0001911129,"Crowdstreet Private Equity REIT I, Inc",ncsr_fund,N-CSR|N-CSRS,,2026-06-02,added from Morningstar; mstar category: Private Equity
+0001279394,Cypress Creek Private Strategies Registered Fund,ncsr_fund,N-CSR|N-CSRS,,2026-06-02,added from Morningstar; mstar category: Private Multi-Asset
+0001320688,Cypress Creek Private Strategies Tei Fund,ncsr_fund,N-CSR|N-CSRS,,2026-06-02,added from Morningstar; mstar category: Private Multi-Asset
+0001807272,Delaware Wilshire Private Markets Tender Fund,ncsr_fund,N-CSR|N-CSRS,,2026-06-02,added from Morningstar; mstar category: Private Multi-Asset
+1904800,Destiny Alternative Fund TEI LLC,ncsr_fund,N-CSR|N-CSRS,2025-12-08,2026-06-02,
+0001854919,Dynamic Alternatives Fund,ncsr_fund,N-CSR|N-CSRS,,2026-06-02,added from Morningstar; mstar category: Multistrategy
+1896036,Eagle Point Institutional Income Fund,ncsr_fund,N-CSR|N-CSRS,2025-08-27,2026-06-02,
+1589390,Evanston Multi-Alpha Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-09,2026-06-02,
+1856156,FS MVP Private Markets Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-04,2026-06-02,
+2013732,FT Vest Hedged Equity Income Fund Series A2,ncsr_fund,N-CSR|N-CSRS,2025-09-08,2026-06-02,
+2025933,FT Vest Hedged Equity Income Fund Series A3,ncsr_fund,N-CSR|N-CSRS,2025-09-08,2026-06-02,
+2025934,FT Vest Hedged Equity Income Fund Series A4,ncsr_fund,N-CSRS,2025-09-08,2026-06-02,
+2052961,FT Vest Hedged Equity Income Fund Series B1,ncsr_fund,N-CSRS,2025-09-08,2026-06-02,
+0002067009,FT Vest Hedged Equity Income Fund: Series B2,ncsr_fund,N-CSR,,2026-06-02,added from Morningstar; mstar category: Equity Hedged
+2036648,FT Vest Rising Dividend Achievers Total Return Fund,ncsr_fund,N-CSR|N-CSRS,2025-09-08,2026-06-02,
+2021966,FT Vest Total Return Income Fund Series A2,ncsr_fund,N-CSR|N-CSRS,2025-09-08,2026-06-02,
+2031546,FT Vest Total Return Income Fund Series A3,ncsr_fund,N-CSR|N-CSRS,2025-09-08,2026-06-02,
+2052411,FT Vest Total Return Income Fund Series B1,ncsr_fund,N-CSRS,2025-09-08,2026-06-02,
+0002066984,FT Vest Total Return Income Fund: Series B2,ncsr_fund,N-CSR,,2026-06-02,added from Morningstar; mstar category: Equity Hedged
+1877967,Fairway Private Equity Venture Capital Opportunities Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-09,2026-06-02,
+1677615,Federated Hermes Project Trade Finance Tender Fund,ncsr_fund,N-CSR|N-CSRS,2025-11-24,2026-06-02,
+1957121,Felicitas Private Markets Fund,ncsr_fund,N-CSR|N-CSRS,2025-09-08,2026-06-02,
+1912938,First Trust Private Assets Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1741739,FlowStone Opportunity Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+2008602,Franklin Lexington Private Markets Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-01,2026-06-02,
+1867090,Fundrise Growth Tech Fund LLC,ncsr_fund,N-CSR|N-CSRS,2025-11-24,2026-06-02,
+1475457,GROSVENOR REGISTERED MULTI-STRATEGY FUND TI 1 LLC,ncsr_fund,N-CSR|N-CSRS,2025-12-08,2026-06-02,
+2040278,HL Scope RIC LLC,ncsr_fund,N-CSR|N-CSRS,2025-09-03,2026-06-02,
+1803491,Hamilton Lane Private Assets Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+2041398,Hamilton Lane Private Secondary Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+2020407,HarbourVest Private Investments Fund,ncsr_fund,N-CSRS,2025-12-05,2026-06-02,
+1903070,Hartford Schroders Private Opportunities Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-03,2026-06-02,
+1738008,Hedge Fund Guided Portfolio Solution,ncsr_fund,N-CSR|N-CSRS,2025-12-08,2026-06-02,
+1588474,INFINITY CORE ALTERNATIVE FUND,ncsr_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+2041672,JETSTREAM VENTURE FUND,ncsr_fund,N-CSRS,2025-12-05,2026-06-02,
+1286410,JP MORGAN ACCESS MULTI-STRATEGY FUND LLC,ncsr_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1940499,JPMorgan Private Markets Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-04,2026-06-02,
+1742952,John Hancock GA Mortgage Trust,ncsr_fund,N-CSR|N-CSRS,2025-08-26,2026-06-02,
+1742951,John Hancock GA Senior Loan Trust,ncsr_fund,N-CSR|N-CSRS,2025-08-26,2026-06-02,
+1803958,KKR Real Estate Select Trust Inc,ncsr_fund,N-CSR|N-CSRS,2025-08-27,2026-06-02,
+1987990,KKR US Direct Lending Fund-U Inc,ncsr_fund,N-CSR|N-CSRS,2025-09-03,2026-06-02,
+1788420,Keystone Private Income Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-08,2026-06-02,
+2054995,Lincoln Partners Group Royalty Fund,ncsr_fund,N-CSRS,2025-11-26,2026-06-02,
+1742836,Macquarie Focused Access Fund LLC,ncsr_fund,N-CSR|N-CSRS,2025-12-30,2026-06-02,
+1988855,Manulife Private Credit Plus Fund,ncsr_fund,N-CSR|N-CSRS,2025-08-28,2026-06-02,
+1818105,NB Private Markets Access Fund LLC,ncsr_fund,N-CSR|N-CSRS,2025-11-24,2026-06-02,
+1501376,NB Private Markets Fund II Master LLC,ncsr_fund,N-CSR|N-CSRS,2023-12-08,2026-06-02,
+2029010,North Haven Private Assets Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-02,2026-06-02,
+0002051512,Oaktree Asset-Backed Income Private Fund Inc.,ncsr_fund,N-CSRS,,2026-06-02,added from Morningstar; mstar category: Private Debt - General
+1959353,Oxford Park Income Fund Inc,ncsr_fund,N-CSR|N-CSRS,2025-11-26,2026-06-02,
+0000067590,PGIM Core Government Money Market Fund,ncsr_fund,N-CSR|N-CSRS,,2026-06-02,added from Morningstar; mstar category: -
+1875084,PGIM Private Real Estate Fund Inc,ncsr_fund,N-CSR|N-CSRS,2025-08-29,2026-06-02,
+1991706,Partners Group Growth LLC,ncsr_fund,N-CSR|N-CSRS,2025-12-09,2026-06-02,
+1447247,Partners Group Private Equity Fund LLC,ncsr_fund,N-CSR|N-CSRS,2025-12-09,2026-06-02,
+1682662,Peachtree Alternative Strategies Fund,ncsr_fund,N-CSR|N-CSRS,2026-01-09,2026-06-02,
+1616203,Pomona Investment Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1620515,Princeton Everest Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-09,2026-06-02,
+1554625,Priority Income Fund Inc,ncsr_fund,N-CSR|N-CSRS,2025-08-28,2026-06-02,
+2043597,Private Debt Income Fund,ncsr_fund,N-CSRS,2025-12-09,2026-06-02,
+2044490,SEG Partners LongShort Equity Fund,ncsr_fund,N-CSR|N-CSRS,2026-01-06,2026-06-02,
+1407736,SEI Structured Credit Fund LP,ncsr_fund,N-CSR|N-CSRS,2025-09-04,2026-06-02,
+1181848,SKYBRIDGE OPPORTUNITY FUND,ncsr_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+1520568,Skybridge G II Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-05,2026-06-02,
+2059105,StepStone Private Credit Co-Investment Fund,ncsr_fund,N-CSRS,2025-08-29,2026-06-02,
+1789470,StepStone Private Markets,ncsr_fund,N-CSR|N-CSRS,2025-12-02,2026-06-02,
+1918642,StepStone Private Venture Growth Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-02,2026-06-02,
+2015571,TCW Spirit Direct Lending LLC,ncsr_fund,N-CSR|N-CSRS,2025-09-02,2026-06-02,
+1762229,Yieldstreet Alternative Income Fund Inc,ncsr_fund,N-CSR|N-CSRS,2025-09-04,2026-06-02,
+2023773,iDirect Multi-Strategy Fund LLC,ncsr_fund,N-CSR|N-CSRS,2025-12-08,2026-06-02,
+1606789,iDirect Private Markets Fund,ncsr_fund,N-CSR|N-CSRS,2025-12-08,2026-06-02,
+,26North BDC Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Bank Loan; broad group: Fixed Income
+,5C Lending Partners Corp,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Bank Loan; broad group: Fixed Income
+,AAM/Wilshire Infrastructure Class,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Infrastructure; broad group: Real Assets
+,AB Private Credit Investors Corporation,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Nontraditional Bond; broad group: Fixed Income
+,Ab Commercial Real Estate Private Debt Fund,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - General; broad group: Fixed Income
+,"Andalusian Credit Company, LLC",unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Nontraditional Bond; broad group: Fixed Income
+,Apollo Asset Backed Credit Co LLC,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Securitized Bond - Diversified; broad group: Fixed Income
+,"Apollo IG Core Replacement, L.P.",unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Multisector Bond; broad group: Fixed Income
+,Apollo Origination II (Levered) Capital,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - General; broad group: Fixed Income
+,Apollo Origination II (UL) Capital Trust BDC,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Miscellaneous Allocation; broad group: Allocation
+,"Apollo Realty Income Solutions, Inc.",unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Ares Core Infrastructure Fund,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Infrastructure; broad group: Equity
+,Ares Industrial Real Estate Income Trust Inc.,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Ares REIT Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,"Ares Sports, Media And Entertainment Opportunities LP",unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Multi-Asset; broad group: Allocation
+,Aristotle Pacific Enhanced Clo Income Fund,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Securitized Bond - Focused; broad group: Fixed Income
+,Audax Credit Bdc Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Bank Loan; broad group: Fixed Income
+0001938365,Axxes Private Markets Fund,unknown,,,2026-06-02,added from Morningstar; mstar category: Miscellaneous Sector
+,BC Partners Lending Corp,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Miscellaneous Fixed Income; broad group: Fixed Income
+,"BGO Industrial Real Estate Income Trust, Inc.",unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,BIP Ventures Evergreen BDC,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Large Growth; broad group: Equity
+,Barings Capital Investment Corp,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Bank Loan; broad group: Fixed Income
+,Barings Private Credit Llc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Miscellaneous Fixed Income; broad group: Fixed Income
+,BlackRock Direct Lending Corp,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Miscellaneous Fixed Income; broad group: Fixed Income
+,Blackstone Infrastructure Strategies,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Multi-Asset; broad group: Allocation
+,Blackstone Private Equity Strategies Fund,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Equity; broad group: Equity
+,Blackstone Private Equity Strategies Fund (TE) L.P.,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Equity; broad group: Equity
+,Blackstone Private Real Estate Credit & Income Fund,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Miscellaneous Fixed Income; broad group: Fixed Income
+,Blackstone Real Estate Income Trust Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Blue Owl Digital Infrastructure Trust,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Infrastructure; broad group: Real Assets
+,Blue Owl Real Estate Net Lease Trust,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Brightwood Capital Corp I,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - Direct Lending; broad group: Fixed Income
+,Brookfield Private Equity Fund LP,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Equity; broad group: Equity
+,Brookfield Real Estate Income Trust Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,CCS IX Portfolio Holdings LLC,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Miscellaneous Fixed Income; broad group: Fixed Income
+,CIFC Direct Lending Evergreen Fund,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - Direct Lending; broad group: Fixed Income
+,CIM Real Estate Finance Trust Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,CNL Strategic Capital LLC,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Equity; broad group: Equity
+,CPG Carlyle Commitments Master Fund LLC,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Miscellaneous Sector; broad group: Equity
+,Cantor Fitzgerald Income Trust Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Capital Group KKR U.S. Equity + Fund,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Equity; broad group: Equity
+,Carlyle Credit Solutions Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - Direct Lending; broad group: Fixed Income
+,Ceres Orion L.P.,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: -; broad group: -
+,Ceres Tactical Commodity L.P.,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: -; broad group: -
+,"Cim Opportunity Zone FUND, L.P.",unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Cohen & Steers Income Opportunities REIT Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,"Commonwealth Credit Partners BDC I, Inc",unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Bank Loan; broad group: Fixed Income
+,Copper Property Ctl Pass Through Trust,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Cottonwood Communities Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Crestline Lending Solutions Llc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - Direct Lending; broad group: Fixed Income
+,Diameter Credit Company,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - Direct Lending; broad group: Fixed Income
+,EQT Exeter Real Estate Income Trust Inc.,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Eagle Point Trinity Senior Secured Lending Company,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - Direct Lending; broad group: Fixed Income
+,Emery Partners Income Credit Strategies Fund,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Multistrategy; broad group: Alternative Strategies
+,Eqt Infrastructure Company Llc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Multi-Asset; broad group: Allocation
+,Eqt Private Equity Company Llc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Equity; broad group: Equity
+,ExchangeRight Essential Income REIT,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Real Estate; broad group: Equity
+,Fbred-C Feeder REIT Trust,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - General; broad group: Fixed Income
+,Fortress Credit Realty Income Trust,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - General; broad group: Fixed Income
+,Fortress Net Lease REIT,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Franklin Bsp Capital Corp,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - General; broad group: Fixed Income
+,Franklin Bsp Real Estate Debt,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - General; broad group: Fixed Income
+,"GPB Automotive Portfolio, LP",unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Miscellaneous Sector; broad group: Equity
+,GTJ REIT Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Goldman Sachs Private Credit Corp,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - Direct Lending; broad group: Fixed Income
+,Goldman Sachs Private Middle Market Credit II LLC,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - Direct Lending; broad group: Fixed Income
+,Goldman Sachs Real Estate Finance Trust Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - General; broad group: Fixed Income
+,Golub Capital BDC 4 LLC,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Nontraditional Bond; broad group: Fixed Income
+,Golub Capital Direct Lending LLC,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Bank Loan; broad group: Fixed Income
+,Golub Capital Direct Lending Unlevered Llc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - Direct Lending; broad group: Fixed Income
+,Golub Capital Private Income Fund I,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - Direct Lending; broad group: Fixed Income
+,Golub Capital Private Income Fund S,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - General; broad group: Fixed Income
+,Graham Alternative Investment Fund I Llc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Macro Trading; broad group: Alternative Strategies
+,Graham Alternative Investment Fund II Llc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Macro Trading; broad group: Alternative Strategies
+,Hamilton Lane Credit Income Fund,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - General; broad group: Fixed Income
+,Hamilton Lane Venture Capital and Growth Fund,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Venture Capital; broad group: Equity
+,Hancock Park Corporate Income Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Bank Loan; broad group: Fixed Income
+,Hartman vREIT XXI Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,"Hatteras Core Alternatives Fund, L.P",unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Multistrategy; broad group: Alternative Strategies
+,"Hatteras Core Alternatives Institutional Fund, L.P",unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Multistrategy; broad group: Alternative Strategies
+,"Hatteras Core Alternatives TEI Fund, L.P",unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Multistrategy; broad group: Alternative Strategies
+,"Hatteras Core Alternatives TEI Institutional Fund, L.P",unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Multistrategy; broad group: Alternative Strategies
+,"Hatteras Master Fund, L.P",unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Multistrategy; broad group: Alternative Strategies
+,Highlands REIT Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Hines Global Income Trust Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Hps Corporate Capital Solutions Fund,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - General; broad group: Fixed Income
+,IPC Alternative REIT Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,ISQ Open Infrastructure Co LLC,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Multi-Asset; broad group: Allocation
+,InPoint Commercial Real Estate Income Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Inland Real Estate Income Trust Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Innovation Access Fund,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Venture Capital; broad group: Equity
+,Invesco REIT Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Investcorp US Private Credit BDC II,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - General; broad group: Fixed Income
+,J P Morgan Real Estate Income Trust Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,JLL Income Property Trust Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Jefferies Credit Partners BDC Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Bank Loan; broad group: Fixed Income
+,Junk 1,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Equity; broad group: Equity
+,KKR FS Income Trust,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Bank Loan; broad group: Fixed Income
+,KKR FS Income Trust Select,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Nontraditional Bond; broad group: Fixed Income
+,Kayne Anderson BDC LLC,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - General; broad group: Fixed Income
+,Kayne DL 2021 Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - General; broad group: Fixed Income
+,Kkr Infrastructure Conglomerate Llc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Infrastructure; broad group: Real Assets
+,Kkr Private Equity Conglomerate,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Equity; broad group: Equity
+,Lafayette Square USA Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Miscellaneous Allocation; broad group: Allocation
+,Lago Evergreen Credit,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - Direct Lending; broad group: Fixed Income
+,Lightstone Value Plus REIT I Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Lightstone Value Plus REIT IV Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Lightstone Value Plus Real Estate Investment Trust II Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Lightstone Value Plus Real Estate Investment Trust III Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Locorr Futures Portfolio Fund L.P.,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Macro Trading; broad group: Alternative Strategies
+,Lodging Fund REIT III Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,MSD Investment Corp,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Bank Loan; broad group: Fixed Income
+,"Macquarie Infrastructure Fund, L.P.",unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Infrastructure; broad group: Real Assets
+,Middle Market Apollo Institutional Private Lending,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Bank Loan; broad group: Fixed Income
+,Millburn Multi-Markets Fund L.P.,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Miscellaneous Sector; broad group: Equity
+,Monroe Capital Enhanced Corporate Lending Fund,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Miscellaneous Fixed Income; broad group: Fixed Income
+,Monroe Capital Income Plus Corporation,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Nontraditional Bond; broad group: Fixed Income
+,Moody National REIT II Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Morgan Stanley Private Markets and Alternatives Fund,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Multi-Asset; broad group: Allocation
+,Muzinich Bdc Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Miscellaneous Fixed Income; broad group: Fixed Income
+,Muzinich Corporate Lending Income Fund Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Bank Loan; broad group: Fixed Income
+,NB Crossroads Private Markets Fund IV Holdings,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Equity; broad group: Equity
+,NB Crossroads Private Markets Fund V Holdings,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Equity; broad group: Equity
+,NB Crossroads Private Markets Fund VI Holdings,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Equity; broad group: Equity
+,NB Crossroads Private Markets Fund VII Holdings,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Equity; broad group: Equity
+,Nb Crossroads Private Markets Fund Iv (TE) - Client,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Equity; broad group: Equity
+,Nb Crossroads Private Markets Fund Iv (TI) - Client,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Equity; broad group: Equity
+,Nb Crossroads Private Markets Fund V (TE) Advisory,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Equity; broad group: Equity
+,Nb Crossroads Private Markets Fund V (TI) Advisory,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Equity; broad group: Equity
+,Nb Crossroads Private Markets Fund Vi Advisory,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Equity; broad group: Equity
+,Nb Crossroads Private Markets Fund Vii Advisory,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Equity; broad group: Equity
+,New Mountain Guardian IV Income Fund LLC,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Bank Loan; broad group: Fixed Income
+,New Mountain Guardian Iii Bdc Llc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - General; broad group: Fixed Income
+,New Mountain Net Lease Trust,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,New Mountain Private Credit Fund,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - General; broad group: Fixed Income
+,"Nexpoint Capital, Inc",unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Multi-Asset; broad group: Allocation
+,North Haven Net REIT,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,North Haven Private Income Fund LLC,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Bank Loan; broad group: Fixed Income
+,Nuveen Churchill Bdc V,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - General; broad group: Fixed Income
+,Nuveen Enhanced Corporate Opportunities Fund,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Intermediate Core Bond; broad group: Fixed Income
+,"Nuveen Global Cities REIT, Inc.",unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Oaktree Gardens OLP LLC,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Bank Loan; broad group: Fixed Income
+,Oha Senior Private Lending Fund (U) Llc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - Direct Lending; broad group: Fixed Income
+,Onex Falcon Direct Lending BDC Fund,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Nontraditional Bond; broad group: Fixed Income
+,Overland Advantage,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Bank Loan; broad group: Fixed Income
+,PIMCO Asset-Based Lending Company Llc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - Direct Lending; broad group: Fixed Income
+,PIMCO Capital Solutions Bdc Corp,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Multi-Asset; broad group: Allocation
+,Pacific Oak Strategic Opportunity REIT Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Partners Group Lending Fund,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - Direct Lending; broad group: Fixed Income
+,Partners Group Next Generation Infrastructure Fund,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Infrastructure; broad group: Real Assets
+,PennantPark Private Income Fund,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - General; broad group: Fixed Income
+,Phillip Street Middle Market Lending Fund Llc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - Direct Lending; broad group: Fixed Income
+,Procaccianti Hotel REIT Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,RREEF Property Trust Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Redwood Enhanced Income Corp,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Miscellaneous Fixed Income; broad group: Fixed Income
+,Remora Capital Corporation,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - Direct Lending; broad group: Fixed Income
+,Rithm Perpetual Life Residential Trust,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - General; broad group: Fixed Income
+,SCP Private Credit Income BDC LLC,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Bank Loan; broad group: Fixed Income
+,SL Investment Fund II LLC,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Bank Loan; broad group: Fixed Income
+,SLR HC BDC LLC,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Nontraditional Bond; broad group: Fixed Income
+,SLR Private Credit BDC II LLC,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - Direct Lending; broad group: Fixed Income
+,Sculptor Diversified REIT,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,"Sealy Industrial Partners IV, LP",unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Infrastructure; broad group: Real Assets
+,"Senior Credit Investments, LLC",unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Bank Loan; broad group: Fixed Income
+,Silver Capital Holdings,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - General; broad group: Fixed Income
+,Silver Point Specialty Lending Fund,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Bank Loan; broad group: Fixed Income
+,Sixth Street Lending Partners,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Miscellaneous Allocation; broad group: Allocation
+,Sound Point Direct Lending Bdc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - Direct Lending; broad group: Fixed Income
+,Star Mountain Lower Middle-Market Capital Corp.,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Miscellaneous Allocation; broad group: Allocation
+,Starwood Credit Real Estate Income Trust,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Global Real Estate; broad group: Equity
+,"Starwood Real Estate Income Trust, Inc.",unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Steele Creek Capital Corporation,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Bank Loan; broad group: Fixed Income
+,Stellus Private Credit BDC,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Miscellaneous Sector; broad group: Equity
+,Sterling Real Estate Trust,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Stirling Hotel & Resorts Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Stone Point Capital Credit LLC,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - General; broad group: Fixed Income
+,Stonepeak Plus Infrastructure Fund,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Infrastructure; broad group: Real Assets
+,StratCap Digital Infrastructure REIT,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Strategic Storage Trust VI Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Strategic Student & Senior Housing Trust Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,T Series Middle Market Loan Fund Llc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - General; broad group: Fixed Income
+,TCW Direct Lending VII LLC,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Miscellaneous Fixed Income; broad group: Fixed Income
+,TCW Direct Lending VIII LLC,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - Direct Lending; broad group: Fixed Income
+,The Campbell Fund Trust,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Commodities Broad Basket; broad group: Real Assets
+,Third Point Private Capital Partners,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - Direct Lending; broad group: Fixed Income
+,"Tpg Private Equity Opportunities, L.P.",unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Equity; broad group: Equity
+,TriplePoint Private Venture Credit Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Nontraditional Bond; broad group: Fixed Income
+,Varagon Capital Corporation,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Miscellaneous Allocation; broad group: Allocation
+,Venture Lending & Leasing IX Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Bank Loan; broad group: Fixed Income
+,"VineBrook Homes Trust, Inc",unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Direct Real Estate; broad group: Real Assets
+,Vista Credit Strategic Lending Corp,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Multi-Asset; broad group: Allocation
+,"VistaOne, L.P.",unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Equity; broad group: Equity
+,WTI Fund X Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Debt - Direct Lending; broad group: Fixed Income
+,WTI Fund XI,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Nontraditional Bond; broad group: Fixed Income
+,Warburg Pincus Access Fund,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Equity; broad group: Equity
+,West Bay BDC LLC,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Miscellaneous Fixed Income; broad group: Fixed Income
+,Willow Tree Capital Corporation,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Nontraditional Bond; broad group: Fixed Income
+,X1 Capital Inc,unknown,,,2026-06-02,added from Morningstar (no CIK available); mstar category: Private Equity; broad group: Equity
