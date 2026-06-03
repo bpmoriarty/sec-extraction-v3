@@ -10,7 +10,7 @@ handle many filers with minimal per-filer manual work.
 
 ## Current State
 
-**Phase: Fund universe built. Downloader not yet started.**
+**Phase: Downloader pipeline complete. Initial filing download currently in progress.**
 **Last Session: 2026-06-02**
 
 ### What's Working
@@ -20,13 +20,19 @@ handle many filers with minimal per-filer manual work.
 - `src/fund_universe/enrich_from_mstar.py` — merges Morningstar's 508-fund list
   against universe by CIK (pass 1) then by name (pass 2) → 532 funds total
 - `data/fund_universe.csv` — master fund list, 532 funds
+- `src/downloader/initial_pull.py` — downloads all historical filings since 2016
+  for ~334 funds with CIKs; started 2026-06-02 and currently running
+- `src/downloader/update_pull.py` — periodic check for new filings since each
+  fund's `last_checked` date; ready to use after initial pull completes
+- `README.md` — full setup and usage instructions for the pipeline
 
 ### What's Not Done Yet
-- `initial_pull.py` and `update_pull.py` — paused intentionally, next priority
+- Initial pull still running — final file counts not yet known
 - 198 "unknown" category funds have no CIK — excluded from downloader until
   CIKs are sourced
 - Sub-category labels (unlisted BDC / unlisted REIT / interval fund / tender
   offer fund) not yet applied — waiting for organized Morningstar data
+- Extraction work not yet started
 
 ---
 
@@ -128,18 +134,24 @@ The following are worth adapting into the new codebase:
   until after the downloader is built — classification matters for extraction,
   not for downloading
 - OneDrive requires `--link-mode=copy` for all `uv pip install` commands
+- Form types per category: `interval_fund` → N-CSR, N-CSRS, N-23C3A;
+  `ncsr_fund` → N-CSR, N-CSRS; `bdc`/`reit` → 10-K, 10-Q, SC TO-I
+- 10-year lookback (START_DATE = 2016-01-01) for initial pull
+- `update_pull.py` uses per-fund `last_checked` as the since-date cutoff;
+  falls back to 2016-01-01 if a fund has never been checked
 
 ---
 
 ## Next Steps
 
-1. **Source CIKs** for the 198 "unknown" funds if possible (Morningstar has
+1. **Wait for initial pull to complete** — check file counts, spot-check a few
+   filenames to confirm the naming convention and content look right
+2. **Source CIKs** for the 198 "unknown" funds if possible (Morningstar has
    provided all it has; may need manual lookup or another data source)
-2. **Build `initial_pull.py`** — download all historical filings for funds with
-   CIKs (form types: N-CSR, N-CSRS for interval/ncsr funds; 10-K, 10-Q for BDCs)
-3. **Build `update_pull.py`** — periodic check for new filings since last run
-4. **Apply sub-category labels** when organized Morningstar data is available
-5. **Begin extraction work** — start with one format group end-to-end
+3. **Apply sub-category labels** when organized Morningstar data is available
+   (interval / tender offer / BDC / REIT — matters for extraction, not downloading)
+4. **Begin extraction work** — start with one format group end-to-end, adapting
+   the battle-tested extractors from the old project
 
 ---
 
@@ -147,5 +159,6 @@ The following are worth adapting into the new codebase:
 
 | Date | What Happened |
 |------|---------------|
-| 2026-06-02 | Built fund universe pipeline. `build_universe.py` seeds from existing filenames + queries EDGAR N-23C3A → 324 funds. `enrich_from_mstar.py` merges 508-fund Morningstar list by CIK then by name → 532 funds total. 198 funds have no CIK and are marked "unknown". Downloader not started — paused to commit. |
+| 2026-06-02 (session 2) | Built `initial_pull.py` and `update_pull.py`. `initial_pull.py` started and running — downloads 10 years of filings for ~334 funds (N-CSR/N-CSRS/N-23C3A for interval funds; N-CSR/N-CSRS for ncsr; 10-K/10-Q/SC TO-I for BDCs and REITs). `update_pull.py` ready for periodic use. Added `README.md` with setup and usage docs. Next: wait for initial pull to finish, then begin extraction work. |
+| 2026-06-02 (session 1) | Built fund universe pipeline. `build_universe.py` seeds from existing filenames + queries EDGAR N-23C3A → 324 funds. `enrich_from_mstar.py` merges 508-fund Morningstar list by CIK then by name → 532 funds total. 198 funds have no CIK and are marked "unknown". Downloader not started — paused to commit. |
 | 2026-06-01 | Project started. Read all old code. Created this folder and status file. |
