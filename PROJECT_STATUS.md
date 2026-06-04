@@ -10,8 +10,8 @@ handle many filers with minimal per-filer manual work.
 
 ## Current State
 
-**Phase: Downloader pipeline complete. Initial filing download currently in progress.**
-**Last Session: 2026-06-02**
+**Phase: Downloader complete (7,229 files). Fund categorization (Vehicle Type) applied. Extraction plan locked — ready to begin Phase 0 (schema).**
+**Last Session: 2026-06-03**
 
 ### What's Working
 - Virtual environment set up (`uv venv` inside `sec-extraction-v3/`)
@@ -19,20 +19,30 @@ handle many filers with minimal per-filer manual work.
   queries EDGAR N-23C3A form type → outputs 324 funds (202 interval, 98 ncsr, 24 BDC)
 - `src/fund_universe/enrich_from_mstar.py` — merges Morningstar's 508-fund list
   against universe by CIK (pass 1) then by name (pass 2) → 532 funds total
-- `data/fund_universe.csv` — master fund list, 532 funds
+- `data/fund_universe.csv` — master fund list, **547 funds** (15 added 2026-06-03
+  from the Morningstar categorization workbook; see below)
+- `src/fund_universe/add_vehicle_type.py` — matches funds against the four tabs of
+  `semiliquid fund categorization Mstar.xlsx` (CIK-first, fuzzy-name fallback) and
+  writes a **`vehicle_type`** column plus `mstar_ticker`, `isin`,
+  `morningstar_category`, `us_category_group`, `morningstar_category_broad_group`.
+  Vehicle Type breakdown: Interval Fund 171, Tender Offer Fund 155, Unlisted BDC 73,
+  Unlisted REIT 42, unknown 106
 - `src/downloader/initial_pull.py` — downloads all historical filings since 2016
-  for ~334 funds with CIKs; started 2026-06-02 and currently running
+  for ~334 funds with CIKs; **complete as of 2026-06-03 — 7,229 files downloaded**
 - `src/downloader/update_pull.py` — periodic check for new filings since each
   fund's `last_checked` date; ready to use after initial pull completes
 - `README.md` — full setup and usage instructions for the pipeline
 
 ### What's Not Done Yet
-- Initial pull still running — final file counts not yet known
-- 198 "unknown" category funds have no CIK — excluded from downloader until
-  CIKs are sourced
-- Sub-category labels (unlisted BDC / unlisted REIT / interval fund / tender
-  offer fund) not yet applied — waiting for organized Morningstar data
-- Extraction work not yet started
+- No-CIK funds still excluded from downloader until CIKs are sourced. This now
+  includes the 15 funds added 2026-06-03 (blank CIK + "needs CIK sourcing" note);
+  automated name→CIK lookup via edgartools was tested and found unreliable for
+  these unlisted/private funds, so CIKs must be sourced manually.
+- 106 funds remain `vehicle_type = unknown` (not on any Morningstar tab).
+- Borderline ISIN/ticker: ~5 fuzzy master/feeder name matches (e.g. TCW
+  Spirit←Star) have correct vehicle_type but possibly a sibling entity's
+  ISIN/ticker — not yet reviewed.
+- Extraction work not yet started (plan locked — see "Extraction Plan" below).
 
 ---
 
@@ -133,6 +143,11 @@ The following are worth adapting into the new codebase:
 - Sub-category classification (BDC / REIT / interval / tender offer) deferred
   until after the downloader is built — classification matters for extraction,
   not for downloading
+- Vehicle Type classification source of truth = the 4 tabs of `semiliquid fund
+  categorization Mstar.xlsx` (Interval Funds, Tender Offer Funds, Unlisted BDCs,
+  Unlisted REITs). Stored in the `vehicle_type` column; funds on no tab = "unknown"
+- Confirmed (2026-06-03): edgartools `find_company` / full-text search are
+  unreliable for unlisted/private fund name→CIK lookup → CIKs sourced manually
 - OneDrive requires `--link-mode=copy` for all `uv pip install` commands
 - Form types per category: `interval_fund` → N-CSR, N-CSRS, N-23C3A;
   `ncsr_fund` → N-CSR, N-CSRS; `bdc`/`reit` → 10-K, 10-Q, SC TO-I
@@ -142,16 +157,41 @@ The following are worth adapting into the new codebase:
 
 ---
 
+## Extraction Plan (locked 2026-06-03)
+
+Full plan file: `C:\Users\brian\.claude\plans\while-i-work-on-concurrent-stardust.md`
+
+- **Methodology: Hybrid** — locate financial tables deterministically → extract with
+  Claude → validate with math (the C-rules). For **BDCs, XBRL-first** via edgartools
+  (10-K/10-Q are XBRL-tagged), LLM/HTML as fallback.
+- **Two pipelines, one spine:** BDC (XBRL) and interval-fund (HTML) are different
+  extraction front-ends that share schema, validation, review-queue, and output.
+- **Pilot: BDCs first** (~25 funds). Interval funds are a later, harder phase.
+- **Comprehensive schema** defined first (Phase 0), keyed on **reporting date
+  (period-end)** sourced from EDGAR `period_of_report` / XBRL metadata — NOT the
+  filing date in the filename. A one-time manifest maps file → CIK → both dates.
+- **Accuracy:** hand-checked gold set (~15–25 filings) as the yardstick.
+- **Anomaly policy: flag-and-keep** — only accounting-identity failures are
+  rejected/fixed; reasonableness failures keep the value + raise a review flag.
+- **Validation identities to build:** C1 balance sheet, C2 NAV (with auto unit-error
+  detection), C3 class sums, **4-bucket fair-value sum (L1+L2+L3+NAV-practical-
+  expedient=total)**, **income-statement identity (promoted to Critical)**, **net-asset
+  roll-forward**. Broad reasonableness set (expense ratios, yields, repurchase bands)
+  = future.
+- **Format-routing idea (future, low priority):** filing agent / financial printer
+  (DFIN, Toppan, Broadridge) and auditor as signals for HTML format family.
+
+---
+
 ## Next Steps
 
-1. **Wait for initial pull to complete** — check file counts, spot-check a few
-   filenames to confirm the naming convention and content look right
-2. **Source CIKs** for the 198 "unknown" funds if possible (Morningstar has
-   provided all it has; may need manual lookup or another data source)
-3. **Apply sub-category labels** when organized Morningstar data is available
-   (interval / tender offer / BDC / REIT — matters for extraction, not downloading)
-4. **Begin extraction work** — start with one format group end-to-end, adapting
-   the battle-tested extractors from the old project
+1. ~~**Wait for initial pull to complete**~~ — Done. 7,229 files downloaded 2026-06-03.
+2. ~~**Apply sub-category labels**~~ — Done 2026-06-03. `vehicle_type` column added
+   from the Morningstar categorization workbook.
+3. **Source CIKs** for no-CIK funds (now includes the 15 added 2026-06-03). Manual
+   lookup needed — automated name→CIK confirmed unreliable for these funds.
+4. **Begin extraction — Phase 0 (schema/data dictionary)** per the locked plan above.
+5. *(Optional)* Review borderline ISIN/ticker on the ~5 fuzzy master/feeder matches.
 
 ---
 
@@ -159,6 +199,8 @@ The following are worth adapting into the new codebase:
 
 | Date | What Happened |
 |------|---------------|
+| 2026-06-03 (session 2) | **Categorization + extraction planning.** Confirmed initial pull complete (7,229 files). Built `add_vehicle_type.py` → added `vehicle_type` + Morningstar fields (ISIN, category, etc.) to all funds by CIK-first/name-fallback matching against the 4-tab categorization workbook. Found 18 Morningstar funds unrepresented in the universe; added 15 genuinely-new ones (blank CIK, needs sourcing), skipped 3 as duplicates/feeders. Universe 532 → 547. Separately, **locked the extraction plan** (hybrid XBRL-first BDC pilot; comprehensive schema; gold-set accuracy; flag-and-keep validation; new identity rules incl. 4-bucket fair-value and net-asset roll-forward). |
+| 2026-06-03 (session 1) | Initial pull confirmed complete — 7,229 filings downloaded. |
 | 2026-06-02 (session 2) | Built `initial_pull.py` and `update_pull.py`. `initial_pull.py` started and running — downloads 10 years of filings for ~334 funds (N-CSR/N-CSRS/N-23C3A for interval funds; N-CSR/N-CSRS for ncsr; 10-K/10-Q/SC TO-I for BDCs and REITs). `update_pull.py` ready for periodic use. Added `README.md` with setup and usage docs. Next: wait for initial pull to finish, then begin extraction work. |
 | 2026-06-02 (session 1) | Built fund universe pipeline. `build_universe.py` seeds from existing filenames + queries EDGAR N-23C3A → 324 funds. `enrich_from_mstar.py` merges 508-fund Morningstar list by CIK then by name → 532 funds total. 198 funds have no CIK and are marked "unknown". Downloader not started — paused to commit. |
 | 2026-06-01 | Project started. Read all old code. Created this folder and status file. |
