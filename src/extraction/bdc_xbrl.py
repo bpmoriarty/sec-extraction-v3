@@ -104,9 +104,13 @@ INCOME_CONCEPTS: dict[str, list[str]] = {
                        "us-gaap:InvestmentCompanyExpenseAfterReductionOfFeeWaiverAndReimbursement",
                        "us-gaap:InvestmentIncomeInvestmentExpense"],
     # Income/excise tax — subtracted to reconcile NII (C5). Prefer the GAAP total-tax
-    # line; fall back to the investment-company-specific excise-tax concept.
+    # line; fall back to the investment-company-specific excise-tax concept, then the
+    # combined excise/sales-tax line some filers use (e.g. Crescent). NOTE: this is
+    # refined after the extract loop for filers that split tax into Current + Deferred
+    # (e.g. Oaktree) — see the income_tax refinement below.
     "income_tax_expense": ["us-gaap:IncomeTaxExpenseBenefit",
-                           "us-gaap:InvestmentCompanyExciseTaxExpense"],
+                           "us-gaap:InvestmentCompanyExciseTaxExpense",
+                           "us-gaap:ExciseAndSalesTaxes"],
     "net_investment_income": ["us-gaap:NetInvestmentIncome"],
     "net_realized_gain_loss": [
         "us-gaap:RealizedGainLossInvestmentDerivativeAndForeignCurrencyTransactionPriceChangeOperatingAfterTax",
@@ -396,6 +400,20 @@ def extract_filing(company, filing, cik: str, form: str) -> FilingExtraction:
     inc = IncomeStatement()
     for field, concepts in INCOME_CONCEPTS.items():
         setattr(inc, field, facts.duration_scalar(concepts, target_months))
+    # Income-tax refinement: some filers (e.g. Oaktree) tag a tiny/partial
+    # IncomeTaxExpenseBenefit while the real tax that bridges pre-tax income to NII is
+    # split into Current + Deferred components. When that split exists and is larger,
+    # it is the truer total — use it. (AB, which tags only the combined excise line,
+    # has no Current/Deferred split, so it is left untouched.)
+    ct = facts.duration_scalar(["us-gaap:CurrentIncomeTaxExpenseBenefit"], target_months).value
+    dt = facts.duration_scalar(["us-gaap:DeferredIncomeTaxExpenseBenefit"], target_months).value
+    if ct is not None or dt is not None:
+        split_tax = (ct or 0.0) + (dt or 0.0)
+        cur = inc.income_tax_expense.value
+        if cur is None or abs(split_tax) > abs(cur):
+            inc.income_tax_expense = Fact(value=split_tax, source=Source.XBRL,
+                                          confidence=0.95,
+                                          raw_text="Current + Deferred income tax")
     fees = FeesExpenseSupport()
     for field, concepts in FEE_CONCEPTS.items():
         setattr(fees, field, facts.duration_scalar(concepts, target_months))
