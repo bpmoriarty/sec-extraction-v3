@@ -52,6 +52,15 @@ class Fact(BaseModel):
     raw_text: str | None = None   # the original snippet, for auditing
 
 
+class ValidationCheck(BaseModel):
+    """Result of one validation rule (see src/validation/rules.py)."""
+    rule: str                       # e.g. "C1", "I1"
+    name: str
+    tier: str                       # "identity" | "reasonableness" | "temporal"
+    status: str                     # "pass" | "fail" | "skipped"
+    message: str | None = None
+
+
 class Composition(BaseModel):
     """
     A breakdown map, e.g. {industry_name: fair_value}. Provenance applies to the
@@ -233,6 +242,11 @@ class FilingExtraction(BaseModel):
     # Review queue: human-readable flags from reasonableness/temporal checks.
     # Per the flag-and-keep policy, values are NEVER discarded — concerns land here.
     review_flags: list[str] = Field(default_factory=list)
+
+    # Validation results (populated by src/validation/rules.py).
+    # validation_status: "pass" (no failures) | "review" (>=1 failure) | "not_run".
+    validation_status: str = "not_run"
+    validation_checks: list[ValidationCheck] = Field(default_factory=list)
 
     # Provenance for the extraction run as a whole
     extraction_source_file: str | None = None         # the .htm filename on disk
