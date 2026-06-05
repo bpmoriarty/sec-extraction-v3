@@ -10,7 +10,11 @@ handle many filers with minimal per-filer manual work.
 
 ## Current State
 
-**Phase: Full volume run COMPLETE (295 filings across 24 BDC funds). Results analyzed — failures are concentrated and explainable. Now applying the 2 validation refinements (net-of-waiver expenses + tax-aware C5), which clear ~half the review queue.**
+**Phase: Full volume run COMPLETE + analyzed. C5 validation reworked in 3 independent
+commits (net-of-waiver+tax-aware → tax-capture lever → anchor cross-check); C5 fails went
+107→51 on the first re-run, and the anchor work clears most of the rest (Crescent, Oaktree,
+John Hancock verified). Pending: a 2nd re-run to measure the new clear-rate, then the 3
+structurally-broken filers (First Eagle/Terra/Bain).**
 **Last Session: 2026-06-05 (session 4)**
 
 ### What's Working
@@ -285,17 +289,39 @@ Hard-won quirks discovered while building. Read before extending the extractor.
   combined line are summed — cash = `Cash` + `CashEquivalentsAtCarryingValue` (HPS); debt
   = `LineOfCredit` + `OtherLongTermDebt` + `NotesPayable` (AB Private Lending).
 
-### Pending validation refinements (found 2026-06-05, not yet done)
-1. **Expenses gross vs net of waivers.** Dictionary defines `total_expenses` as net of
-   waivers. For AB the candidate order grabbed the GROSS line (`InvestmentIncomeInvestmentExpense`,
-   5,104,973) but NII uses the NET-of-waiver figure (`InvestmentCompanyExpenseAfterReductionOfFeeWaiverAndReimbursement`,
-   4,584,326). Prefer the net concept — but verify it doesn't shift Blackstone/HPS (which
-   currently pass). The waiver itself is the §11 `expense_support_net` field.
-2. **C5 ignores income tax.** NII = TII − expenses − **tax**. RIC-compliant BDCs have ≈0
-   tax, but funds with excise tax (AB: 44,575) fail C5 by the tax amount. Either extract
-   income tax and make C5 tax-aware, or treat tax-payers as expected flags.
-   (AB C5 currently fails: 8,165,022 − 5,104,973 = 3,060,049 vs NII 3,536,121; the gap =
-   waiver 520,647 + tax 44,575 − reconciles exactly.)
+### C5 validation — evolution & the three independent levers (2026-06-05 session 4)
+
+C5 (NII reconciles) went through three changes this session. **Each is a separate
+commit so any one can be reverted independently** (`git revert <sha>`):
+
+1. **`9918097` — net-of-waiver expenses + tax-aware C5 (OR-logic).** Reordered the
+   `total_expenses` candidates so the net-of-waiver concept beats the GROSS
+   `InvestmentIncomeInvestmentExpense`; added the `income_tax_expense` field; made C5
+   accept whichever of `(TII-exp)` / `(TII-exp-tax)` reconciles (tax is above-NII for AB,
+   below-NII/on-gains for Blackstone). Cleared the AB-style waiver+tax flags. *Original
+   "pending refinements 1 & 2" — now DONE.*
+2. **`f98a7f9` — LEVER 1: tax capture component fix (extractor only).** Some filers
+   (Oaktree) tag a tiny/partial `IncomeTaxExpenseBenefit` while the real tax is split
+   `Current` + `Deferred`; use that sum when larger. Added `ExciseAndSalesTaxes` (Crescent)
+   to the tax candidate list. **Cleared Oaktree 10-K.** *Deliberately did NOT reorder
+   expenses to prefer the net concept over `OperatingExpenses` — diagnosis showed Antares
+   tags `InvestmentCompanyExpenseAfterReductionOfFeeWaiverAndReimbursement`=1.3M (garbage
+   vs ~60M real), so that would BREAK Antares.* **Roll back: `git revert f98a7f9`.**
+3. **`c642efd` — LEVER 2: anchor cross-check (model + extractor + rules).** Recomputing NII
+   from components is fragile for BDCs (expense support, offering-cost amortization,
+   multi-component tax). C5 now also cross-checks NII against the filer's authoritative
+   tagged subtotals — `InvestmentIncomeOperatingAfterExpenseAndTax` and
+   `IncomeLossFromContinuingOperationsBeforeIncomeTaxes − tax` (two new IncomeStatement
+   fields) — and passes if ANY reconciliation holds. **Cleared Crescent, Oaktree 10-Q,
+   John Hancock.** **Roll back: `git revert c642efd`.**
+
+**Safety property of levers 1 & 2:** both only ADD pass paths, so no filing that passed
+C5 before can start failing — verified live on AB/Blackstone/HPS/Apollo (no regressions).
+
+**Known residual:** Antares-style funds (no authoritative anchor tagged + gross-only
+expense concept) still flag C5. Their NII *value* is correct (from `NetInvestmentIncome`);
+the identity just can't self-verify. Flag-and-keep → value retained. This is the
+irreducible long tail, not a data error.
 
 - **Per-filer / dimensional long tail = LLM-fallback territory:** income components &
   total_expenses on some filers; fair-value hierarchy (§6, dimensional + custom `ck...`
@@ -334,7 +360,7 @@ Hard-won quirks discovered while building. Read before extending the extractor.
 
 | Date | What Happened |
 |------|---------------|
-| 2026-06-05 (session 4) | **Full volume run + results analysis.** Ran the extractor over all BDCs × 10 yrs: 295 filings written / 24 funds, 151 review, 126 no_xbrl, 1 error. Diagnosed the buckets: all 126 no_xbrl are pre-inline-XBRL filings (≤2022; only NC SLF has zero XBRL anywhere) — not a bug; recent coverage is complete. Review queue is ~79 cosmetic C5-only flags (waiver/tax) + 16 genuinely-broken extractions in 3 filers (First Eagle, Terra Income 6, Bain) + a NAV/component remainder. The 1 error = Golub 10-Q 2024-12-31 `KeyError('concept')`. Started the 2 validation refinements (net-of-waiver expenses + tax-aware C5). |
+| 2026-06-05 (session 4) | **Full volume run + results analysis + C5 rework.** Ran the extractor over all BDCs × 10 yrs: 295 written / 24 funds, 151 review, 126 no_xbrl, 1 error. Diagnosed buckets: all 126 no_xbrl are pre-2022 (pre-inline-XBRL) filings — not a bug; only NC SLF has zero XBRL anywhere. Review queue = cosmetic C5 flags + 16 genuinely-broken extractions in 3 filers (First Eagle/Terra/Bain) + NAV/component remainder. The 1 error = Golub 10-Q 2024-12-31 `KeyError('concept')`. Applied the 2 refinements (net-of-waiver + tax-aware C5, commit `9918097`); re-ran full → C5 fails 107→51, errors 1→0. Diagnosed the residual 51 across 4 funds (Crescent/Antares/Oaktree/John Hancock): NOT waiver/tax — it's expense support + gross-vs-net expenses + split Current/Deferred tax, and the extracted NII *values* are correct. Added 2 more independent levers: tax-capture fix (`f98a7f9`) + anchor cross-check (`c642efd`). Verified no regressions; clears Crescent/Oaktree/John Hancock, leaves Antares-type (no anchor) as flag-and-keep residual. All pushed. **Pending: 2nd full re-run to measure the new clear-rate.** |
 | 2026-06-05 (session 3) | **Set up the project on the Morningstar corporate machine + synced to GitHub.** Installed git (winget). Cloned the repo. Verified the venv/deps. Smoke-tested the runner (`--max-funds 1 --max-filings 2`) → 0 filings: diagnosed as corporate SSL inspection blocking EDGAR (`CERTIFICATE_VERIFY_FAILED`). Fixed with `configure_http(use_system_certs=True)` after `set_identity()` in all 6 EDGAR-touching scripts (+ rules.py self-test); re-ran smoke test → 4 AB Private Lending filings extracted & validated (balance sheet reconciles; status=review as expected per the known C5 waiver/tax item). Committed (`5f4d321`) and pushed to `origin/master`; set local git identity + upstream tracking. Pandas 3.0.3 noted as a watch item. Next: Brian kicks off the full volume run. |
 | 2026-06-05 (session 2) | **Built the pipeline.** Added `src/validation/rules.py` (C1–C7 + reasonableness, flag-and-keep; missing inputs = skipped) and `src/extraction/run_extraction.py` (resumable runner → per-filing JSON in `data/extracted/`, gitignored). Tested on 2 funds (8 filings written; a new fund, AB Private Lending, extracted & passed — generalization signal). Volume test surfaced 3 coverage gaps, all fixed: combined class members ('SDAndI'), missing total_debt (debt sum fallback), expense concepts (recovered AB + Blackstone). New finding logged: C5 gross-vs-net-of-waiver expenses + income tax (2 pending refinements). Full volume run not yet executed — Brian to kick off. |
 | 2026-06-05 (session 1) | **Built BDC XBRL extractor (`bdc_xbrl.py`), increments 1–5.** Concept-mapped balance sheet, per-class NAV, income statement + components (incl. PIK), fees, investments_at_cost, asset coverage, interest rate, distributions; computed derived metrics. Hand-validated C1/C2/C3/C5/C7 on Apollo/Blackstone/Ares/HPS latest 10-Q. Handled two dimension patterns (share-class, investment-affiliation) and fixed two bugs (affiliation-split income; instant-vs-duration period leakage). Decided to pivot to the pipeline (validation + JSON output + runner) to de-risk time/fund-set/volume coverage before more (harder) XBRL or LLM fallback. See "XBRL learnings" section. |
