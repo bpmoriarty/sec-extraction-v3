@@ -11,15 +11,21 @@ unlisted BDCs, and unlisted REITs).
 ```
 sec-extraction-v3/
 ├── data/
-│   └── fund_universe.csv          # Master list of all known funds + CIKs
+│   └── fund_universe.csv          # Master list of all funds + CIKs + categories
+├── docs/
+│   └── DATA_DICTIONARY.md         # What financial data we extract (the spec)
 ├── src/
 │   ├── fund_universe/
 │   │   ├── build_universe.py      # Step 1: Build the initial fund list
-│   │   └── enrich_from_mstar.py   # Step 2: Merge Morningstar fund list in
-│   └── downloader/
-│       ├── initial_pull.py        # Step 3: Download all historical filings
-│       └── update_pull.py         # Step 4: Check for new filings (run periodically)
-├── United States Semiliquid Funds Mstar.xlsx   # Morningstar input data
+│   │   ├── enrich_from_mstar.py   # Step 2: Merge Morningstar fund list in
+│   │   └── add_vehicle_type.py    # Step 3: Tag funds with Vehicle Type + Mstar data
+│   ├── downloader/
+│   │   ├── initial_pull.py        # Step 4: Download all historical filings
+│   │   └── update_pull.py         # Step 5: Check for new filings (run periodically)
+│   └── schema/
+│       └── models.py              # Typed schema for extracted data (pydantic)
+├── United States Semiliquid Funds Mstar.xlsx       # Morningstar input (universe build)
+├── semiliquid fund categorization Mstar.xlsx       # Morningstar input (vehicle types)
 └── PROJECT_STATUS.md              # Running log of decisions and progress
 ```
 
@@ -95,6 +101,25 @@ uv run python src/fund_universe/enrich_from_mstar.py
 
 ---
 
+### `src/fund_universe/add_vehicle_type.py`
+
+**What it does:**
+Tags each fund with a **Vehicle Type** and copies over Morningstar identifier/category
+data, sourced from the four tabs of `semiliquid fund categorization Mstar.xlsx`
+(Interval Funds, Tender Offer Funds, Unlisted BDCs, Unlisted REITs). Matching is
+CIK-first (where the workbook has a CIK), then fuzzy name match. Funds on no tab get
+`vehicle_type = unknown`. Adds the columns: `vehicle_type`, `mstar_ticker`, `isin`,
+`morningstar_category`, `us_category_group`, `morningstar_category_broad_group`.
+
+**When to run:**
+After the universe exists, and again whenever the categorization workbook is updated.
+
+```bash
+uv run python src/fund_universe/add_vehicle_type.py
+```
+
+---
+
 ### `src/downloader/initial_pull.py`
 
 **What it does:**
@@ -164,14 +189,43 @@ This CSV is the backbone of the whole pipeline. Every script reads from or write
 |---|---|
 | `cik` | 10-digit zero-padded SEC EDGAR identifier. Empty if unknown. |
 | `fund_name` | Full legal name of the fund |
-| `category` | `interval_fund`, `ncsr_fund`, `bdc`, `reit`, or `unknown` |
+| `category` | `interval_fund`, `ncsr_fund`, `bdc`, `reit`, or `unknown` (derived from EDGAR forms/SIC) |
 | `form_types` | Pipe-separated list of forms this fund has been seen filing |
-| `last_filing_date` | Most recent filing date found in our filings folder |
-| `last_checked` | Date this fund was last queried against EDGAR |
+| `last_filing_date` | Most recent filing date found in our filings folder (ISO `YYYY-MM-DD`) |
+| `last_checked` | Date this fund was last queried against EDGAR (ISO `YYYY-MM-DD`) |
 | `notes` | Free-text notes, e.g., data source or quirks |
+| `vehicle_type` | `Interval Fund`, `Tender Offer Fund`, `Unlisted BDC`, `Unlisted REIT`, or `unknown` (from the categorization workbook — see `add_vehicle_type.py`) |
+| `mstar_ticker` | Morningstar ticker, where available |
+| `isin` | ISIN identifier, where available |
+| `morningstar_category` | Morningstar category (e.g. "Private Debt - Direct Lending") |
+| `us_category_group` | Morningstar US category group |
+| `morningstar_category_broad_group` | Morningstar broad group |
 
-**Important:** Always read this file with `dtype={"cik": str}` in pandas, otherwise
-leading zeros in CIKs will be stripped (e.g., `"0001748680"` becomes `1748680`).
+**Important — reading the file:** Always read with `dtype={"cik": str}` in pandas,
+otherwise leading zeros in CIKs are stripped (e.g., `"0001748680"` → `1748680`).
+
+**Important — do NOT open this CSV in Excel and save it.** Excel auto-reformats the
+`last_filing_date` / `last_checked` columns from ISO `YYYY-MM-DD` into US `M/D/YYYY`
+on save, corrupting the format. To view it in a spreadsheet, open a *copy* or import
+it as text. Dates in this file should always be ISO `YYYY-MM-DD`.
+
+---
+
+## Extraction (in progress)
+
+The downloader pipeline above is complete. The next stage — extracting structured
+financial data from the filings — is being built. Its foundation is defined first:
+
+- **`docs/DATA_DICTIONARY.md`** — the spec for every field we collect (balance sheet,
+  per-class NAV, income incl. PIK breakout, fair-value hierarchy, etc.), with units,
+  sources, and the validation rules.
+- **`src/schema/models.py`** — the typed (pydantic) version of that spec, which
+  validates extracted data and will generate the output columns.
+
+For BDCs (the pilot group), data is pulled from structured **XBRL** via `edgartools`;
+interval funds (HTML, no XBRL) are a later phase. See `PROJECT_STATUS.md` and the
+locked plan for details. `pydantic` (used by the schema) ships with `edgartools`, so
+no extra install is needed.
 
 ---
 
