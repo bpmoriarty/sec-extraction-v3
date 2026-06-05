@@ -34,7 +34,7 @@ SCHEMA_DIR = Path(__file__).resolve().parents[1] / "schema"
 sys.path.insert(0, str(SCHEMA_DIR))
 from models import (  # noqa: E402
     BalanceSheet, Fact, FeesExpenseSupport, FilingExtraction, IncomeStatement,
-    ShareClassNAV, Source,
+    PortfolioSummary, ShareClassNAV, Source,
 )
 
 warnings.filterwarnings("ignore")
@@ -101,6 +101,11 @@ INCOME_CONCEPTS: dict[str, list[str]] = {
 FEE_CONCEPTS: dict[str, list[str]] = {
     "management_fee": ["us-gaap:ManagementFeeExpense", "us-gaap:InvestmentCompanyManagementFeeExpense"],
     "incentive_fee": ["us-gaap:IncentiveFeeExpense"],
+}
+
+# Portfolio scalars (Data Dictionary §9) — INSTANT facts.
+PORTFOLIO_SCALAR_CONCEPTS: dict[str, list[str]] = {
+    "investments_at_cost": ["us-gaap:InvestmentOwnedAtCost", "us-gaap:InvestmentOwnedAtCostNet"],
 }
 
 
@@ -300,6 +305,11 @@ def extract_bdc(cik: int | str, form: str = "10-Q") -> FilingExtraction:
         target_months,
     )
 
+    # Portfolio scalars (§9)
+    portfolio = PortfolioSummary()
+    for field, concepts in PORTFOLIO_SCALAR_CONCEPTS.items():
+        setattr(portfolio, field, facts.scalar(concepts))
+
     # Per-share-class NAV (Data Dictionary §3)
     classes = facts.share_classes()
     per_class = {field: facts.per_class(concepts)
@@ -326,11 +336,43 @@ def extract_bdc(cik: int | str, form: str = "10-Q") -> FilingExtraction:
         balance_sheet=bs,
         income_statement=inc,
         fees=fees,
+        portfolio_summary=portfolio,
         share_classes_nav=share_classes_nav,
         accession_no=str(filing.accession_no),
         extraction_source_file=None,
     )
+    compute_derived(extraction)
     return extraction
+
+
+def _ratio(num, den):
+    if num is None or den in (None, 0):
+        return None
+    return num / den
+
+
+def compute_derived(e: FilingExtraction) -> FilingExtraction:
+    """Compute the derived metrics (Data Dictionary §10) that depend only on fields we
+    already extract. Each result is tagged source=COMPUTED. Missing inputs -> empty Fact.
+    Metrics needing not-yet-extracted inputs (distribution coverage, lending spread,
+    liquidity coverage) are left for later increments."""
+    bs, inc, ps, d = e.balance_sheet, e.income_statement, e.portfolio_summary, e.derived
+
+    def mk(v):
+        return Fact(value=v, source=Source.COMPUTED, confidence=0.95) if v is not None else Fact()
+
+    ta, tl = bs.total_assets.value, bs.total_liabilities.value
+    tna, debt, cash = bs.total_net_assets.value, bs.total_debt.value, bs.cash_and_equivalents.value
+    ifv, icost = bs.investments_at_fair_value.value, ps.investments_at_cost.value
+
+    d.leverage_ratio = mk(_ratio(debt, tna))
+    d.net_debt = mk(debt - cash) if (debt is not None and cash is not None) else Fact()
+    # Regulatory-style asset coverage: (assets - non-debt liabilities) / debt
+    if None not in (ta, tl, debt) and debt:
+        d.asset_coverage_pct = mk((ta - (tl - debt)) / debt)
+    d.portfolio_mark = mk(_ratio(ifv, icost))
+    d.pik_income_ratio = mk(_ratio(inc.pik_interest_income.value, inc.total_investment_income.value))
+    return e
 
 
 def _fmt(v) -> str:
@@ -369,6 +411,12 @@ def _coverage(extraction: FilingExtraction) -> None:
         print(f"      C5 income identity (TII-exp vs NII): diff={diff:,.0f}")
     fees = extraction.fees
     print(f"  fees: management={_fmt(fees.management_fee.value)}  incentive={_fmt(fees.incentive_fee.value)}")
+    d = extraction.derived
+    def _r(f): return f"{f.value:,.3f}" if f.value is not None else "(--)"
+    print("Derived metrics:")
+    print(f"  leverage={_r(d.leverage_ratio)}  asset_cov_pct={_r(d.asset_coverage_pct)}  "
+          f"portfolio_mark={_r(d.portfolio_mark)}  pik_ratio={_r(d.pik_income_ratio)}  "
+          f"net_debt={_fmt(d.net_debt.value)}")
     print("Per-share-class (net assets / shares / NAV):")
     for sc in extraction.share_classes_nav:
         na = sc.class_net_assets.value
