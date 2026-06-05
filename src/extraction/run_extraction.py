@@ -25,7 +25,7 @@ import time
 from pathlib import Path
 
 import pandas as pd
-from edgar import set_identity, Company
+from edgar import set_identity, configure_http, Company
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "extraction"))
@@ -60,6 +60,10 @@ def _year(filing) -> int | None:
 
 def run(max_funds=None, max_filings=None, since_year=SINCE_YEAR) -> None:
     set_identity(EDGAR_IDENTITY)
+    # Use the OS (Windows) certificate store so EDGAR requests succeed on
+    # corporate networks that do SSL inspection. Harmless on home networks —
+    # the system store also contains the standard public CAs. See README/SSL notes.
+    configure_http(use_system_certs=True)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     REVIEW_INDEX.parent.mkdir(parents=True, exist_ok=True)
 

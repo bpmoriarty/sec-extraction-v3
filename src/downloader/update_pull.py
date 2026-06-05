@@ -20,7 +20,7 @@ from pathlib import Path
 from datetime import date
 
 import pandas as pd
-from edgar import set_identity, Company
+from edgar import set_identity, configure_http, Company
 
 # Per-machine download progress (NOT tracked in git). See download_state.py for why.
 # This script lives in src/downloader/, so a plain import finds the sibling module.
@@ -117,6 +117,7 @@ def check_fund(fund_name: str, cik: str, category: str,
 
 def update_pull():
     set_identity(EDGAR_IDENTITY)
+    configure_http(use_system_certs=True)  # OS cert store → works behind corporate SSL inspection
     today = date.today().isoformat()
 
     universe = pd.read_csv(UNIVERSE_FILE, dtype={"cik": str})

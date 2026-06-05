@@ -24,7 +24,7 @@ from pathlib import Path
 from datetime import date
 
 import pandas as pd
-from edgar import set_identity, Company
+from edgar import set_identity, configure_http, Company
 
 # Per-machine download progress (NOT tracked in git). See download_state.py for why.
 from download_state import load_state, save_state
@@ -148,6 +148,7 @@ def download_fund(fund_name: str, cik: str, category: str,
 
 def initial_pull():
     set_identity(EDGAR_IDENTITY)
+    configure_http(use_system_certs=True)  # OS cert store → works behind corporate SSL inspection
     today = date.today().isoformat()
 
     # Make sure the filings directory exists

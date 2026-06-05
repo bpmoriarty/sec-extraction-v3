@@ -26,7 +26,7 @@ import warnings
 from pathlib import Path
 
 import pandas as pd
-from edgar import set_identity, Company
+from edgar import set_identity, configure_http, Company
 
 # Import the schema. The project runs scripts directly (no installed package), so we add
 # the schema folder to the path and import from it.
@@ -538,6 +538,7 @@ def _coverage(extraction: FilingExtraction) -> None:
 
 if __name__ == "__main__":
     set_identity(EDGAR_IDENTITY)
+    configure_http(use_system_certs=True)  # OS cert store → works behind corporate SSL inspection
     # Smoke test on Apollo Debt Solutions BDC.
     result = extract_bdc(1837532, form="10-Q")
     _coverage(result)

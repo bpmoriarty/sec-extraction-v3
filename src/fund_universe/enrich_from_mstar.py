@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pandas as pd
 from rapidfuzz import fuzz, process
-from edgar import set_identity, Company
+from edgar import set_identity, configure_http, Company
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -209,6 +209,7 @@ def pass2_name_match(mstar: pd.DataFrame, universe: pd.DataFrame,
 
 def enrich_from_mstar():
     set_identity(EDGAR_IDENTITY)
+    configure_http(use_system_certs=True)  # OS cert store → works behind corporate SSL inspection
 
     # Load files
     # Read CIK as str so pandas doesn't strip the leading zeros

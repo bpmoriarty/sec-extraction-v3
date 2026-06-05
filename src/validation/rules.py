@@ -190,9 +190,10 @@ def summarize(e: FilingExtraction) -> str:
 if __name__ == "__main__":
     # Demo: extract a fund and validate it.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "extraction"))
-    from edgar import set_identity
+    from edgar import set_identity, configure_http
     from bdc_xbrl import extract_bdc
 
     set_identity("brianpmoriarty@gmail.com")
+    configure_http(use_system_certs=True)  # OS cert store → works behind corporate SSL inspection
     for cik in (1837532, 1803498, 1918712, 1838126):
         print(summarize(validate(extract_bdc(cik, form="10-Q"))))

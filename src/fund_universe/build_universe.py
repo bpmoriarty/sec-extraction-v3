@@ -17,7 +17,7 @@ from pathlib import Path
 from datetime import date
 
 import pandas as pd
-from edgar import set_identity, get_filings, Company
+from edgar import set_identity, configure_http, get_filings, Company
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -175,6 +175,7 @@ def lookup_fund_name(cik: str) -> str:
 
 def build_universe():
     set_identity(EDGAR_IDENTITY)
+    configure_http(use_system_certs=True)  # OS cert store → works behind corporate SSL inspection
 
     # ─── Phase 1 ──────────────────────────────────────────────────────────────
     print("\n" + "=" * 60)
