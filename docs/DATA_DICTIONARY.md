@@ -1,12 +1,12 @@
-# SEC Filing Extraction — Data Dictionary (v0.1 DRAFT)
+# SEC Filing Extraction — Data Dictionary (v1)
 
 This is the **what-we-collect** spec. The extraction prompt, the validation rules, and
 the output spreadsheet columns all derive from this document. It is the source of truth;
-`src/schema/models.py` (pydantic) will encode it in code so the two never drift.
+`src/schema/models.py` (pydantic) encodes it in code so the two never drift.
 
-**Status:** v0.1 draft for review. Items marked **[CONFIRM]** are research-judgment calls
-that need Brian's decision before we lock them. Built/validated against the BDC pilot
-(10-K / 10-Q, XBRL) — see `## Source grounding` below.
+**Status:** v1 — locked 2026-06-05 for the BDC pilot (10-K / 10-Q, XBRL). All derived-field
+and scope decisions confirmed. Fields can still be added later as a normal change; the
+interval-fund (N-CSR) phase may extend it.
 
 ---
 
@@ -229,9 +229,7 @@ Tests whether the fund can fund its commitments and whether LPs can actually exi
 1. ~~Derived-field formulas in §10~~ — ✅ Confirmed 2026-06-03.
 2. ~~Financial-highlights ratios as-tagged vs recomputed~~ — ✅ Confirmed 2026-06-03:
    store **as-tagged** from XBRL; recompute only as a cross-check.
-3. **OPEN** — Brian reviewing filings for fields to trim or add:
-   - Any fields above **not** wanted for the pilot (trim scope)?
-   - Anything missing wanted for comparative research?
+3. ~~Trim/add review~~ — ✅ Done 2026-06-05. Dictionary locked at v1.
    - Added 2026-06-05: investment-income components (interest, PIK interest, dividend,
      other) + C7 sum check + pik_income_ratio derived metric.
    - Added 2026-06-05: non-accruals on both bases (investments_at_cost,
