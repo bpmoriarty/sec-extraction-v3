@@ -227,6 +227,32 @@ interval funds (HTML, no XBRL) are a later phase. See `PROJECT_STATUS.md` and th
 locked plan for details. `pydantic` (used by the schema) ships with `edgartools`, so
 no extra install is needed.
 
+### Data flow (extraction → final spreadsheets)
+
+Per-filing JSON is the staging layer / source of truth; the spreadsheet is a derived
+view that can be rebuilt anytime without re-extracting.
+
+```
+  filing  (HTML on disk  /  XBRL fetched from EDGAR)
+      │
+      ▼  [extractor]  — map XBRL facts (LLM fallback) into the schema
+  FilingExtraction object   (pydantic validates structure)
+      │
+      ▼  [validation]  — run C1–C7 + reasonableness; attach results + review_flags
+      │
+      ├─ write  data/extracted/<fund>_<reporting_date>.json    ← one file per filing
+      └─ identity failures →  data/review_queue/
+      │
+      ▼  [assembler]  — read ALL extracted JSONs, pivot
+  spreadsheet(s) in  data/dataset/      ← derived, rebuildable view
+```
+
+Why the JSON layer: crash-safe incremental runs, idempotent re-runs (skip already-
+extracted filings), full auditability (every cell traces to a source filing with its
+provenance + confidence), and decoupling (restructure the spreadsheet without
+re-extracting). Point-in-time fields are keyed on `reporting_date`; flow fields
+(income, distributions) carry `period_start` / `period_months` (3 = quarter, 12 = annual).
+
 ---
 
 ## Notes for New Users

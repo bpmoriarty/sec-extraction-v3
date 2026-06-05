@@ -17,6 +17,13 @@ that need Brian's decision before we lock them. Built/validated against the BDC 
 - **Two grains** (so the output has two natural tables):
   - **fund-period** — one row per filing (balance sheet totals, income, composition).
   - **fund-period-class** — one row per share class within a filing (NAV, shares).
+- **Point-in-time vs flow.** *Snapshot* fields (balance sheet, NAV, composition,
+  non-accruals) are as of `reporting_date` and are directly comparable across 10-K and
+  10-Q. *Flow* fields (income statement, distributions) cover `period_start` →
+  `reporting_date`, with `period_months` = 3 for a 10-Q quarter or 12 for a 10-K year.
+  We capture the filing's **primary period as-reported only** — no 10-Q year-to-date
+  figures; standalone Q4 (annual − 9-mo YTD) and annualized values are derived later in
+  analysis, not at extraction time.
 - **Units** are captured from XBRL ("in thousands" etc.) and normalized to actual dollars
   on the way in; everything stored in the dataset is in **actual dollars / actual shares**.
 - **Every value carries provenance + confidence**: `source` ∈ {`xbrl`, `llm`, `computed`}
@@ -44,7 +51,9 @@ different location) → XBRL-first with LLM/secondary-location fallback.
 | cik | 10-digit zero-padded CIK | metadata |
 | fund_name | Registrant legal name | metadata |
 | form_type | 10-K / 10-Q (pilot); N-CSR/N-CSRS later | metadata |
-| reporting_date | Period-end — the time key | XBRL `period_of_report` |
+| reporting_date | Period-**end** — the time key; snapshot date for point-in-time fields | XBRL `period_of_report` |
+| period_start | Start of the period that **flow** fields cover | XBRL context |
+| period_months | Length of the flow period: 3 (10-Q quarter) or 12 (10-K annual) | derived |
 | filing_date | Date filed (secondary) | metadata |
 | fiscal_period | FY / Q1–Q3 | derived from period |
 | vehicle_type | Unlisted BDC / Interval Fund / … | fund_universe.csv |

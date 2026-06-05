@@ -167,7 +167,16 @@ class FilingExtraction(BaseModel):
     cik: str                                          # 10-digit zero-padded
     fund_name: str
     form_type: str                                    # "10-K" / "10-Q" (pilot)
-    reporting_date: date                              # period-end — the time key
+    # reporting_date is the period-END = the snapshot date for all point-in-time
+    # ("stock") fields: balance sheet, NAV, composition, non-accruals. It is the
+    # dataset's time key.
+    reporting_date: date
+    # period_start / period_months describe the period that FLOW fields cover
+    # (income statement, distributions): for a 10-Q the primary 3-month quarter,
+    # for a 10-K the 12-month year. Captured as-reported (no 10-Q YTD); Q4-standalone
+    # and annualized figures are derived later in analysis, not here.
+    period_start: date | None = None
+    period_months: int | None = None                  # 3 (quarter) or 12 (annual)
     filing_date: date | None = None
     fiscal_period: str | None = None                  # "FY" / "Q1".."Q3"
     vehicle_type: str | None = None                   # from fund_universe.csv
