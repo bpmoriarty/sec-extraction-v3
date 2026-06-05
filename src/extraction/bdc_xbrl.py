@@ -61,8 +61,14 @@ BALANCE_SHEET_CONCEPTS: dict[str, list[str]] = {
         "us-gaap:DebtLongtermAndShorttermCombinedAmount",
         "us-gaap:LongTermDebt",
         "us-gaap:DebtInstrumentCarryingAmount",
+        "us-gaap:Borrowings",
+        "us-gaap:DebtAndCapitalLeaseObligations",
     ],
 }
+
+# When no single combined debt total exists, sum these distinct balance-sheet debt
+# lines (revolver draws + notes). Mirrors the cash sum fallback.
+DEBT_SUM_CONCEPTS = ["us-gaap:LineOfCredit", "us-gaap:OtherLongTermDebt", "us-gaap:NotesPayable"]
 
 # Per-share-class fields (Data Dictionary §3). These come as facts dimensioned by the
 # share-class axis below. First candidate concept that yields classes wins.
@@ -90,7 +96,9 @@ INCOME_CONCEPTS: dict[str, list[str]] = {
     "other_investment_income": ["us-gaap:OtherIncome", "us-gaap:OtherInvestmentIncomeOperating"],
     "total_investment_income": ["us-gaap:GrossInvestmentIncomeOperating",
                                 "us-gaap:InvestmentIncomeOperating", "us-gaap:InvestmentIncomeNet"],
-    "total_expenses": ["us-gaap:OperatingExpenses", "us-gaap:InvestmentCompanyExpensesNet"],
+    "total_expenses": ["us-gaap:OperatingExpenses", "us-gaap:InvestmentCompanyExpensesNet",
+                       "us-gaap:InvestmentIncomeInvestmentExpense",
+                       "us-gaap:InvestmentCompanyExpenseAfterReductionOfFeeWaiverAndReimbursement"],
     "net_investment_income": ["us-gaap:NetInvestmentIncome"],
     "net_realized_gain_loss": [
         "us-gaap:RealizedGainLossInvestmentDerivativeAndForeignCurrencyTransactionPriceChangeOperatingAfterTax",
@@ -294,7 +302,11 @@ class FactSet:
         for tok in ("CommonClass", "Class", "CommonStock", "Common",
                     "Shares", "Share", "Member", "Stock"):
             s = s.replace(tok, "")
-        return s.strip() or None
+        s = s.strip()
+        # Drop combined members like 'SDAndI' ("Class S, D and I") — not a real class.
+        if not s or "and" in s.lower():
+            return None
+        return s
 
     @property
     def _dim_cols(self) -> list[str]:
@@ -366,6 +378,10 @@ def extract_filing(company, filing, cik: str, form: str) -> FilingExtraction:
         bs.cash_and_equivalents = facts.sum_scalar(
             ["us-gaap:Cash", "us-gaap:CashEquivalentsAtCarryingValue"]
         )
+    # Debt fallback: filers reporting revolver + notes separately (e.g. AB Private
+    # Lending) instead of one combined debt line -> sum the components.
+    if bs.total_debt.value is None:
+        bs.total_debt = facts.sum_scalar(DEBT_SUM_CONCEPTS)
 
     # Income statement (§4) + fees (§11) — duration facts for the primary period
     target_months = 12 if form == "10-K" else 3
