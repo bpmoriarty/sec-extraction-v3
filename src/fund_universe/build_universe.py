@@ -175,7 +175,6 @@ def lookup_fund_name(cik: str) -> str:
 
 def build_universe():
     set_identity(EDGAR_IDENTITY)
-    today = date.today().isoformat()
 
     # ─── Phase 1 ──────────────────────────────────────────────────────────────
     print("\n" + "=" * 60)
@@ -221,7 +220,6 @@ def build_universe():
             "category": category,
             "form_types": "|".join(form_types),
             "last_filing_date": info["last_filing_date"],
-            "last_checked": today,
             "notes": "",
         })
         print(f"  {cik}  {category:<18}  {info['fund_name'][:55]}")
@@ -245,7 +243,6 @@ def build_universe():
             # These form types are an educated guess — will be confirmed when we download
             "form_types": "N-CSR|N-CSRS",
             "last_filing_date": "",
-            "last_checked": today,
             "notes": "discovered via N-23C3 query; no filings downloaded yet",
         })
         print(f"  Added: {cik}  {fund_name}")
@@ -257,7 +254,7 @@ def build_universe():
 
     df = pd.DataFrame(rows, columns=[
         "cik", "fund_name", "category", "form_types",
-        "last_filing_date", "last_checked", "notes"
+        "last_filing_date", "notes"
     ])
     # Sort so it's easy to review: category first, then alphabetically by name
     df = df.sort_values(["category", "fund_name"]).reset_index(drop=True)

@@ -13,3 +13,7 @@ Thumbs.db
 # Generated extraction output (regenerable from filings via run_extraction.py)
 data/extracted/
 data/review_queue/
+
+# Per-machine download progress (last_checked per fund). Local, NOT shared across
+# machines on purpose — see src/downloader/download_state.py for why.
+data/download_state.csv

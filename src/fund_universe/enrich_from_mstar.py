@@ -15,7 +15,6 @@ Run with: uv run python src/fund_universe/enrich_from_mstar.py
 
 import re
 import time
-from datetime import date
 from pathlib import Path
 
 import pandas as pd
@@ -108,7 +107,7 @@ def determine_category(cik: str) -> tuple[str, str]:
 
 # ── Pass 1: CIK-based matching ────────────────────────────────────────────────
 
-def pass1_cik_match(mstar: pd.DataFrame, universe: pd.DataFrame, today: str):
+def pass1_cik_match(mstar: pd.DataFrame, universe: pd.DataFrame):
     """
     For the 198 Morningstar rows that have a CIK, check which are already
     in fund_universe and which are genuinely new.
@@ -140,7 +139,6 @@ def pass1_cik_match(mstar: pd.DataFrame, universe: pd.DataFrame, today: str):
             "category": category,
             "form_types": form_types,
             "last_filing_date": "",
-            "last_checked": today,
             "notes": f"added from Morningstar; mstar category: {row['Morningstar Category']}",
         })
 
@@ -150,7 +148,7 @@ def pass1_cik_match(mstar: pd.DataFrame, universe: pd.DataFrame, today: str):
 # ── Pass 2: Name-based matching (no-CIK rows) ─────────────────────────────────
 
 def pass2_name_match(mstar: pd.DataFrame, universe: pd.DataFrame,
-                     existing_ciks: set, today: str):
+                     existing_ciks: set):
     """
     For the 310 Morningstar rows without a CIK, fuzzy-match Fund Legal Name
     against fund_universe fund_name.
@@ -197,7 +195,6 @@ def pass2_name_match(mstar: pd.DataFrame, universe: pd.DataFrame,
             "category": "unknown",
             "form_types": "",
             "last_filing_date": "",
-            "last_checked": today,
             "notes": (
                 f"added from Morningstar (no CIK available); "
                 f"mstar category: {row['Morningstar Category']}; "
@@ -212,7 +209,6 @@ def pass2_name_match(mstar: pd.DataFrame, universe: pd.DataFrame,
 
 def enrich_from_mstar():
     set_identity(EDGAR_IDENTITY)
-    today = date.today().isoformat()
 
     # Load files
     # Read CIK as str so pandas doesn't strip the leading zeros
@@ -236,7 +232,7 @@ def enrich_from_mstar():
     print("=" * 60)
     print("PASS 1: CIK-based matching")
     print("=" * 60)
-    new_from_cik = pass1_cik_match(mstar, universe, today)
+    new_from_cik = pass1_cik_match(mstar, universe)
 
     # Add pass-1 new funds to the universe before pass 2 so we don't double-add
     if new_from_cik:
@@ -250,7 +246,7 @@ def enrich_from_mstar():
     print("\n" + "=" * 60)
     print("PASS 2: Name-based matching (no-CIK rows)")
     print("=" * 60)
-    new_from_name, unmatched_detail = pass2_name_match(mstar, universe, existing_ciks, today)
+    new_from_name, unmatched_detail = pass2_name_match(mstar, universe, existing_ciks)
 
     # ── Summary & save ────────────────────────────────────────────────────────
     print("\n" + "=" * 60)
@@ -266,7 +262,7 @@ def enrich_from_mstar():
 
     all_new = pd.DataFrame(new_from_cik + new_from_name, columns=[
         "cik", "fund_name", "category", "form_types",
-        "last_filing_date", "last_checked", "notes"
+        "last_filing_date", "notes"
     ])
 
     # Re-load original to do a clean append (universe may have been modified above)

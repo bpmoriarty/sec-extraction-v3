@@ -4,9 +4,12 @@ update_pull.py — Check for and download new filings for all funds in fund_univ
 For each fund with a CIK, queries EDGAR for filings filed AFTER that fund's
 last_checked date. Downloads anything new, then updates last_checked to today.
 
+last_checked is per-MACHINE download progress and lives in data/download_state.csv
+(gitignored), NOT in fund_universe.csv. See download_state.py for the cross-machine
+reasoning. A fresh machine has no state file, so it queries the full history and
+downloads everything (re-downloads are skipped by the on-disk check).
+
 Run this periodically (e.g., once a month) to keep the filings folder current.
-After the initial_pull.py run completes, last_checked is set for every fund,
-so subsequent update runs will only look at the most recent window.
 
 Run with: uv run python src/downloader/update_pull.py
 """
@@ -18,6 +21,10 @@ from datetime import date
 
 import pandas as pd
 from edgar import set_identity, Company
+
+# Per-machine download progress (NOT tracked in git). See download_state.py for why.
+# This script lives in src/downloader/, so a plain import finds the sibling module.
+from download_state import load_state, save_state
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -123,6 +130,9 @@ def update_pull():
         universe["category"].isin(downloadable_categories)
     ].copy()
 
+    # Load THIS machine's download progress (cik -> last_checked). Empty on a fresh clone.
+    state = load_state()
+
     print("=" * 60)
     print("UPDATE PULL — Check for new SEC filings")
     print("=" * 60)
@@ -138,10 +148,10 @@ def update_pull():
         fund_name = row["fund_name"]
         category = row["category"]
 
-        # Use last_checked as the since-date cutoff.
-        # If the fund was never checked (empty or NaN), fall back to DEFAULT_START_DATE.
-        raw = str(row.get("last_checked", "")).strip()
-        since_date = raw if (raw and raw != "nan") else DEFAULT_START_DATE
+        # Use this machine's last_checked (from the local state file) as the since-date
+        # cutoff. If this machine has never checked this fund, fall back to the default.
+        raw = state.get(cik, "").strip()
+        since_date = raw if raw else DEFAULT_START_DATE
 
         print(f"[{i}/{len(to_process)}] {fund_name}  (since {since_date})")
 
@@ -154,9 +164,10 @@ def update_pull():
         else:
             print(f"  -> up to date")
 
-        # Update last_checked to today and save after every fund
-        universe.loc[df_idx, "last_checked"] = today
-        universe.to_csv(UNIVERSE_FILE, index=False)
+        # Record progress for THIS fund on THIS machine, and save after every fund so a
+        # crash mid-run keeps what we've done. We no longer touch fund_universe.csv here.
+        state[cik] = today
+        save_state(state)
 
         print()
 

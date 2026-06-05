@@ -6,7 +6,7 @@ For each fund that has a CIK, this script:
   2. Downloads the HTML for each filing
   3. Saves it to the shared filings/ folder using the standard naming convention
   4. Skips any file that already exists (safe to interrupt and re-run)
-  5. Updates last_checked in fund_universe.csv after each fund
+  5. Records last_checked in data/download_state.csv (per-machine, gitignored) after each fund
 
 Forms downloaded per category:
   interval_fund  ->  N-CSR, N-CSRS, N-23C3A
@@ -25,6 +25,9 @@ from datetime import date
 
 import pandas as pd
 from edgar import set_identity, Company
+
+# Per-machine download progress (NOT tracked in git). See download_state.py for why.
+from download_state import load_state, save_state
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -150,6 +153,9 @@ def initial_pull():
     # Make sure the filings directory exists
     FILINGS_DIR.mkdir(parents=True, exist_ok=True)
 
+    # This machine's download progress (cik -> last_checked). Empty on a fresh clone.
+    state = load_state()
+
     # ── Load fund universe ──
     # Read CIK as string so pandas doesn't strip leading zeros
     # (e.g., "0001748680" would become integer 1748680 if read without dtype)
@@ -205,12 +211,11 @@ def initial_pull():
         total_downloaded += downloaded
         total_skipped += skipped
 
-        # Mark this fund as checked today
-        universe.loc[df_idx, "last_checked"] = today
-
-        # Save the updated universe after every fund — if the script crashes,
-        # we won't lose progress on funds already processed
-        universe.to_csv(UNIVERSE_FILE, index=False)
+        # Mark this fund as checked today, in THIS machine's local state file.
+        # Save after every fund — if the script crashes, we keep progress so far.
+        # (We no longer write last_checked into fund_universe.csv.)
+        state[cik] = today
+        save_state(state)
 
         print(f"  -> {downloaded} new, {skipped} already existed")
         print()
