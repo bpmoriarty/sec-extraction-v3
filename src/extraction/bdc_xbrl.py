@@ -96,9 +96,17 @@ INCOME_CONCEPTS: dict[str, list[str]] = {
     "other_investment_income": ["us-gaap:OtherIncome", "us-gaap:OtherInvestmentIncomeOperating"],
     "total_investment_income": ["us-gaap:GrossInvestmentIncomeOperating",
                                 "us-gaap:InvestmentIncomeOperating", "us-gaap:InvestmentIncomeNet"],
+    # Dictionary defines total_expenses NET of fee waivers (NII is computed off the net
+    # figure). Candidate order = net concepts first; the GROSS line
+    # (InvestmentIncomeInvestmentExpense) is the LAST resort so a filer that tags both
+    # gross + net (e.g. AB Private Lending) picks the net one and C5 reconciles.
     "total_expenses": ["us-gaap:OperatingExpenses", "us-gaap:InvestmentCompanyExpensesNet",
-                       "us-gaap:InvestmentIncomeInvestmentExpense",
-                       "us-gaap:InvestmentCompanyExpenseAfterReductionOfFeeWaiverAndReimbursement"],
+                       "us-gaap:InvestmentCompanyExpenseAfterReductionOfFeeWaiverAndReimbursement",
+                       "us-gaap:InvestmentIncomeInvestmentExpense"],
+    # Income/excise tax — subtracted to reconcile NII (C5). Prefer the GAAP total-tax
+    # line; fall back to the investment-company-specific excise-tax concept.
+    "income_tax_expense": ["us-gaap:IncomeTaxExpenseBenefit",
+                           "us-gaap:InvestmentCompanyExciseTaxExpense"],
     "net_investment_income": ["us-gaap:NetInvestmentIncome"],
     "net_realized_gain_loss": [
         "us-gaap:RealizedGainLossInvestmentDerivativeAndForeignCurrencyTransactionPriceChangeOperatingAfterTax",
@@ -515,8 +523,9 @@ def _coverage(extraction: FilingExtraction) -> None:
         print(f"      C7 components sum vs total: diff={diff:,.0f}")
     if (inc.total_investment_income.value is not None and inc.total_expenses.value is not None
             and inc.net_investment_income.value is not None):
-        diff = (inc.total_investment_income.value - inc.total_expenses.value) - inc.net_investment_income.value
-        print(f"      C5 income identity (TII-exp vs NII): diff={diff:,.0f}")
+        tax = inc.income_tax_expense.value or 0.0
+        diff = (inc.total_investment_income.value - inc.total_expenses.value - tax) - inc.net_investment_income.value
+        print(f"      C5 income identity (TII-exp-tax vs NII): diff={diff:,.0f} (tax={tax:,.0f})")
     fees = extraction.fees
     print(f"  fees: management={_fmt(fees.management_fee.value)}  incentive={_fmt(fees.incentive_fee.value)}")
     d = extraction.derived

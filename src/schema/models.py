@@ -93,6 +93,11 @@ class IncomeStatement(BaseModel):                    # Data Dictionary §4
     other_investment_income: Fact = Field(default_factory=Fact)
     total_investment_income: Fact = Field(default_factory=Fact)
     total_expenses: Fact = Field(default_factory=Fact)
+    # Income tax / excise tax sits between income-before-tax and NII:
+    # NII = total_investment_income - total_expenses - income_tax_expense. RIC-compliant
+    # BDCs are ~tax-free (this is None/0), but funds paying excise tax (e.g. AB Private
+    # Lending) need it for the C5 identity to reconcile. See validation rule C5.
+    income_tax_expense: Fact = Field(default_factory=Fact)
     net_investment_income: Fact = Field(default_factory=Fact)
     net_realized_gain_loss: Fact = Field(default_factory=Fact)
     net_change_unrealized: Fact = Field(default_factory=Fact)

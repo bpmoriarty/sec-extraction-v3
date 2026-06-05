@@ -99,14 +99,25 @@ def validate(e: FilingExtraction) -> FilingExtraction:
             None if status == "pass" else f"L1+L2+L3+NAV {s:,.0f} != total {tot:,.0f}")
 
     # ── C5: income identity (identity) ───────────────────────────────────────
+    # NII = total investment income - total expenses (net of waivers), with income/excise
+    # tax sometimes subtracted. The catch: `IncomeTaxExpenseBenefit` means different things
+    # by filer — for AB Private Lending the excise tax sits ABOVE NII (must subtract);
+    # for Blackstone it's tax on realized GAINS, BELOW NII (must NOT subtract). So accept
+    # whichever form reconciles: (TII-exp) OR (TII-exp-tax). tax defaults to 0 (no-tax
+    # filers behave exactly as before — backward-compatible).
     tii, exp, nii = v(inc.total_investment_income, inc.total_expenses, inc.net_investment_income)
+    tax = inc.income_tax_expense.value or 0.0
     if None in (tii, exp, nii):
-        add("C5", "NII = income - expenses", "identity", "skipped", "missing inputs")
+        add("C5", "NII = income - expenses (+/- tax)", "identity", "skipped", "missing inputs")
     else:
-        diff = (tii - exp) - nii
-        status = "pass" if abs(diff) <= _tol(tii) else "fail"
-        add("C5", "NII = income - expenses", "identity", status,
-            None if status == "pass" else f"TII-exp {tii - exp:,.0f} != NII {nii:,.0f}")
+        pre_tax_diff = (tii - exp) - nii
+        post_tax_diff = (tii - exp - tax) - nii
+        tol = _tol(tii)
+        status = "pass" if min(abs(pre_tax_diff), abs(post_tax_diff)) <= tol else "fail"
+        tax_note = f"; with tax {tii - exp - tax:,.0f}" if tax else ""
+        add("C5", "NII = income - expenses (+/- tax)", "identity", status,
+            None if status == "pass"
+            else f"TII-exp {tii - exp:,.0f}{tax_note} != NII {nii:,.0f}")
 
     # ── C6: net-asset roll-forward (identity) — ready for when §5 extracts ────
     soc = e.statement_of_changes

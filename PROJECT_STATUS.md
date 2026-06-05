@@ -10,8 +10,8 @@ handle many filers with minimal per-filer manual work.
 
 ## Current State
 
-**Phase: Pipeline built end-to-end (extractor → validation → per-filing JSON via a resumable runner). Now set up & verified on a second (Morningstar corporate) machine; repo synced to GitHub. Pending: full volume run (Brian to kick off) + 2 validation refinements.**
-**Last Session: 2026-06-05 (session 3)**
+**Phase: Full volume run COMPLETE (295 filings across 24 BDC funds). Results analyzed — failures are concentrated and explainable. Now applying the 2 validation refinements (net-of-waiver expenses + tax-aware C5), which clear ~half the review queue.**
+**Last Session: 2026-06-05 (session 4)**
 
 ### What's Working
 - Virtual environment set up (`uv venv` inside `sec-extraction-v3/`)
@@ -72,6 +72,36 @@ handle many filers with minimal per-filer manual work.
 - `src/schema/models.py` — pydantic schema mirroring the data dictionary; every value
   wrapped in a `Fact` (value + source xbrl/llm/computed + confidence). Validates and
   round-trips (`uv run python src/schema/models.py`).
+
+### Full Volume Run Results (2026-06-05 session 4)
+
+Ran `run_extraction.py` (no limits) over all BDCs × 10 years. Run summary:
+`written 295 | skipped 8 | review 151 | no_xbrl 126 | errors 1`. **24 BDC funds**
+produced output. Analysis of `data/extracted/` + `_errors.log` + `review_queue/index.txt`:
+
+- **126 `no_xbrl` are NOT a bug — they are pre-inline-XBRL filings.** Every single
+  failed filing is dated **2022 or earlier**; each fund extracts cleanly from the point
+  it began tagging inline XBRL (Blackstone 2022-06+, Apollo 2023-03+, HPS 2022-12+) and
+  fails only on its earliest filings. **Only 1 of 24 funds (NC SLF Inc, CIK 0001844684)
+  has zero XBRL anywhere**; the other 13 are partial (early-life only). → recent-data
+  XBRL coverage is essentially complete; the historical gap is LLM/HTML-fallback territory.
+- **The review queue (151) is two very different populations:**
+  - **~79 filings flag *only* C5 NII** — the known gross-vs-net-of-waiver + excise-tax
+    issue. Values are correct; the identity check is naïve. **The 2 refinements below
+    clear these.**
+  - **16 filings are *structurally broken*** (C1 balance-sheet off by hundreds of
+    millions, negative net assets, negative computed NAV) — concentrated in **3 filers**:
+    First Eagle Private Credit (CIK 0001890107, ~8+7), Terra Income Fund 6 (0001577134,
+    ~5), Bain Capital Private Credit (0001899017, ~3). Per-filer concept-mapping misses —
+    the long tail. **These are the only wrong *values*** and are the next fix after the refinements.
+  - Remainder: NAV mismatch / income-component-sum / NAV-range flags (mix of cosmetic + real).
+- **The 1 real `error`:** Golub Capital Private Credit Fund 10-Q 2024-12-31 →
+  `KeyError('concept')` — a *recent* filing whose XBRL facts dataframe lacks the expected
+  `concept` column. One filing; genuine bug to investigate.
+- **Code observations:** `extract_filing` ([bdc_xbrl.py:365-368]) accesses `xbrl.facts`
+  where `filing.xbrl()` can be `None`; the runner reclassifies the resulting
+  `AttributeError` as `no_xbrl` by string-matching `"NoneType"` — works, but a
+  `if xbrl is None:` guard would be cleaner.
 
 ### What's Not Done Yet
 - No-CIK funds still excluded from downloader until CIKs are sourced. This now
@@ -288,11 +318,12 @@ Hard-won quirks discovered while building. Read before extending the extractor.
    Working" + "XBRL learnings"). Core financials extract & hand-validate on 4 funds.
 6. ~~**Pipeline:** validation + JSON output + resumable runner~~ — Done 2026-06-05.
    Surfaced coverage fixes (class junk, debt sum, expense concepts) also applied.
-7. **Full volume run (Brian to kick off):** `uv run python src/extraction/run_extraction.py`
-   (no limits) over all BDCs × 10 years → the coverage/failure distribution that tells us
-   what to fix next. Long-running (network-bound). Then analyze `data/extracted/`.
-8. **Two validation refinements** (see "Pending validation refinements" above): prefer
-   net-of-waiver expenses; make C5 tax-aware.
+7. ~~**Full volume run**~~ — Done 2026-06-05 session 4. 295 filings / 24 funds. Results
+   analyzed (see "Full Volume Run Results" above): failures concentrated and explainable.
+8. **Two validation refinements** (IN PROGRESS, session 4 — see "Pending validation
+   refinements"): prefer net-of-waiver expenses; make C5 tax-aware. Clears ~79 review flags.
+   After: fix the 3 structurally-broken filers (First Eagle / Terra / Bain) and the Golub
+   `KeyError`, then re-run (resumable — only re-does fixed filings).
 9. **After that:** harder XBRL (fair value C4, roll-forward C6, composition) and/or LLM
    fallback, informed by the volume run; then gold-standard set + spreadsheet assembler.
 8. *(Optional)* Review borderline ISIN/ticker on the ~5 fuzzy master/feeder matches.
@@ -303,6 +334,7 @@ Hard-won quirks discovered while building. Read before extending the extractor.
 
 | Date | What Happened |
 |------|---------------|
+| 2026-06-05 (session 4) | **Full volume run + results analysis.** Ran the extractor over all BDCs × 10 yrs: 295 filings written / 24 funds, 151 review, 126 no_xbrl, 1 error. Diagnosed the buckets: all 126 no_xbrl are pre-inline-XBRL filings (≤2022; only NC SLF has zero XBRL anywhere) — not a bug; recent coverage is complete. Review queue is ~79 cosmetic C5-only flags (waiver/tax) + 16 genuinely-broken extractions in 3 filers (First Eagle, Terra Income 6, Bain) + a NAV/component remainder. The 1 error = Golub 10-Q 2024-12-31 `KeyError('concept')`. Started the 2 validation refinements (net-of-waiver expenses + tax-aware C5). |
 | 2026-06-05 (session 3) | **Set up the project on the Morningstar corporate machine + synced to GitHub.** Installed git (winget). Cloned the repo. Verified the venv/deps. Smoke-tested the runner (`--max-funds 1 --max-filings 2`) → 0 filings: diagnosed as corporate SSL inspection blocking EDGAR (`CERTIFICATE_VERIFY_FAILED`). Fixed with `configure_http(use_system_certs=True)` after `set_identity()` in all 6 EDGAR-touching scripts (+ rules.py self-test); re-ran smoke test → 4 AB Private Lending filings extracted & validated (balance sheet reconciles; status=review as expected per the known C5 waiver/tax item). Committed (`5f4d321`) and pushed to `origin/master`; set local git identity + upstream tracking. Pandas 3.0.3 noted as a watch item. Next: Brian kicks off the full volume run. |
 | 2026-06-05 (session 2) | **Built the pipeline.** Added `src/validation/rules.py` (C1–C7 + reasonableness, flag-and-keep; missing inputs = skipped) and `src/extraction/run_extraction.py` (resumable runner → per-filing JSON in `data/extracted/`, gitignored). Tested on 2 funds (8 filings written; a new fund, AB Private Lending, extracted & passed — generalization signal). Volume test surfaced 3 coverage gaps, all fixed: combined class members ('SDAndI'), missing total_debt (debt sum fallback), expense concepts (recovered AB + Blackstone). New finding logged: C5 gross-vs-net-of-waiver expenses + income tax (2 pending refinements). Full volume run not yet executed — Brian to kick off. |
 | 2026-06-05 (session 1) | **Built BDC XBRL extractor (`bdc_xbrl.py`), increments 1–5.** Concept-mapped balance sheet, per-class NAV, income statement + components (incl. PIK), fees, investments_at_cost, asset coverage, interest rate, distributions; computed derived metrics. Hand-validated C1/C2/C3/C5/C7 on Apollo/Blackstone/Ares/HPS latest 10-Q. Handled two dimension patterns (share-class, investment-affiliation) and fixed two bugs (affiliation-split income; instant-vs-duration period leakage). Decided to pivot to the pipeline (validation + JSON output + runner) to de-risk time/fund-set/volume coverage before more (harder) XBRL or LLM fallback. See "XBRL learnings" section. |
