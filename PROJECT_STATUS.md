@@ -10,8 +10,8 @@ handle many filers with minimal per-filer manual work.
 
 ## Current State
 
-**Phase: Downloader complete (7,229 files). Fund categorization (Vehicle Type) applied. Extraction plan locked — ready to begin Phase 0 (schema).**
-**Last Session: 2026-06-03**
+**Phase: Extraction Phase 0 complete (data dictionary + pydantic schema). Next: Phase 1/2 — BDC XBRL extractor + gold-standard set.**
+**Last Session: 2026-06-04**
 
 ### What's Working
 - Virtual environment set up (`uv venv` inside `sec-extraction-v3/`)
@@ -32,6 +32,14 @@ handle many filers with minimal per-filer manual work.
 - `src/downloader/update_pull.py` — periodic check for new filings since each
   fund's `last_checked` date; ready to use after initial pull completes
 - `README.md` — full setup and usage instructions for the pipeline
+- `docs/DATA_DICTIONARY.md` — the **what-we-collect spec** (Extraction Phase 0).
+  Grounded in a 2026-06-04 XBRL spike on Apollo/Blackstone/Ares/HPS 10-Qs that
+  confirmed balance sheet (incl. per-class NAV/shares), income, statement of changes,
+  financial highlights, fair-value hierarchy, and schedule of investments are all
+  tagged. Derived-field formulas confirmed; holdings = summary now / detail later.
+- `src/schema/models.py` — pydantic schema mirroring the data dictionary; every value
+  wrapped in a `Fact` (value + source xbrl/llm/computed + confidence). Validates and
+  round-trips (`uv run python src/schema/models.py`).
 
 ### What's Not Done Yet
 - No-CIK funds still excluded from downloader until CIKs are sourced. This now
@@ -190,8 +198,12 @@ Full plan file: `C:\Users\brian\.claude\plans\while-i-work-on-concurrent-stardus
    from the Morningstar categorization workbook.
 3. **Source CIKs** for no-CIK funds (now includes the 15 added 2026-06-03). Manual
    lookup needed — automated name→CIK confirmed unreliable for these funds.
-4. **Begin extraction — Phase 0 (schema/data dictionary)** per the locked plan above.
-5. *(Optional)* Review borderline ISIN/ticker on the ~5 fuzzy master/feeder matches.
+4. ~~**Phase 0 (schema/data dictionary)**~~ — Done 2026-06-04. One open item: Brian
+   reviewing filings for fields to trim/add (decision #3 in the data dictionary).
+5. **Phase 1/2** — build the BDC XBRL extractor (`src/extraction/bdc_xbrl.py`) mapping
+   real XBRL facts into the schema, and start the hand-checked gold-standard set
+   (~15–25 filings) as the accuracy yardstick.
+6. *(Optional)* Review borderline ISIN/ticker on the ~5 fuzzy master/feeder matches.
 
 ---
 
@@ -199,6 +211,7 @@ Full plan file: `C:\Users\brian\.claude\plans\while-i-work-on-concurrent-stardus
 
 | Date | What Happened |
 |------|---------------|
+| 2026-06-04 | **Extraction Phase 0.** Ran an XBRL spike (Apollo/Blackstone/Ares/HPS 10-Qs) confirming the data is comprehensively tagged — incl. per-class NAV/shares, statement of changes (roll-forward), financial-highlights ratios, fair-value hierarchy, and full schedule of investments. Decided holdings = summary now / detail later. Drafted `docs/DATA_DICTIONARY.md` and built `src/schema/models.py` (pydantic, Fact-wrapped values w/ provenance+confidence). Confirmed derived-field formulas (leverage, asset coverage, distribution yield, net debt) and as-tagged highlights. One open item: trim/add field review. |
 | 2026-06-03 (session 2) | **Categorization + extraction planning.** Confirmed initial pull complete (7,229 files). Built `add_vehicle_type.py` → added `vehicle_type` + Morningstar fields (ISIN, category, etc.) to all funds by CIK-first/name-fallback matching against the 4-tab categorization workbook. Found 18 Morningstar funds unrepresented in the universe; added 15 genuinely-new ones (blank CIK, needs sourcing), skipped 3 as duplicates/feeders. Universe 532 → 547. Separately, **locked the extraction plan** (hybrid XBRL-first BDC pilot; comprehensive schema; gold-set accuracy; flag-and-keep validation; new identity rules incl. 4-bucket fair-value and net-asset roll-forward). |
 | 2026-06-03 (session 1) | Initial pull confirmed complete — 7,229 filings downloaded. |
 | 2026-06-02 (session 2) | Built `initial_pull.py` and `update_pull.py`. `initial_pull.py` started and running — downloads 10 years of filings for ~334 funds (N-CSR/N-CSRS/N-23C3A for interval funds; N-CSR/N-CSRS for ncsr; 10-K/10-Q/SC TO-I for BDCs and REITs). `update_pull.py` ready for periodic use. Added `README.md` with setup and usage docs. Next: wait for initial pull to finish, then begin extraction work. |
