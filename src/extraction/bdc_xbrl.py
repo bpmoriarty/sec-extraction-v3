@@ -345,6 +345,11 @@ def extract_bdc(cik: int | str, form: str = "10-Q") -> FilingExtraction:
     """Extract the latest `form` filing for a BDC `cik` into a FilingExtraction."""
     company = Company(int(cik))
     filing = company.get_filings(form=form).latest()
+    return extract_filing(company, filing, str(int(cik)).zfill(10), form)
+
+
+def extract_filing(company, filing, cik: str, form: str) -> FilingExtraction:
+    """Extract a specific filing object into a FilingExtraction (used by the runner)."""
     xbrl = filing.xbrl()
 
     reporting_date = FactSet._iso(filing.period_of_report)

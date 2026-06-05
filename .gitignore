@@ -9,3 +9,7 @@ __pycache__/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Generated extraction output (regenerable from filings via run_extraction.py)
+data/extracted/
+data/review_queue/
