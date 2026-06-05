@@ -10,11 +10,22 @@ handle many filers with minimal per-filer manual work.
 
 ## Current State
 
-**Phase: Pipeline built end-to-end (extractor → validation → per-filing JSON via a resumable runner). Surfaced coverage fixes applied. Pending: full volume run (Brian to kick off) + 2 validation refinements.**
-**Last Session: 2026-06-05**
+**Phase: Pipeline built end-to-end (extractor → validation → per-filing JSON via a resumable runner). Now set up & verified on a second (Morningstar corporate) machine; repo synced to GitHub. Pending: full volume run (Brian to kick off) + 2 validation refinements.**
+**Last Session: 2026-06-05 (session 3)**
 
 ### What's Working
 - Virtual environment set up (`uv venv` inside `sec-extraction-v3/`)
+- **Runs on the Morningstar corporate machine** (set up 2026-06-05 session 3). The
+  corporate network does SSL inspection, which blocked all EDGAR HTTPS calls
+  (`SSLVerificationError: CERTIFICATE_VERIFY_FAILED`). Fixed by adding
+  `configure_http(use_system_certs=True)` right after `set_identity()` in every
+  EDGAR-touching script (uses the Windows cert store, which trusts the corporate
+  root CA; harmless on home networks). Smoke test passed: AB Private Lending,
+  4 filings extracted + validated, balance sheet reconciles.
+- **Git + GitHub set up on this machine** — repo cloned from
+  `github.com/bpmoriarty/sec-extraction-v3`, git installed via winget, local git
+  identity set, credentials saved via Git Credential Manager, `master` tracks
+  `origin/master`. The SSL fix is committed (`5f4d321`) and pushed.
 - `src/fund_universe/build_universe.py` — seeds from 1,895 existing filenames +
   queries EDGAR N-23C3A form type → outputs 324 funds (202 interval, 98 ncsr, 24 BDC)
 - `src/fund_universe/enrich_from_mstar.py` — merges Morningstar's 508-fund list
@@ -183,6 +194,9 @@ The following are worth adapting into the new codebase:
 - 10-year lookback (START_DATE = 2016-01-01) for initial pull
 - `update_pull.py` uses per-fund `last_checked` as the since-date cutoff;
   falls back to 2016-01-01 if a fund has never been checked
+- Corporate-network EDGAR access uses `configure_http(use_system_certs=True)`
+  (the secure, portable option) rather than disabling SSL verification — chosen
+  over `verify_ssl=False` and over a manual CA bundle path
 
 ---
 
@@ -289,6 +303,7 @@ Hard-won quirks discovered while building. Read before extending the extractor.
 
 | Date | What Happened |
 |------|---------------|
+| 2026-06-05 (session 3) | **Set up the project on the Morningstar corporate machine + synced to GitHub.** Installed git (winget). Cloned the repo. Verified the venv/deps. Smoke-tested the runner (`--max-funds 1 --max-filings 2`) → 0 filings: diagnosed as corporate SSL inspection blocking EDGAR (`CERTIFICATE_VERIFY_FAILED`). Fixed with `configure_http(use_system_certs=True)` after `set_identity()` in all 6 EDGAR-touching scripts (+ rules.py self-test); re-ran smoke test → 4 AB Private Lending filings extracted & validated (balance sheet reconciles; status=review as expected per the known C5 waiver/tax item). Committed (`5f4d321`) and pushed to `origin/master`; set local git identity + upstream tracking. Pandas 3.0.3 noted as a watch item. Next: Brian kicks off the full volume run. |
 | 2026-06-05 (session 2) | **Built the pipeline.** Added `src/validation/rules.py` (C1–C7 + reasonableness, flag-and-keep; missing inputs = skipped) and `src/extraction/run_extraction.py` (resumable runner → per-filing JSON in `data/extracted/`, gitignored). Tested on 2 funds (8 filings written; a new fund, AB Private Lending, extracted & passed — generalization signal). Volume test surfaced 3 coverage gaps, all fixed: combined class members ('SDAndI'), missing total_debt (debt sum fallback), expense concepts (recovered AB + Blackstone). New finding logged: C5 gross-vs-net-of-waiver expenses + income tax (2 pending refinements). Full volume run not yet executed — Brian to kick off. |
 | 2026-06-05 (session 1) | **Built BDC XBRL extractor (`bdc_xbrl.py`), increments 1–5.** Concept-mapped balance sheet, per-class NAV, income statement + components (incl. PIK), fees, investments_at_cost, asset coverage, interest rate, distributions; computed derived metrics. Hand-validated C1/C2/C3/C5/C7 on Apollo/Blackstone/Ares/HPS latest 10-Q. Handled two dimension patterns (share-class, investment-affiliation) and fixed two bugs (affiliation-split income; instant-vs-duration period leakage). Decided to pivot to the pipeline (validation + JSON output + runner) to de-risk time/fund-set/volume coverage before more (harder) XBRL or LLM fallback. See "XBRL learnings" section. |
 | 2026-06-04 | **Extraction Phase 0.** Ran an XBRL spike (Apollo/Blackstone/Ares/HPS 10-Qs) confirming the data is comprehensively tagged — incl. per-class NAV/shares, statement of changes (roll-forward), financial-highlights ratios, fair-value hierarchy, and full schedule of investments. Decided holdings = summary now / detail later. Drafted `docs/DATA_DICTIONARY.md` and built `src/schema/models.py` (pydantic, Fact-wrapped values w/ provenance+confidence). Confirmed derived-field formulas (leverage, asset coverage, distribution yield, net debt) and as-tagged highlights. One open item: trim/add field review. |
