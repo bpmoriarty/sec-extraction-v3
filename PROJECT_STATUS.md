@@ -10,7 +10,7 @@ handle many filers with minimal per-filer manual work.
 
 ## Current State
 
-**Phase: BDC XBRL extractor built through increment 5 (core financials extracting & hand-validated on 4 funds). Now building the pipeline: validation layer + per-filing JSON output + resumable runner.**
+**Phase: Pipeline built end-to-end (extractor → validation → per-filing JSON via a resumable runner). Surfaced coverage fixes applied. Pending: full volume run (Brian to kick off) + 2 validation refinements.**
 **Last Session: 2026-06-05**
 
 ### What's Working
@@ -37,6 +37,17 @@ handle many filers with minimal per-filer manual work.
   distributions_declared; derived = leverage, net_debt, asset_coverage_pct,
   portfolio_mark, pik_income_ratio, distribution_coverage_ratio.
   **Finding:** all 4 funds show distribution coverage 0.89–0.98 (slightly over-distributing).
+- `src/validation/rules.py` — **validation layer.** `validate(extraction)` runs identity
+  checks C1–C7 (+ unit-error auto-detect in C2) and reasonableness checks (I1 asset
+  coverage, I2 leverage, A1 net assets, A2 NAV range), fills `validation_checks` +
+  `review_flags`, sets `validation_status` (pass/review). Flag-and-keep: identity fails are
+  serious, reasonableness fails keep the value. Missing-input rules are "skipped" (so C4/C6
+  are ready when fair value / roll-forward extract).
+- `src/extraction/run_extraction.py` — **resumable runner.** Iterates BDC funds → all
+  10-K/10-Q since 2016 → extract → validate → one JSON per filing in `data/extracted/`
+  (gitignored). Skips existing (resumable), writes per-filing (crash-safe), per-filing
+  try/except. CLI: `--max-funds`, `--max-filings`, `--since-year`.
+  **Full run not yet executed** — `uv run python src/extraction/run_extraction.py`.
 - `src/downloader/initial_pull.py` — downloads all historical filings since 2016
   for ~334 funds with CIKs; **complete as of 2026-06-03 — 7,229 files downloaded**
 - `src/downloader/update_pull.py` — periodic check for new filings since each
@@ -223,6 +234,25 @@ Hard-won quirks discovered while building. Read before extending the extractor.
     members. `duration_scalar` tries undimensioned total first, then affiliation-sum.
 - **Cash sum fallback:** filers reporting `us-gaap:Cash` + `CashEquivalentsAtCarryingValue`
   separately (HPS) are summed when the combined concept is absent.
+- **Combined share-class members:** some filers tag a combined member (e.g. AB Private
+  Lending's `ClassSDAndISharesMember` → "SDAndI"). `_normalize_class` drops members whose
+  normalized form contains "and".
+- **Debt / cash sum fallbacks:** filers reporting components separately instead of one
+  combined line are summed — cash = `Cash` + `CashEquivalentsAtCarryingValue` (HPS); debt
+  = `LineOfCredit` + `OtherLongTermDebt` + `NotesPayable` (AB Private Lending).
+
+### Pending validation refinements (found 2026-06-05, not yet done)
+1. **Expenses gross vs net of waivers.** Dictionary defines `total_expenses` as net of
+   waivers. For AB the candidate order grabbed the GROSS line (`InvestmentIncomeInvestmentExpense`,
+   5,104,973) but NII uses the NET-of-waiver figure (`InvestmentCompanyExpenseAfterReductionOfFeeWaiverAndReimbursement`,
+   4,584,326). Prefer the net concept — but verify it doesn't shift Blackstone/HPS (which
+   currently pass). The waiver itself is the §11 `expense_support_net` field.
+2. **C5 ignores income tax.** NII = TII − expenses − **tax**. RIC-compliant BDCs have ≈0
+   tax, but funds with excise tax (AB: 44,575) fail C5 by the tax amount. Either extract
+   income tax and make C5 tax-aware, or treat tax-payers as expected flags.
+   (AB C5 currently fails: 8,165,022 − 5,104,973 = 3,060,049 vs NII 3,536,121; the gap =
+   waiver 520,647 + tax 44,575 − reconciles exactly.)
+
 - **Per-filer / dimensional long tail = LLM-fallback territory:** income components &
   total_expenses on some filers; fair-value hierarchy (§6, dimensional + custom `ck...`
   concepts); statement-of-changes roll-forward (custom repurchase concepts); per-class
@@ -242,14 +272,15 @@ Hard-won quirks discovered while building. Read before extending the extractor.
    reviewing filings for fields to trim/add (decision #3 in the data dictionary).
 5. ~~Build the BDC XBRL extractor~~ — In progress, increments 1–5 done (see "What's
    Working" + "XBRL learnings"). Core financials extract & hand-validate on 4 funds.
-6. **Pipeline (current focus):** validation layer (formalize C1–C7 + reasonableness,
-   flag-and-keep) → per-filing JSON to `data/extracted/` → resumable runner. Then run
-   over the full historical filing set of the pilot BDCs to de-risk time-coverage,
-   full-fund-set coverage, and volume behavior — and to learn which remaining XBRL gaps
-   matter vs. go to LLM fallback.
-7. **After pipeline:** harder XBRL (fair value C4, roll-forward C6, composition) and/or
-   LLM fallback, informed by the volume run; then the gold-standard set + spreadsheet
-   assembler.
+6. ~~**Pipeline:** validation + JSON output + resumable runner~~ — Done 2026-06-05.
+   Surfaced coverage fixes (class junk, debt sum, expense concepts) also applied.
+7. **Full volume run (Brian to kick off):** `uv run python src/extraction/run_extraction.py`
+   (no limits) over all BDCs × 10 years → the coverage/failure distribution that tells us
+   what to fix next. Long-running (network-bound). Then analyze `data/extracted/`.
+8. **Two validation refinements** (see "Pending validation refinements" above): prefer
+   net-of-waiver expenses; make C5 tax-aware.
+9. **After that:** harder XBRL (fair value C4, roll-forward C6, composition) and/or LLM
+   fallback, informed by the volume run; then gold-standard set + spreadsheet assembler.
 8. *(Optional)* Review borderline ISIN/ticker on the ~5 fuzzy master/feeder matches.
 
 ---
@@ -258,7 +289,8 @@ Hard-won quirks discovered while building. Read before extending the extractor.
 
 | Date | What Happened |
 |------|---------------|
-| 2026-06-05 | **Built BDC XBRL extractor (`bdc_xbrl.py`), increments 1–5.** Concept-mapped balance sheet, per-class NAV, income statement + components (incl. PIK), fees, investments_at_cost, asset coverage, interest rate, distributions; computed derived metrics. Hand-validated C1/C2/C3/C5/C7 on Apollo/Blackstone/Ares/HPS latest 10-Q. Handled two dimension patterns (share-class, investment-affiliation) and fixed two bugs (affiliation-split income; instant-vs-duration period leakage). Decided to pivot to the pipeline (validation + JSON output + runner) to de-risk time/fund-set/volume coverage before more (harder) XBRL or LLM fallback. See "XBRL learnings" section. |
+| 2026-06-05 (session 2) | **Built the pipeline.** Added `src/validation/rules.py` (C1–C7 + reasonableness, flag-and-keep; missing inputs = skipped) and `src/extraction/run_extraction.py` (resumable runner → per-filing JSON in `data/extracted/`, gitignored). Tested on 2 funds (8 filings written; a new fund, AB Private Lending, extracted & passed — generalization signal). Volume test surfaced 3 coverage gaps, all fixed: combined class members ('SDAndI'), missing total_debt (debt sum fallback), expense concepts (recovered AB + Blackstone). New finding logged: C5 gross-vs-net-of-waiver expenses + income tax (2 pending refinements). Full volume run not yet executed — Brian to kick off. |
+| 2026-06-05 (session 1) | **Built BDC XBRL extractor (`bdc_xbrl.py`), increments 1–5.** Concept-mapped balance sheet, per-class NAV, income statement + components (incl. PIK), fees, investments_at_cost, asset coverage, interest rate, distributions; computed derived metrics. Hand-validated C1/C2/C3/C5/C7 on Apollo/Blackstone/Ares/HPS latest 10-Q. Handled two dimension patterns (share-class, investment-affiliation) and fixed two bugs (affiliation-split income; instant-vs-duration period leakage). Decided to pivot to the pipeline (validation + JSON output + runner) to de-risk time/fund-set/volume coverage before more (harder) XBRL or LLM fallback. See "XBRL learnings" section. |
 | 2026-06-04 | **Extraction Phase 0.** Ran an XBRL spike (Apollo/Blackstone/Ares/HPS 10-Qs) confirming the data is comprehensively tagged — incl. per-class NAV/shares, statement of changes (roll-forward), financial-highlights ratios, fair-value hierarchy, and full schedule of investments. Decided holdings = summary now / detail later. Drafted `docs/DATA_DICTIONARY.md` and built `src/schema/models.py` (pydantic, Fact-wrapped values w/ provenance+confidence). Confirmed derived-field formulas (leverage, asset coverage, distribution yield, net debt) and as-tagged highlights. One open item: trim/add field review. |
 | 2026-06-03 (session 2) | **Categorization + extraction planning.** Confirmed initial pull complete (7,229 files). Built `add_vehicle_type.py` → added `vehicle_type` + Morningstar fields (ISIN, category, etc.) to all funds by CIK-first/name-fallback matching against the 4-tab categorization workbook. Found 18 Morningstar funds unrepresented in the universe; added 15 genuinely-new ones (blank CIK, needs sourcing), skipped 3 as duplicates/feeders. Universe 532 → 547. Separately, **locked the extraction plan** (hybrid XBRL-first BDC pilot; comprehensive schema; gold-set accuracy; flag-and-keep validation; new identity rules incl. 4-bucket fair-value and net-asset roll-forward). |
 | 2026-06-03 (session 1) | Initial pull confirmed complete — 7,229 filings downloaded. |
