@@ -99,6 +99,12 @@ class IncomeStatement(BaseModel):                    # Data Dictionary §4
     # Lending) need it for the C5 identity to reconcile. See validation rule C5.
     income_tax_expense: Fact = Field(default_factory=Fact)
     net_investment_income: Fact = Field(default_factory=Fact)
+    # Authoritative income-statement SUBTOTALS tagged directly by many filers — used as
+    # C5 cross-check anchors so we can verify NII without reconstructing it from the
+    # (filer-specific) expense/tax components. income_before_tax = NII + tax;
+    # nii_after_expense_and_tax should equal net_investment_income exactly.
+    income_before_tax: Fact = Field(default_factory=Fact)
+    nii_after_expense_and_tax: Fact = Field(default_factory=Fact)
     net_realized_gain_loss: Fact = Field(default_factory=Fact)
     net_change_unrealized: Fact = Field(default_factory=Fact)
     net_increase_in_net_assets_ops: Fact = Field(default_factory=Fact)

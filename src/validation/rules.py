@@ -98,26 +98,39 @@ def validate(e: FilingExtraction) -> FilingExtraction:
         add("C4", "Fair-value hierarchy sum", "identity", status,
             None if status == "pass" else f"L1+L2+L3+NAV {s:,.0f} != total {tot:,.0f}")
 
-    # ── C5: income identity (identity) ───────────────────────────────────────
-    # NII = total investment income - total expenses (net of waivers), with income/excise
-    # tax sometimes subtracted. The catch: `IncomeTaxExpenseBenefit` means different things
-    # by filer — for AB Private Lending the excise tax sits ABOVE NII (must subtract);
-    # for Blackstone it's tax on realized GAINS, BELOW NII (must NOT subtract). So accept
-    # whichever form reconciles: (TII-exp) OR (TII-exp-tax). tax defaults to 0 (no-tax
-    # filers behave exactly as before — backward-compatible).
+    # ── C5: NII reconciles (identity) ─────────────────────────────────────────
+    # Reconstructing NII from TII - expenses (- tax) is fragile for BDCs: expense support,
+    # offering-cost amortization, and multi-component tax sit between TII and NII in
+    # filer-specific ways. So we ALSO cross-check NII against the filer's own authoritative
+    # tagged subtotals, and pass if ANY reconciliation holds:
+    #   (anchor)  NII == InvestmentIncomeOperatingAfterExpenseAndTax
+    #   (anchor)  NII == income-before-tax - tax
+    #   (recompute) NII == TII - exp           (tax below the line, e.g. Blackstone)
+    #   (recompute) NII == TII - exp - tax      (tax above the line, e.g. AB)
+    # All branches only ADD ways to pass, so no filing that passed before can start failing.
     tii, exp, nii = v(inc.total_investment_income, inc.total_expenses, inc.net_investment_income)
     tax = inc.income_tax_expense.value or 0.0
+    anchor_after = inc.nii_after_expense_and_tax.value     # should equal NII exactly
+    pre_tax = inc.income_before_tax.value                  # NII = pre_tax - tax
     if None in (tii, exp, nii):
-        add("C5", "NII = income - expenses (+/- tax)", "identity", "skipped", "missing inputs")
+        add("C5", "NII reconciles", "identity", "skipped", "missing inputs")
     else:
-        pre_tax_diff = (tii - exp) - nii
-        post_tax_diff = (tii - exp - tax) - nii
+        candidates = {
+            "after-exp&tax anchor": anchor_after,
+            "pre-tax anchor - tax": (pre_tax - tax) if pre_tax is not None else None,
+            "TII-exp": tii - exp,
+            "TII-exp-tax": tii - exp - tax,
+        }
+        diffs = {k: abs(val - nii) for k, val in candidates.items() if val is not None}
         tol = _tol(tii)
-        status = "pass" if min(abs(pre_tax_diff), abs(post_tax_diff)) <= tol else "fail"
-        tax_note = f"; with tax {tii - exp - tax:,.0f}" if tax else ""
-        add("C5", "NII = income - expenses (+/- tax)", "identity", status,
-            None if status == "pass"
-            else f"TII-exp {tii - exp:,.0f}{tax_note} != NII {nii:,.0f}")
+        best = min(diffs, key=diffs.get)
+        if diffs[best] <= tol:
+            add("C5", "NII reconciles", "identity", "pass")
+        else:
+            tax_note = f"; with tax {tii - exp - tax:,.0f}" if tax else ""
+            add("C5", "NII reconciles", "identity", "fail",
+                f"TII-exp {tii - exp:,.0f}{tax_note} != NII {nii:,.0f} "
+                f"(closest '{best}' off by {diffs[best]:,.0f})")
 
     # ── C6: net-asset roll-forward (identity) — ready for when §5 extracts ────
     soc = e.statement_of_changes

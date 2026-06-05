@@ -112,6 +112,10 @@ INCOME_CONCEPTS: dict[str, list[str]] = {
                            "us-gaap:InvestmentCompanyExciseTaxExpense",
                            "us-gaap:ExciseAndSalesTaxes"],
     "net_investment_income": ["us-gaap:NetInvestmentIncome"],
+    # Authoritative subtotals used as C5 cross-check anchors (Data Dictionary §4).
+    "income_before_tax": [
+        "us-gaap:IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest"],
+    "nii_after_expense_and_tax": ["us-gaap:InvestmentIncomeOperatingAfterExpenseAndTax"],
     "net_realized_gain_loss": [
         "us-gaap:RealizedGainLossInvestmentDerivativeAndForeignCurrencyTransactionPriceChangeOperatingAfterTax",
         "us-gaap:GainLossOnInvestments", "us-gaap:RealizedInvestmentGainsLosses"],
