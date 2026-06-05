@@ -110,7 +110,8 @@ class FinancialHighlights(BaseModel):                # Data Dictionary §7
     # Stored AS-TAGGED from XBRL (confirmed decision); recompute only as a cross-check.
     # Often disclosed per share class in BDCs; modeled at fund-period for v0.1 — a
     # per-class refinement can be added later.
-    expense_ratio: Fact = Field(default_factory=Fact)
+    expense_ratio: Fact = Field(default_factory=Fact)            # NET (after waivers/support)
+    gross_expense_ratio: Fact = Field(default_factory=Fact)      # GROSS (true go-forward cost)
     net_investment_income_ratio: Fact = Field(default_factory=Fact)
     total_return: Fact = Field(default_factory=Fact)
     portfolio_turnover: Fact = Field(default_factory=Fact)
@@ -118,8 +119,29 @@ class FinancialHighlights(BaseModel):                # Data Dictionary §7
 
 class DistributionsLeverage(BaseModel):              # Data Dictionary §8
     distributions_per_share: Fact = Field(default_factory=Fact)
+    return_of_capital_pct: Fact = Field(default_factory=Fact)  # % of distributions that is ROC
     asset_coverage_ratio: Fact = Field(default_factory=Fact)   # regulatory (I1 check)
-    weighted_avg_interest_rate: Fact = Field(default_factory=Fact)
+    weighted_avg_interest_rate: Fact = Field(default_factory=Fact)  # cost of debt (net_lending_spread)
+
+
+class FeesExpenseSupport(BaseModel):                 # Data Dictionary §11
+    # Surfaces true cost + adviser alignment. A low NET expense ratio can be propped up
+    # by temporary adviser expense support (recouped later); expense_support_net exposes it.
+    management_fee: Fact = Field(default_factory=Fact)
+    incentive_fee: Fact = Field(default_factory=Fact)
+    expense_support_net: Fact = Field(default_factory=Fact)    # negative = net recoupment
+
+
+class LiquidityObligations(BaseModel):               # Data Dictionary §12
+    # Can the fund fund its commitments, and can LPs actually exit? Repurchase fields are
+    # partly XBRL / partly SC TO-I and lower-confidence; proration <100% = gated.
+    unfunded_commitments: Fact = Field(default_factory=Fact)
+    undrawn_debt_capacity: Fact = Field(default_factory=Fact)
+    weighted_avg_debt_maturity: Fact = Field(default_factory=Fact)
+    repurchase_offered: Fact = Field(default_factory=Fact)
+    repurchase_requested: Fact = Field(default_factory=Fact)
+    repurchase_repurchased: Fact = Field(default_factory=Fact)
+    repurchase_proration_pct: Fact = Field(default_factory=Fact)
 
 
 class PortfolioSummary(BaseModel):                   # Data Dictionary §9 (holdings deferred)
@@ -133,6 +155,13 @@ class PortfolioSummary(BaseModel):                   # Data Dictionary §9 (hold
     # positions get marked down in fair value.
     non_accrual_fair_value: Fact = Field(default_factory=Fact)
     non_accrual_at_cost: Fact = Field(default_factory=Fact)
+    weighted_avg_portfolio_yield: Fact = Field(default_factory=Fact)   # cost basis preferred
+    pct_floating_rate: Fact = Field(default_factory=Fact)
+    capitalized_pik_balance: Fact = Field(default_factory=Fact)        # rising = stress
+    # Seniority mix (1st/2nd lien/sub/equity) and internal risk-rating distribution.
+    # Internal rating is rarely clean XBRL -> typically an LLM-fallback field.
+    composition_by_seniority: Composition = Field(default_factory=Composition)
+    composition_by_internal_rating: Composition = Field(default_factory=Composition)
 
 
 class DerivedMetrics(BaseModel):                     # Data Dictionary §10 (computed)
@@ -143,6 +172,10 @@ class DerivedMetrics(BaseModel):                     # Data Dictionary §10 (com
     pik_income_ratio: Fact = Field(default_factory=Fact)      # pik_interest_income / total_investment_income
     non_accrual_pct_fv: Fact = Field(default_factory=Fact)    # non_accrual_fair_value / investments_at_fair_value
     non_accrual_pct_cost: Fact = Field(default_factory=Fact)  # non_accrual_at_cost / investments_at_cost
+    distribution_coverage_ratio: Fact = Field(default_factory=Fact)  # NII / distributions_declared
+    portfolio_mark: Fact = Field(default_factory=Fact)        # investments_at_fair_value / investments_at_cost
+    net_lending_spread: Fact = Field(default_factory=Fact)    # wtd_avg_portfolio_yield - wtd_avg_interest_rate
+    liquidity_coverage: Fact = Field(default_factory=Fact)    # (cash + undrawn_debt_capacity) / unfunded_commitments
     # distribution_yield is per-class -> see ShareClassNAV
 
 
@@ -189,6 +222,8 @@ class FilingExtraction(BaseModel):
     fair_value: FairValueHierarchy = Field(default_factory=FairValueHierarchy)
     financial_highlights: FinancialHighlights = Field(default_factory=FinancialHighlights)
     distributions_leverage: DistributionsLeverage = Field(default_factory=DistributionsLeverage)
+    fees: FeesExpenseSupport = Field(default_factory=FeesExpenseSupport)
+    liquidity: LiquidityObligations = Field(default_factory=LiquidityObligations)
     portfolio_summary: PortfolioSummary = Field(default_factory=PortfolioSummary)
     derived: DerivedMetrics = Field(default_factory=DerivedMetrics)
 

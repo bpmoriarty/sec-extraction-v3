@@ -118,7 +118,8 @@ different location) → XBRL-first with LLM/secondary-location fallback.
 
 | Field | Definition | Source |
 |---|---|---|
-| expense_ratio | Ratio of expenses to average net assets | XBRL highlights (tagged) |
+| expense_ratio | NET expense ratio (after adviser waivers/support) to avg net assets | XBRL highlights (tagged) |
+| gross_expense_ratio | GROSS expense ratio (before waivers/support) — true go-forward cost | XBRL highlights |
 | net_investment_income_ratio | NII to average net assets | XBRL highlights |
 | total_return | Total return for the period | XBRL highlights |
 | portfolio_turnover | Portfolio turnover rate | XBRL highlights |
@@ -128,8 +129,9 @@ different location) → XBRL-first with LLM/secondary-location fallback.
 | Field | Definition | Source |
 |---|---|---|
 | distributions_per_share | Distributions declared per share | XBRL |
+| return_of_capital_pct | % of distributions classified as return of capital | XBRL / 19a notice (med. confidence) |
 | asset_coverage_ratio | Regulatory 1940-Act asset coverage | XBRL (often tagged) / computed |
-| weighted_avg_interest_rate | Weighted average rate on debt | XBRL debt detail |
+| weighted_avg_interest_rate | Weighted average rate on debt (= cost of debt; used in net_lending_spread) | XBRL debt detail |
 
 ## 9. Portfolio — summary composition  *(grain: fund-period; holdings deferred)*
 
@@ -142,6 +144,11 @@ different location) → XBRL-first with LLM/secondary-location fallback.
 | investments_at_cost | Total investments at amortized cost | XBRL |
 | non_accrual_fair_value | Fair value of non-accrual investments | XBRL / LLM |
 | non_accrual_at_cost | Amortized cost of non-accrual investments | XBRL / LLM |
+| weighted_avg_portfolio_yield | Weighted-avg yield on the portfolio (cost basis preferred) | XBRL highlights / SOI |
+| pct_floating_rate | % of debt investments at a floating rate | XBRL / LLM |
+| capitalized_pik_balance | Balance-sheet capitalized PIK balance (rising = stress) | XBRL (PIK roll-forward) |
+| composition_by_seniority | {1st lien / 2nd lien / sub / equity: fair_value} map | XBRL / LLM |
+| composition_by_internal_rating | {internal risk rating: fair_value or count} map | LLM-fallback (rarely clean XBRL) |
 
 > **Deferred to a later phase:** full **holding-level table** (issuer, industry, security
 > type, rate, maturity, par, cost, fair value, % of net assets, non-accrual flag).
@@ -157,9 +164,46 @@ different location) → XBRL-first with LLM/secondary-location fallback.
 | pik_income_ratio | pik_interest_income ÷ total_investment_income | Added 2026-06-05 (credit-stress signal) |
 | non_accrual_pct_fv | non_accrual_fair_value ÷ investments_at_fair_value | Added 2026-06-05 |
 | non_accrual_pct_cost | non_accrual_at_cost ÷ investments_at_cost | Added 2026-06-05 (usually higher; more conservative) |
+| distribution_coverage_ratio | net_investment_income ÷ distributions_declared | Added 2026-06-05 (<100% = uncovered; top sustainability flag) |
+| portfolio_mark | investments_at_fair_value ÷ investments_at_cost | Added 2026-06-05 (aggregate unrealized health) |
+| net_lending_spread | weighted_avg_portfolio_yield − weighted_avg_interest_rate | Added 2026-06-05 (gross asset-vs-debt spread; see note) |
+| liquidity_coverage | (cash_and_equivalents + undrawn_debt_capacity) ÷ unfunded_commitments | Added 2026-06-05 |
 
 > Note: `asset_coverage_pct` here is the leverage-analysis ratio. It is distinct from the
 > regulatory `asset_coverage_ratio` in §8 used for the I1 reasonableness check — keep both.
+>
+> Note: `net_lending_spread` is the **gross** asset-vs-liability spread. Because the fund
+> earns it on the whole asset base but pays debt cost only on the levered portion,
+> `spread × leverage` is what drives return on equity, and fees come out after — so read
+> it as a comparative lending-economics gauge, not a net return to LPs.
+
+---
+
+## 11. Fees & expense support  *(grain: fund-period)*
+
+Exposes the true cost and adviser alignment. Newer non-traded BDCs often show a low
+NET expense ratio only because the adviser is temporarily supporting expenses (to be
+recouped later) — these fields surface that.
+
+| Field | Definition | Source |
+|---|---|---|
+| management_fee | Management fee expense for the period | XBRL |
+| incentive_fee | Incentive / performance fee expense for the period | XBRL |
+| expense_support_net | Net adviser expense support (negative = net recoupment) | XBRL (tagged) |
+
+## 12. Liquidity & obligations  *(grain: fund-period)*
+
+Tests whether the fund can fund its commitments and whether LPs can actually exit.
+
+| Field | Definition | Source |
+|---|---|---|
+| unfunded_commitments | Total unfunded commitments to portfolio companies | XBRL (commitments table) |
+| undrawn_debt_capacity | Available undrawn borrowing capacity | XBRL debt detail |
+| weighted_avg_debt_maturity | Weighted-avg years to maturity of debt | XBRL / derived (med. confidence) |
+| repurchase_offered | Shares/amount offered for repurchase this period | XBRL / SC TO-I (partial) |
+| repurchase_requested | Shares/amount LPs requested to repurchase | XBRL / SC TO-I (partial) |
+| repurchase_repurchased | Shares/amount actually repurchased | XBRL / SC TO-I (partial) |
+| repurchase_proration_pct | requested ÷ repurchased — <100% means gated/oversubscribed | computed (liquidity-stress flag) |
 
 ---
 
@@ -192,3 +236,11 @@ different location) → XBRL-first with LLM/secondary-location fallback.
      other) + C7 sum check + pik_income_ratio derived metric.
    - Added 2026-06-05: non-accruals on both bases (investments_at_cost,
      non_accrual_at_cost) + non_accrual_pct_fv and non_accrual_pct_cost derived metrics.
+   - Added 2026-06-05 (allocator-grade fields): gross_expense_ratio, return_of_capital_pct,
+     weighted_avg_portfolio_yield, pct_floating_rate, capitalized_pik_balance,
+     composition_by_seniority, composition_by_internal_rating (§7-§9); new §11 Fees &
+     expense support (management_fee, incentive_fee, expense_support_net) and §12 Liquidity
+     & obligations (unfunded_commitments, undrawn_debt_capacity, weighted_avg_debt_maturity,
+     repurchase offered/requested/repurchased + proration); derived distribution_coverage_ratio,
+     portfolio_mark, net_lending_spread, liquidity_coverage. Lower-confidence/LLM-fallback:
+     internal rating, seniority, floating-rate %, repurchase fields.
