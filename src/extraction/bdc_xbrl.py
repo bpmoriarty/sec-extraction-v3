@@ -66,6 +66,9 @@ BALANCE_SHEET_CONCEPTS: dict[str, list[str]] = {
 # Per-share-class fields (Data Dictionary §3). These come as facts dimensioned by the
 # share-class axis below. First candidate concept that yields classes wins.
 SHARE_CLASS_AXIS = "dim_us-gaap_StatementClassOfStockAxis"
+# Some filers (e.g. Blackstone) report income components split by investment affiliation
+# (unaffiliated / affiliated-noncontrolled / affiliated-controlled) instead of one total.
+AFFILIATION_AXIS = "dim_us-gaap_InvestmentIssuerAffiliationAxis"
 PER_CLASS_CONCEPTS: dict[str, list[str]] = {
     "class_net_assets": ["us-gaap:AssetsNet", "us-gaap:StockholdersEquity"],
     "class_shares_outstanding": [
@@ -201,13 +204,49 @@ class FactSet:
         rows["_md"] = (rows["_m"] - target_months).abs()
         return rows.sort_values("_md").iloc[0]
 
+    def _duration_affiliation_sum(self, concept: str, target_months: int) -> float | None:
+        """Sum a duration concept across investment-affiliation members for the primary
+        period. Used when a filer splits income components by affiliation rather than
+        reporting one undimensioned total (e.g. Blackstone)."""
+        if AFFILIATION_AXIS not in self.df.columns:
+            return None
+        rows = self.df[
+            (self.df["concept"] == concept)
+            & (self.df["period_type"] == "duration")
+            & self.df[AFFILIATION_AXIS].notna()
+        ].copy()
+        if rows.empty:
+            return None
+        dim_cols = self._dim_cols
+        rows["_n"] = rows[dim_cols].notna().sum(axis=1)            # affiliation is the only axis
+        rows["_ps"] = rows["period_start"].map(self._iso)
+        rows["_pe"] = rows["period_end"].map(self._iso)
+        rows = rows[(rows["_n"] == 1) & (rows["_pe"] == self.reporting_date)
+                    & rows["numeric_value"].notna()].copy()
+        if rows.empty:
+            return None
+        rows["_m"] = rows.apply(lambda r: self._months(r["_ps"], r["_pe"]), axis=1)
+        rows = rows[rows["_m"].notna()].copy()
+        if rows.empty:
+            return None
+        rows["_md"] = (rows["_m"] - target_months).abs()
+        rows = rows[rows["_md"] == rows["_md"].min()]              # the primary-period window
+        rows = rows.drop_duplicates(subset=[AFFILIATION_AXIS])    # one row per affiliation member
+        return float(rows["numeric_value"].sum())
+
     def duration_scalar(self, concepts: list[str], target_months: int) -> Fact:
-        """First candidate concept with a matching duration row for the primary period."""
+        """First candidate concept with a value for the primary period. For each concept
+        we try the undimensioned total first, then fall back to summing across the
+        investment-affiliation axis."""
         for concept in concepts:
             best = self._duration_best(concept, target_months)
             if best is not None:
                 return Fact(value=float(best["numeric_value"]), source=Source.XBRL,
                             confidence=0.97, raw_text=str(best.get("label", "")) or None)
+            summed = self._duration_affiliation_sum(concept, target_months)
+            if summed is not None:
+                return Fact(value=summed, source=Source.XBRL, confidence=0.95,
+                            raw_text=f"{concept.split(':')[-1]} (sum over affiliation)")
         return Fact()
 
     def duration_period_start(self, concepts: list[str], target_months: int) -> str | None:
