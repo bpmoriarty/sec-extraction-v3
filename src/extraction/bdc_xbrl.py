@@ -33,8 +33,9 @@ from edgar import set_identity, Company
 SCHEMA_DIR = Path(__file__).resolve().parents[1] / "schema"
 sys.path.insert(0, str(SCHEMA_DIR))
 from models import (  # noqa: E402
-    BalanceSheet, Fact, FeesExpenseSupport, FilingExtraction, IncomeStatement,
-    PortfolioSummary, ShareClassNAV, Source,
+    BalanceSheet, DistributionsLeverage, Fact, FeesExpenseSupport, FilingExtraction,
+    FinancialHighlights, IncomeStatement, PortfolioSummary, ShareClassNAV,
+    StatementOfChanges, Source,
 )
 
 warnings.filterwarnings("ignore")
@@ -111,6 +112,28 @@ PORTFOLIO_SCALAR_CONCEPTS: dict[str, list[str]] = {
     "investments_at_cost": ["us-gaap:InvestmentOwnedAtCost", "us-gaap:InvestmentOwnedAtCostNet"],
 }
 
+# Financial highlights (§7). Often per-class and fuller in 10-K; expense/NII ratios may be
+# absent in 10-Q (LLM-fallback / 10-K territory).
+HIGHLIGHTS_CONCEPTS: dict[str, list[str]] = {
+    "expense_ratio": ["us-gaap:InvestmentCompanyExpenseRatio"],
+    "net_investment_income_ratio": ["us-gaap:InvestmentCompanyRatioOfNetInvestmentIncomeLossToAverageNetAssets1"],
+    "total_return": ["us-gaap:InvestmentCompanyTotalReturn"],
+    "portfolio_turnover": ["us-gaap:InvestmentCompanyPortfolioTurnover"],
+}
+
+# Distributions & leverage (§8).
+DIST_LEVERAGE_CONCEPTS: dict[str, list[str]] = {
+    "asset_coverage_ratio": ["us-gaap:InvestmentCompanySeniorSecurityIndebtednessAssetCoverageRatio"],
+    "weighted_avg_interest_rate": ["us-gaap:LongTermDebtWeightedAverageInterestRateOverTime",
+                                   "us-gaap:DebtWeightedAverageInterestRate"],
+}
+
+# Statement of changes (§5) — only the distributions total for now (enables coverage).
+CHANGES_CONCEPTS: dict[str, list[str]] = {
+    "distributions_declared": ["us-gaap:InvestmentCompanyDividendDistribution",
+                               "us-gaap:DistributionsMade"],
+}
+
 
 # ── Fact access ─────────────────────────────────────────────────────────────────
 
@@ -132,6 +155,7 @@ class FactSet:
             rows = self.df[
                 (self.df["concept"] == concept)
                 & (self.df["is_dimensioned"] == False)  # noqa: E712
+                & (self.df["period_type"] == "instant")  # instant facts only (see scalar_any)
             ]
             if rows.empty:
                 continue
@@ -155,6 +179,7 @@ class FactSet:
             rows = self.df[
                 (self.df["concept"] == concept)
                 & (self.df["is_dimensioned"] == False)  # noqa: E712
+                & (self.df["period_type"] == "instant")
             ].copy()
             if rows.empty:
                 continue
@@ -248,6 +273,12 @@ class FactSet:
                 return Fact(value=summed, source=Source.XBRL, confidence=0.95,
                             raw_text=f"{concept.split(':')[-1]} (sum over affiliation)")
         return Fact()
+
+    def scalar_any(self, concepts: list[str], target_months: int) -> Fact:
+        """Ratio/value fields that may be tagged as either instant or duration
+        (e.g. asset coverage = instant; weighted-avg interest rate = duration)."""
+        f = self.scalar(concepts)
+        return f if f.value is not None else self.duration_scalar(concepts, target_months)
 
     def duration_period_start(self, concepts: list[str], target_months: int) -> str | None:
         for concept in concepts:
@@ -349,6 +380,18 @@ def extract_bdc(cik: int | str, form: str = "10-Q") -> FilingExtraction:
     for field, concepts in PORTFOLIO_SCALAR_CONCEPTS.items():
         setattr(portfolio, field, facts.scalar(concepts))
 
+    # Financial highlights (§7) + distributions & leverage (§8) + distributions (§5).
+    # These ratios may be tagged instant or duration -> scalar_any.
+    highlights = FinancialHighlights()
+    for field, concepts in HIGHLIGHTS_CONCEPTS.items():
+        setattr(highlights, field, facts.scalar_any(concepts, target_months))
+    dist_lev = DistributionsLeverage()
+    for field, concepts in DIST_LEVERAGE_CONCEPTS.items():
+        setattr(dist_lev, field, facts.scalar_any(concepts, target_months))
+    changes = StatementOfChanges()
+    for field, concepts in CHANGES_CONCEPTS.items():
+        setattr(changes, field, facts.scalar_any(concepts, target_months))
+
     # Per-share-class NAV (Data Dictionary §3)
     classes = facts.share_classes()
     per_class = {field: facts.per_class(concepts)
@@ -374,6 +417,9 @@ def extract_bdc(cik: int | str, form: str = "10-Q") -> FilingExtraction:
         share_classes=classes,
         balance_sheet=bs,
         income_statement=inc,
+        statement_of_changes=changes,
+        financial_highlights=highlights,
+        distributions_leverage=dist_lev,
         fees=fees,
         portfolio_summary=portfolio,
         share_classes_nav=share_classes_nav,
@@ -411,6 +457,8 @@ def compute_derived(e: FilingExtraction) -> FilingExtraction:
         d.asset_coverage_pct = mk((ta - (tl - debt)) / debt)
     d.portfolio_mark = mk(_ratio(ifv, icost))
     d.pik_income_ratio = mk(_ratio(inc.pik_interest_income.value, inc.total_investment_income.value))
+    d.distribution_coverage_ratio = mk(
+        _ratio(inc.net_investment_income.value, e.statement_of_changes.distributions_declared.value))
     return e
 
 
