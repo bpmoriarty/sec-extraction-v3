@@ -130,7 +130,9 @@ different location) → XBRL-first with LLM/secondary-location fallback.
 | composition_by_industry | {industry: fair_value} map | XBRL |
 | composition_by_type | {security type: fair_value} map | XBRL |
 | top_10_concentration | Σ fair value of 10 largest ÷ investments | computed |
+| investments_at_cost | Total investments at amortized cost | XBRL |
 | non_accrual_fair_value | Fair value of non-accrual investments | XBRL / LLM |
+| non_accrual_at_cost | Amortized cost of non-accrual investments | XBRL / LLM |
 
 > **Deferred to a later phase:** full **holding-level table** (issuer, industry, security
 > type, rate, maturity, par, cost, fair value, % of net assets, non-accrual flag).
@@ -144,6 +146,8 @@ different location) → XBRL-first with LLM/secondary-location fallback.
 | distribution_yield | (distributions_per_share ÷ class_nav_per_share), annualized | ✅ Confirmed (grain: fund-period-class) |
 | net_debt | total_debt − cash_and_equivalents | ✅ Confirmed (include) |
 | pik_income_ratio | pik_interest_income ÷ total_investment_income | Added 2026-06-05 (credit-stress signal) |
+| non_accrual_pct_fv | non_accrual_fair_value ÷ investments_at_fair_value | Added 2026-06-05 |
+| non_accrual_pct_cost | non_accrual_at_cost ÷ investments_at_cost | Added 2026-06-05 (usually higher; more conservative) |
 
 > Note: `asset_coverage_pct` here is the leverage-analysis ratio. It is distinct from the
 > regulatory `asset_coverage_ratio` in §8 used for the I1 reasonableness check — keep both.
@@ -177,3 +181,5 @@ different location) → XBRL-first with LLM/secondary-location fallback.
    - Anything missing wanted for comparative research?
    - Added 2026-06-05: investment-income components (interest, PIK interest, dividend,
      other) + C7 sum check + pik_income_ratio derived metric.
+   - Added 2026-06-05: non-accruals on both bases (investments_at_cost,
+     non_accrual_at_cost) + non_accrual_pct_fv and non_accrual_pct_cost derived metrics.

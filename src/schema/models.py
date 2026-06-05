@@ -127,7 +127,12 @@ class PortfolioSummary(BaseModel):                   # Data Dictionary §9 (hold
     composition_by_industry: Composition = Field(default_factory=Composition)
     composition_by_type: Composition = Field(default_factory=Composition)
     top_10_concentration: Fact = Field(default_factory=Fact)
+    investments_at_cost: Fact = Field(default_factory=Fact)
+    # Non-accruals are captured on BOTH bases: fair value AND amortized cost. The cost
+    # basis is usually the higher / more conservative figure because non-accrual
+    # positions get marked down in fair value.
     non_accrual_fair_value: Fact = Field(default_factory=Fact)
+    non_accrual_at_cost: Fact = Field(default_factory=Fact)
 
 
 class DerivedMetrics(BaseModel):                     # Data Dictionary §10 (computed)
@@ -136,6 +141,8 @@ class DerivedMetrics(BaseModel):                     # Data Dictionary §10 (com
     asset_coverage_pct: Fact = Field(default_factory=Fact)    # (assets - liab_excl_debt) / debt
     net_debt: Fact = Field(default_factory=Fact)              # total_debt - cash
     pik_income_ratio: Fact = Field(default_factory=Fact)      # pik_interest_income / total_investment_income
+    non_accrual_pct_fv: Fact = Field(default_factory=Fact)    # non_accrual_fair_value / investments_at_fair_value
+    non_accrual_pct_cost: Fact = Field(default_factory=Fact)  # non_accrual_at_cost / investments_at_cost
     # distribution_yield is per-class -> see ShareClassNAV
 
 
