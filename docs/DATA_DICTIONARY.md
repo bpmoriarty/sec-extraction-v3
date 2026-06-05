@@ -74,7 +74,11 @@ different location) → XBRL-first with LLM/secondary-location fallback.
 
 | Field | Definition | Source |
 |---|---|---|
-| total_investment_income | Total investment income | XBRL |
+| interest_income | Cash interest income | XBRL |
+| pik_interest_income | Payment-in-kind (PIK) interest — accrued, not paid in cash (key credit-stress signal) | XBRL |
+| dividend_income | Dividend income | XBRL |
+| other_investment_income | Other / fee / misc. investment income | XBRL |
+| total_investment_income | Total investment income (= sum of components above) | XBRL |
 | total_expenses | Total expenses (net of waivers) | XBRL |
 | net_investment_income | NII | XBRL |
 | net_realized_gain_loss | Net realized gains/(losses) | XBRL |
@@ -139,6 +143,7 @@ different location) → XBRL-first with LLM/secondary-location fallback.
 | asset_coverage_pct | (total_assets − liabilities-excl-debt) ÷ total_debt | ✅ Confirmed |
 | distribution_yield | (distributions_per_share ÷ class_nav_per_share), annualized | ✅ Confirmed (grain: fund-period-class) |
 | net_debt | total_debt − cash_and_equivalents | ✅ Confirmed (include) |
+| pik_income_ratio | pik_interest_income ÷ total_investment_income | Added 2026-06-05 (credit-stress signal) |
 
 > Note: `asset_coverage_pct` here is the leverage-analysis ratio. It is distinct from the
 > regulatory `asset_coverage_ratio` in §8 used for the I1 reasonableness check — keep both.
@@ -155,6 +160,7 @@ different location) → XBRL-first with LLM/secondary-location fallback.
 | C4 fair-value sum | identity | fv_level_1+2+3 + fv_nav_practical_expedient = fv_total |
 | C5 income identity | identity | net_investment_income = total_investment_income − total_expenses |
 | C6 net-asset roll-forward | identity | ending = beginning + capital_raised − repurchases + net_increase_ops − distributions_declared |
+| C7 income-components sum | completeness (flag-keep) | interest + pik_interest + dividend + other = total_investment_income. **Flag-keep, not reject**: a shortfall usually means a filer broke out an income line we didn't capture (e.g. fee income), so it doubles as a "missing component" detector rather than proof of error. |
 | I1 asset coverage | reasonableness (flag-keep) | asset_coverage_pct ≥ 150% |
 | I2 leverage range | reasonableness | leverage_ratio |
 | A1–A3, T1–T3 | reasonableness / temporal | net assets > 0; NAV & share-count ranges; period-over-period swings |
@@ -169,3 +175,5 @@ different location) → XBRL-first with LLM/secondary-location fallback.
 3. **OPEN** — Brian reviewing filings for fields to trim or add:
    - Any fields above **not** wanted for the pilot (trim scope)?
    - Anything missing wanted for comparative research?
+   - Added 2026-06-05: investment-income components (interest, PIK interest, dividend,
+     other) + C7 sum check + pik_income_ratio derived metric.

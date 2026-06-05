@@ -74,6 +74,14 @@ class BalanceSheet(BaseModel):                       # Data Dictionary §2
 
 
 class IncomeStatement(BaseModel):                    # Data Dictionary §4
+    # Investment-income components. PIK (payment-in-kind) interest is accrued but not
+    # paid in cash — an important credit-stress signal — so we break it out explicitly.
+    # C7 check: these components should sum to total_investment_income (flag-and-keep:
+    # a shortfall usually means a filer broke out an income line we didn't capture).
+    interest_income: Fact = Field(default_factory=Fact)
+    pik_interest_income: Fact = Field(default_factory=Fact)
+    dividend_income: Fact = Field(default_factory=Fact)
+    other_investment_income: Fact = Field(default_factory=Fact)
     total_investment_income: Fact = Field(default_factory=Fact)
     total_expenses: Fact = Field(default_factory=Fact)
     net_investment_income: Fact = Field(default_factory=Fact)
@@ -127,6 +135,7 @@ class DerivedMetrics(BaseModel):                     # Data Dictionary §10 (com
     leverage_ratio: Fact = Field(default_factory=Fact)        # total_debt / total_net_assets
     asset_coverage_pct: Fact = Field(default_factory=Fact)    # (assets - liab_excl_debt) / debt
     net_debt: Fact = Field(default_factory=Fact)              # total_debt - cash
+    pik_income_ratio: Fact = Field(default_factory=Fact)      # pik_interest_income / total_investment_income
     # distribution_yield is per-class -> see ShareClassNAV
 
 
