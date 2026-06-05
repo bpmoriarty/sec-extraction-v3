@@ -10,8 +10,8 @@ handle many filers with minimal per-filer manual work.
 
 ## Current State
 
-**Phase: Extraction Phase 0 complete (data dictionary + pydantic schema). Next: Phase 1/2 — BDC XBRL extractor + gold-standard set.**
-**Last Session: 2026-06-04**
+**Phase: BDC XBRL extractor built through increment 5 (core financials extracting & hand-validated on 4 funds). Now building the pipeline: validation layer + per-filing JSON output + resumable runner.**
+**Last Session: 2026-06-05**
 
 ### What's Working
 - Virtual environment set up (`uv venv` inside `sec-extraction-v3/`)
@@ -27,6 +27,16 @@ handle many filers with minimal per-filer manual work.
   `morningstar_category`, `us_category_group`, `morningstar_category_broad_group`.
   Vehicle Type breakdown: Interval Fund 171, Tender Offer Fund 155, Unlisted BDC 73,
   Unlisted REIT 42, unknown 106
+- `src/extraction/bdc_xbrl.py` — **BDC XBRL extractor (pilot front-end), increments 1–5.**
+  Maps us-gaap concepts → the FilingExtraction schema, pulling actual-dollar values for
+  the current period. Hand-validated across Apollo/Blackstone/Ares/HPS latest 10-Q.
+  Run: `uv run python src/extraction/bdc_xbrl.py` (prints a coverage report).
+  **Extracting & validated:** metadata/dates/period; balance sheet (C1); per-class NAV
+  (C2, C3); income statement + components incl. PIK (C5, C7); fees (mgmt, incentive);
+  investments_at_cost; asset_coverage_ratio (tagged) + weighted_avg_interest_rate;
+  distributions_declared; derived = leverage, net_debt, asset_coverage_pct,
+  portfolio_mark, pik_income_ratio, distribution_coverage_ratio.
+  **Finding:** all 4 funds show distribution coverage 0.89–0.98 (slightly over-distributing).
 - `src/downloader/initial_pull.py` — downloads all historical filings since 2016
   for ~334 funds with CIKs; **complete as of 2026-06-03 — 7,229 files downloaded**
 - `src/downloader/update_pull.py` — periodic check for new filings since each
@@ -191,6 +201,36 @@ Full plan file: `C:\Users\brian\.claude\plans\while-i-work-on-concurrent-stardus
 
 ---
 
+## Extractor — XBRL learnings (for resuming `bdc_xbrl.py`)
+
+Hard-won quirks discovered while building. Read before extending the extractor.
+
+- **`numeric_value` is actual dollars** — XBRL scale is already applied; no thousands
+  normalization needed.
+- **Map by us-gaap CONCEPT, not rendered label.** `by_concept` is fuzzy → match exactly.
+  Use a candidate list per field (first hit wins); leave null for the LLM fallback.
+- **`scalar()` must filter `period_type=='instant'`** — otherwise a duration concept's
+  prior-period row gets mis-picked (this bug hit distributions + interest rate). Use
+  `scalar_any()` for ratio fields that may be instant OR duration.
+- **Duration facts:** pick the row with `period_end == reporting_date` and length closest
+  to target_months (3 for 10-Q, 12 for 10-K). Ignores 10-Q year-to-date rows.
+- **Dimensioned facts — two patterns handled:**
+  - **Share class** (`dim_us-gaap_StatementClassOfStockAxis`): per-class NAV/shares/NAV-PS.
+    Filter to single-axis rows so class×consolidation cross-tabs don't leak. Normalize
+    members like `bcred:CommonClassIMember` → `I`.
+  - **Investment affiliation** (`dim_us-gaap_InvestmentIssuerAffiliationAxis`): some filers
+    (Blackstone) split income components by affiliation instead of one total → sum across
+    members. `duration_scalar` tries undimensioned total first, then affiliation-sum.
+- **Cash sum fallback:** filers reporting `us-gaap:Cash` + `CashEquivalentsAtCarryingValue`
+  separately (HPS) are summed when the combined concept is absent.
+- **Per-filer / dimensional long tail = LLM-fallback territory:** income components &
+  total_expenses on some filers; fair-value hierarchy (§6, dimensional + custom `ck...`
+  concepts); statement-of-changes roll-forward (custom repurchase concepts); per-class
+  financial highlights (§7 — turnover/total-return are share-class-dimensioned, expense/NII
+  ratios often 10-K only). C7/C-checks flag the unreliable cases.
+
+---
+
 ## Next Steps
 
 1. ~~**Wait for initial pull to complete**~~ — Done. 7,229 files downloaded 2026-06-03.
@@ -200,10 +240,17 @@ Full plan file: `C:\Users\brian\.claude\plans\while-i-work-on-concurrent-stardus
    lookup needed — automated name→CIK confirmed unreliable for these funds.
 4. ~~**Phase 0 (schema/data dictionary)**~~ — Done 2026-06-04. One open item: Brian
    reviewing filings for fields to trim/add (decision #3 in the data dictionary).
-5. **Phase 1/2** — build the BDC XBRL extractor (`src/extraction/bdc_xbrl.py`) mapping
-   real XBRL facts into the schema, and start the hand-checked gold-standard set
-   (~15–25 filings) as the accuracy yardstick.
-6. *(Optional)* Review borderline ISIN/ticker on the ~5 fuzzy master/feeder matches.
+5. ~~Build the BDC XBRL extractor~~ — In progress, increments 1–5 done (see "What's
+   Working" + "XBRL learnings"). Core financials extract & hand-validate on 4 funds.
+6. **Pipeline (current focus):** validation layer (formalize C1–C7 + reasonableness,
+   flag-and-keep) → per-filing JSON to `data/extracted/` → resumable runner. Then run
+   over the full historical filing set of the pilot BDCs to de-risk time-coverage,
+   full-fund-set coverage, and volume behavior — and to learn which remaining XBRL gaps
+   matter vs. go to LLM fallback.
+7. **After pipeline:** harder XBRL (fair value C4, roll-forward C6, composition) and/or
+   LLM fallback, informed by the volume run; then the gold-standard set + spreadsheet
+   assembler.
+8. *(Optional)* Review borderline ISIN/ticker on the ~5 fuzzy master/feeder matches.
 
 ---
 
@@ -211,6 +258,7 @@ Full plan file: `C:\Users\brian\.claude\plans\while-i-work-on-concurrent-stardus
 
 | Date | What Happened |
 |------|---------------|
+| 2026-06-05 | **Built BDC XBRL extractor (`bdc_xbrl.py`), increments 1–5.** Concept-mapped balance sheet, per-class NAV, income statement + components (incl. PIK), fees, investments_at_cost, asset coverage, interest rate, distributions; computed derived metrics. Hand-validated C1/C2/C3/C5/C7 on Apollo/Blackstone/Ares/HPS latest 10-Q. Handled two dimension patterns (share-class, investment-affiliation) and fixed two bugs (affiliation-split income; instant-vs-duration period leakage). Decided to pivot to the pipeline (validation + JSON output + runner) to de-risk time/fund-set/volume coverage before more (harder) XBRL or LLM fallback. See "XBRL learnings" section. |
 | 2026-06-04 | **Extraction Phase 0.** Ran an XBRL spike (Apollo/Blackstone/Ares/HPS 10-Qs) confirming the data is comprehensively tagged — incl. per-class NAV/shares, statement of changes (roll-forward), financial-highlights ratios, fair-value hierarchy, and full schedule of investments. Decided holdings = summary now / detail later. Drafted `docs/DATA_DICTIONARY.md` and built `src/schema/models.py` (pydantic, Fact-wrapped values w/ provenance+confidence). Confirmed derived-field formulas (leverage, asset coverage, distribution yield, net debt) and as-tagged highlights. One open item: trim/add field review. |
 | 2026-06-03 (session 2) | **Categorization + extraction planning.** Confirmed initial pull complete (7,229 files). Built `add_vehicle_type.py` → added `vehicle_type` + Morningstar fields (ISIN, category, etc.) to all funds by CIK-first/name-fallback matching against the 4-tab categorization workbook. Found 18 Morningstar funds unrepresented in the universe; added 15 genuinely-new ones (blank CIK, needs sourcing), skipped 3 as duplicates/feeders. Universe 532 → 547. Separately, **locked the extraction plan** (hybrid XBRL-first BDC pilot; comprehensive schema; gold-set accuracy; flag-and-keep validation; new identity rules incl. 4-bucket fair-value and net-asset roll-forward). |
 | 2026-06-03 (session 1) | Initial pull confirmed complete — 7,229 filings downloaded. |
