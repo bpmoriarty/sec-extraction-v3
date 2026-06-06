@@ -332,6 +332,30 @@ irreducible long tail, not a data error.
 > there to drive it — every `Fact` carries source/confidence and each filing carries
 > `validation_status` + `review_flags`. Decision deferred; do NOT solve now.
 
+### Net-assets concept fix — the 3 "structurally broken" filers (2026-06-05 session 4)
+
+Diagnosis showed the 3 filers were NOT one shared bug but three situations, all resolved
+with generic concept-list work (no per-CIK hacks):
+
+- **`923c29b` — net-assets candidate reorder + LLC concepts (extractor only).** Both lists
+  (`total_net_assets` + per-class `class_net_assets`) changed from `[AssetsNet,
+  StockholdersEquity]` to `[StockholdersEquity, MembersCapital, MembersEquity, AssetsNet]`.
+  - **First Eagle** mis-signs `us-gaap:AssetsNet` (−301.88M vs correct `StockholdersEquity`
+    +301.88M) → now reconciles (C1) with positive net assets (A1).
+  - **Terra Income Fund 6 LLC** tags `MembersCapital`/`MembersEquity` (not AssetsNet/SE) →
+    now captured (was silently `None` → C1 skipped = a fake "pass").
+  - Regression-tested across all 24 working funds: 22 byte-identical, **0 regressions**.
+  - **Roll back: `git revert 923c29b`.**
+- **First Eagle per-class residual (FLAG-AND-KEEP, not fixed):** First Eagle ALSO mis-signs
+  its share-class-dimensioned `AssetsNet` (D=−102k, I=−301,778k), and tags no per-class
+  `StockholdersEquity`, so C2/C3 still flag it. **The reported per-share NAV (24.23) is
+  correct and stored** — only the derived per-class net-assets sign is wrong. Left flagged
+  rather than adding a per-filer sign-flip heuristic (anti-fragility; revisit only if the
+  same negative-per-class pattern shows up across multiple filers).
+- **Bain (deferred):** its current 10-K is clean (AssetsNet = StockholdersEquity, positive,
+  passes). Only some earlier-year filings flagged — a separate, lower-priority year-by-year
+  check, not a concept-mapping bug.
+
 - **Per-filer / dimensional long tail = LLM-fallback territory:** income components &
   total_expenses on some filers; fair-value hierarchy (§6, dimensional + custom `ck...`
   concepts); statement-of-changes roll-forward (custom repurchase concepts); per-class
