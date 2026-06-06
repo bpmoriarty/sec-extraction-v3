@@ -10,11 +10,11 @@ handle many filers with minimal per-filer manual work.
 
 ## Current State
 
-**Phase: Full volume run COMPLETE + analyzed. C5 validation reworked in 3 independent
-commits (net-of-waiver+tax-aware → tax-capture lever → anchor cross-check); C5 fails went
-107→51 on the first re-run, and the anchor work clears most of the rest (Crescent, Oaktree,
-John Hancock verified). Pending: a 2nd re-run to measure the new clear-rate, then the 3
-structurally-broken filers (First Eagle/Terra/Bain).**
+**Phase: Two full volume runs done + C5 (3 levers) and net-assets fixes landed & verified.
+Run 2 clear-rate: 192 pass / 108 review of 300 (64%, up from 51%). The hard correctness
+failures are nearly gone (C1 12→3, A1 11→5, C5 51→30); remaining queue is softer —
+per-share NAV (C2, 33), income-component completeness (C7, 27), NAV range (A2, 18).
+Next: diagnose C2 (biggest remaining, likely systematic).**
 **Last Session: 2026-06-05 (session 4)**
 
 ### What's Working
@@ -106,6 +106,29 @@ produced output. Analysis of `data/extracted/` + `_errors.log` + `review_queue/i
   where `filing.xbrl()` can be `None`; the runner reclassifies the resulting
   `AttributeError` as `no_xbrl` by string-matching `"NoneType"` — works, but a
   `if xbrl is None:` guard would be cleaner.
+
+### Run 2 — cumulative result of all session-4 fixes (2026-06-05)
+
+After committing the C5 levers (`9918097`/`f98a7f9`/`c642efd`) + net-assets fix (`923c29b`),
+re-ran the full extraction. **Authoritative counts read from the 300 JSONs** (the runner's
+summary + `review_queue/index.txt` were skewed by a mid-run restart — trust the JSONs):
+
+- **192 pass / 108 review of 300** (64% clean, up from 51% at session start).
+- Arc across the 3 re-runs: pass ~144 → 176 → **192**; review 151 → 124 → **108**.
+- **Failing checks (filings flagging each rule, deduped per filing):**
+  C2 NAV-per-share **33** · C5 NII **30** · C7 income-components **27** · A2 NAV-range **18**
+  · A1 net-assets-positive **5** · C3 class-sum **4** · C1 balance-sheet **3**.
+- **Qualitative win:** the hard correctness failures cleared — C1 12→3, A1 11→5, C5 51→30.
+  Terra now *truly* passes; First Eagle's C1/A1 fixed (its ~10 remaining = the per-class
+  NAV sign residual we left flag-and-keep). Remaining queue is **softer** (derived NAV /
+  completeness), not wrong balance sheets.
+- `no_xbrl` steady at 126 (pre-2022 filings); `errors` 0.
+- Run 1 (`9918097`) outputs preserved at `data/extracted_run1_9918097/` +
+  `review_queue/index_run1_9918097.txt`; original run at `data/extracted_OLD_pre-9918097/`.
+
+**Next lever — C2 (33 filings), the new #1.** Too many to all be genuine; likely a
+systematic per-class concept-selection issue (same shape as the C5 / net-assets findings).
+Then C7 (income completeness) and A2 (NAV range).
 
 ### What's Not Done Yet
 - No-CIK funds still excluded from downloader until CIKs are sourced. This now
@@ -393,7 +416,7 @@ with generic concept-list work (no per-CIK hacks):
 
 | Date | What Happened |
 |------|---------------|
-| 2026-06-05 (session 4) | **Full volume run + results analysis + C5 rework.** Ran the extractor over all BDCs × 10 yrs: 295 written / 24 funds, 151 review, 126 no_xbrl, 1 error. Diagnosed buckets: all 126 no_xbrl are pre-2022 (pre-inline-XBRL) filings — not a bug; only NC SLF has zero XBRL anywhere. Review queue = cosmetic C5 flags + 16 genuinely-broken extractions in 3 filers (First Eagle/Terra/Bain) + NAV/component remainder. The 1 error = Golub 10-Q 2024-12-31 `KeyError('concept')`. Applied the 2 refinements (net-of-waiver + tax-aware C5, commit `9918097`); re-ran full → C5 fails 107→51, errors 1→0. Diagnosed the residual 51 across 4 funds (Crescent/Antares/Oaktree/John Hancock): NOT waiver/tax — it's expense support + gross-vs-net expenses + split Current/Deferred tax, and the extracted NII *values* are correct. Added 2 more independent levers: tax-capture fix (`f98a7f9`) + anchor cross-check (`c642efd`). Verified no regressions; clears Crescent/Oaktree/John Hancock, leaves Antares-type (no anchor) as flag-and-keep residual. All pushed. **Pending: 2nd full re-run to measure the new clear-rate.** |
+| 2026-06-05 (session 4) | **Full volume run + results analysis + C5 rework.** Ran the extractor over all BDCs × 10 yrs: 295 written / 24 funds, 151 review, 126 no_xbrl, 1 error. Diagnosed buckets: all 126 no_xbrl are pre-2022 (pre-inline-XBRL) filings — not a bug; only NC SLF has zero XBRL anywhere. Review queue = cosmetic C5 flags + 16 genuinely-broken extractions in 3 filers (First Eagle/Terra/Bain) + NAV/component remainder. The 1 error = Golub 10-Q 2024-12-31 `KeyError('concept')`. Applied the 2 refinements (net-of-waiver + tax-aware C5, commit `9918097`); re-ran full → C5 fails 107→51, errors 1→0. Diagnosed the residual 51 across 4 funds (Crescent/Antares/Oaktree/John Hancock): NOT waiver/tax — it's expense support + gross-vs-net expenses + split Current/Deferred tax, and the extracted NII *values* are correct. Added 2 more independent levers: tax-capture fix (`f98a7f9`) + anchor cross-check (`c642efd`). Verified no regressions; clears Crescent/Oaktree/John Hancock, leaves Antares-type (no anchor) as flag-and-keep residual. Then diagnosed the 3 "structurally-broken" filers → 3 distinct situations, all fixed generically (net-assets concept reorder + LLC concepts, `923c29b`): First Eagle mis-signed AssetsNet → prefer StockholdersEquity; Terra LLC → add MembersCapital/MembersEquity; Bain already clean (earlier years deferred). Regression-tested across 24 funds, 0 regressions. First Eagle per-class sign residual left flag-and-keep. **Ran the 2nd full re-run: 192 pass / 108 review of 300 (64%, up from 51%); C1 12→3, A1 11→5, C5 51→30.** Next: diagnose C2 (NAV-per-share, 33 filings — new #1). All pushed. |
 | 2026-06-05 (session 3) | **Set up the project on the Morningstar corporate machine + synced to GitHub.** Installed git (winget). Cloned the repo. Verified the venv/deps. Smoke-tested the runner (`--max-funds 1 --max-filings 2`) → 0 filings: diagnosed as corporate SSL inspection blocking EDGAR (`CERTIFICATE_VERIFY_FAILED`). Fixed with `configure_http(use_system_certs=True)` after `set_identity()` in all 6 EDGAR-touching scripts (+ rules.py self-test); re-ran smoke test → 4 AB Private Lending filings extracted & validated (balance sheet reconciles; status=review as expected per the known C5 waiver/tax item). Committed (`5f4d321`) and pushed to `origin/master`; set local git identity + upstream tracking. Pandas 3.0.3 noted as a watch item. Next: Brian kicks off the full volume run. |
 | 2026-06-05 (session 2) | **Built the pipeline.** Added `src/validation/rules.py` (C1–C7 + reasonableness, flag-and-keep; missing inputs = skipped) and `src/extraction/run_extraction.py` (resumable runner → per-filing JSON in `data/extracted/`, gitignored). Tested on 2 funds (8 filings written; a new fund, AB Private Lending, extracted & passed — generalization signal). Volume test surfaced 3 coverage gaps, all fixed: combined class members ('SDAndI'), missing total_debt (debt sum fallback), expense concepts (recovered AB + Blackstone). New finding logged: C5 gross-vs-net-of-waiver expenses + income tax (2 pending refinements). Full volume run not yet executed — Brian to kick off. |
 | 2026-06-05 (session 1) | **Built BDC XBRL extractor (`bdc_xbrl.py`), increments 1–5.** Concept-mapped balance sheet, per-class NAV, income statement + components (incl. PIK), fees, investments_at_cost, asset coverage, interest rate, distributions; computed derived metrics. Hand-validated C1/C2/C3/C5/C7 on Apollo/Blackstone/Ares/HPS latest 10-Q. Handled two dimension patterns (share-class, investment-affiliation) and fixed two bugs (affiliation-split income; instant-vs-duration period leakage). Decided to pivot to the pipeline (validation + JSON output + runner) to de-risk time/fund-set/volume coverage before more (harder) XBRL or LLM fallback. See "XBRL learnings" section. |
