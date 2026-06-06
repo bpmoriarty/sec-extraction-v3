@@ -50,7 +50,15 @@ EDGAR_IDENTITY = "brianpmoriarty@gmail.com"
 BALANCE_SHEET_CONCEPTS: dict[str, list[str]] = {
     "total_assets": ["us-gaap:Assets"],
     "total_liabilities": ["us-gaap:Liabilities"],
-    "total_net_assets": ["us-gaap:AssetsNet", "us-gaap:StockholdersEquity"],
+    # Net assets = stockholders'/members' equity for an investment company. Order matters:
+    #   - StockholdersEquity FIRST — corp-structured BDCs (equals AssetsNet when both tagged).
+    #     First Eagle mis-signs AssetsNet (-301.88M vs correct +301.88M), so AssetsNet must
+    #     not win there.
+    #   - MembersCapital / MembersEquity — LLC/partnership funds (e.g. Terra Income Fund 6 LLC)
+    #     that don't tag StockholdersEquity at all.
+    #   - AssetsNet LAST — fallback only, for filers that tag nothing else.
+    "total_net_assets": ["us-gaap:StockholdersEquity", "us-gaap:MembersCapital",
+                         "us-gaap:MembersEquity", "us-gaap:AssetsNet"],
     "investments_at_fair_value": [
         "us-gaap:InvestmentOwnedAtFairValue",
         "us-gaap:InvestmentsFairValueDisclosure",
@@ -77,7 +85,10 @@ SHARE_CLASS_AXIS = "dim_us-gaap_StatementClassOfStockAxis"
 # (unaffiliated / affiliated-noncontrolled / affiliated-controlled) instead of one total.
 AFFILIATION_AXIS = "dim_us-gaap_InvestmentIssuerAffiliationAxis"
 PER_CLASS_CONCEPTS: dict[str, list[str]] = {
-    "class_net_assets": ["us-gaap:AssetsNet", "us-gaap:StockholdersEquity"],
+    # Same ordering rationale as total_net_assets (StockholdersEquity first so First Eagle's
+    # mis-signed per-class AssetsNet doesn't drive a negative computed NAV).
+    "class_net_assets": ["us-gaap:StockholdersEquity", "us-gaap:MembersCapital",
+                         "us-gaap:MembersEquity", "us-gaap:AssetsNet"],
     "class_shares_outstanding": [
         "us-gaap:SharesOutstanding",
         "us-gaap:CommonStockSharesOutstanding",
