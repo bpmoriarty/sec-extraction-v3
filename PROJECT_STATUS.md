@@ -323,6 +323,15 @@ expense concept) still flag C5. Their NII *value* is correct (from `NetInvestmen
 the identity just can't self-verify. Flag-and-keep → value retained. This is the
 irreducible long tail, not a data error.
 
+> **OUTPUT REQUIREMENT (future — spreadsheet assembler, idea logged 2026-06-05 session 4):**
+> Flag-and-keep means some values ship as "kept but flagged" (validation_status=`review`
+> with `review_flags`) and may never get a code fix. **These MUST be visibly marked in the
+> final spreadsheet output** so a consumer never mistakes a flagged value for a clean one.
+> Options to decide later: conditional formatting (e.g. amber cells), a per-cell comment/
+> note, and/or a companion "flags" column or status column per row. The data is already
+> there to drive it — every `Fact` carries source/confidence and each filing carries
+> `validation_status` + `review_flags`. Decision deferred; do NOT solve now.
+
 - **Per-filer / dimensional long tail = LLM-fallback territory:** income components &
   total_expenses on some filers; fair-value hierarchy (§6, dimensional + custom `ck...`
   concepts); statement-of-changes roll-forward (custom repurchase concepts); per-class
