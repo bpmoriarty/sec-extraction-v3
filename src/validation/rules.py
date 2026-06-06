@@ -30,6 +30,32 @@ def _tol(x: float, rel: float = 0.001, floor: float = 1000.0) -> float:
     return max(abs(x) * rel, floor)
 
 
+def _thousand_rounded(x: float) -> bool:
+    """True if x looks XBRL-rounded to thousands (a multiple of 1000, magnitude >= 1000).
+    Filers tag net assets / shares with decimals=-3 → the stored value is rounded."""
+    return abs(x) >= 1000 and abs(round(x / 1000.0) * 1000.0 - x) < 0.5
+
+
+def _nav_tol(na: float, sh: float, computed: float) -> float:
+    """Tolerance for the per-share NAV identity (C2). A flat $0.01 is unrealistic when
+    net assets and/or shares are XBRL-rounded to thousands: for a small class the rounding
+    swings the recomputed NAV by cents-to-dollars even though the filer's REPORTED NAV is
+    exact (e.g. net assets 10,000 / shares 382 → 26.18 vs a reported 25.13 whose true net
+    assets were ~9,600). Propagate EACH input's own rounding independently:
+        ΔNAV ≈ (step_na/2)/sh           (net-assets rounding → NAV)
+             + |computed|·(step_sh/2)/sh (share rounding → NAV)
+             + 0.005                      (reported NAV is itself rounded to the cent)
+    step_x = 1000 if that input looks thousand-rounded, else 1. Floored at $0.01 so fully
+    precise large classes keep a tight check. Genuine errors (sign flips, ~1000x unit
+    mismatches) are far outside this band and still fail."""
+    step_na = 1000.0 if _thousand_rounded(na) else 1.0
+    step_sh = 1000.0 if _thousand_rounded(sh) else 1.0
+    return max(0.01,
+               (step_na / 2.0) / abs(sh)
+               + abs(computed) * (step_sh / 2.0) / abs(sh)
+               + 0.005)
+
+
 def validate(e: FilingExtraction) -> FilingExtraction:
     checks: list[ValidationCheck] = []
 
@@ -65,7 +91,8 @@ def validate(e: FilingExtraction) -> FilingExtraction:
             add(rid, "NAV = net assets / shares", "identity", "skipped", "missing inputs")
             continue
         computed = na / sh
-        if abs(nav - computed) <= 0.01:
+        nav_tol = _nav_tol(na, sh, computed)
+        if abs(nav - computed) <= nav_tol:
             add(rid, "NAV = net assets / shares", "identity", "pass")
         elif computed and 0.5 < (computed / nav if nav else 0) / 1000 < 1.5:
             # reported ~1000x the computed -> units mismatch (thousands vs actual)
@@ -73,7 +100,7 @@ def validate(e: FilingExtraction) -> FilingExtraction:
                 f"likely UNIT error: reported {nav:.2f} vs computed {computed:,.2f} (~1000x)")
         else:
             add(rid, "NAV = net assets / shares", "identity", "fail",
-                f"reported {nav:.2f} vs computed {computed:.2f}")
+                f"reported {nav:.2f} vs computed {computed:.2f} (tol {nav_tol:.2f})")
 
     # ── C3: class net assets sum to total (identity) ─────────────────────────
     class_nas = [sc.class_net_assets.value for sc in e.share_classes_nav
