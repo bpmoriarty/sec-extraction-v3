@@ -228,7 +228,11 @@ def validate(e: FilingExtraction) -> FilingExtraction:
 
     for sc in e.share_classes_nav:
         nav = sc.class_nav_per_share.value
-        if nav is None:
+        # NAV of 0/None = a DORMANT share class: registered on the XBRL share-class axis
+        # but unfunded (0 shares, 0/None net assets), so it has no meaningful NAV — not an
+        # out-of-range anomaly. (A genuinely funded class that mis-extracted to 0 would be
+        # caught by the C2 identity, net_assets/shares != 0, so skipping 0 here is safe.)
+        if not nav:
             continue
         if not (1.0 <= nav <= 100.0):
             add(f"A2[{sc.class_label}]", "NAV in plausible range", "reasonableness", "fail",
