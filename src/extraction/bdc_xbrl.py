@@ -393,6 +393,39 @@ class FactSet:
                 classes.append(c)
         return sorted(classes)
 
+    def _nav_practical_expedient(self) -> Fact:
+        """The 'measured at NAV' (practical-expedient) bucket, which sits OUTSIDE the L1/L2/L3
+        hierarchy (money-market / alternative investments). Filers tag it under varied concepts:
+        on the hierarchy NAV member (e.g. us-gaap:AlternativeInvestment) or as a standalone
+        '...MeasuredAtNetAssetValue' line. Reporting-date instant value (first match wins)."""
+        inst = self.df[(self.df["period_type"] == "instant")
+                       & self.df["numeric_value"].notna()].copy()
+        if inst.empty:
+            return Fact()
+        inst["_inst"] = inst["period_instant"].map(self._iso)
+        inst = inst[inst["_inst"] == self.reporting_date]
+        if inst.empty:
+            return Fact()
+        inst["_ndim"] = inst[self._dim_cols].notna().sum(axis=1)
+        # (a) AlternativeInvestment / InvestmentOwnedAtFairValue on the hierarchy NAV member
+        if FV_HIERARCHY_AXIS in inst.columns:
+            nav = inst[inst[FV_HIERARCHY_AXIS].astype(str).str.contains("NetAssetValue", na=False)
+                       & (inst["_ndim"] == 1)
+                       & inst["concept"].isin(["us-gaap:AlternativeInvestment",
+                                               "us-gaap:InvestmentOwnedAtFairValue"])]
+            if not nav.empty:
+                r = nav.iloc[0]
+                return Fact(value=float(r["numeric_value"]), source=Source.XBRL, confidence=0.90,
+                            raw_text=f"{str(r['concept']).split(':')[-1]} (NAV member)")
+        # (b) standalone undimensioned '...MeasuredAtNetAssetValue' concept (incl. custom ck:)
+        und = inst[(inst["_ndim"] == 0)
+                   & inst["concept"].astype(str).str.contains("MeasuredAtNetAssetValue", na=False)]
+        if not und.empty:
+            r = und.iloc[0]
+            return Fact(value=float(r["numeric_value"]), source=Source.XBRL, confidence=0.85,
+                        raw_text=str(r["concept"]).split(":")[-1])
+        return Fact()
+
     def fv_hierarchy(self, total: float | None) -> dict[str, Fact]:
         """{fv_level_1/2/3, fv_nav_practical_expedient: Fact} from the fair-value hierarchy
         axis at the reporting date. Per level, PREFER the per-level TOTAL row (hierarchy axis
@@ -438,6 +471,18 @@ class FactSet:
                                   raw_text=f"{concept.split(':')[-1]} {member}")
             if not out:
                 continue
+            # NAV-practical-expedient (money-market / alternative investments measured at NAV)
+            # sits OUTSIDE the L1/L2/L3 hierarchy and is often tagged under a DIFFERENT concept
+            # (us-gaap:AlternativeInvestment) or a custom '...MeasuredAtNetAssetValue' line. If our
+            # buckets undershoot the total, plug that gap -- but ONLY keep it if the result then
+            # reconciles, so a filing that already balances can never be broken.
+            if total is not None and "fv_nav_practical_expedient" not in out:
+                s = sum(f.value for f in out.values())
+                tol = max(abs(total) * 0.001, 1000.0)   # match the C4 validation tolerance
+                if s < total - tol:
+                    navpe = self._nav_practical_expedient()
+                    if navpe.value is not None and abs(s + navpe.value - total) <= tol:
+                        out["fv_nav_practical_expedient"] = navpe
             # Self-check the asset-type-sum fallback: if levels don't reconcile to the known
             # total, the breakdown was cross-tabbed (double-counted) -> discard it.
             if used_sum and total is not None:
