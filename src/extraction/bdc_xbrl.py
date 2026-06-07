@@ -33,8 +33,8 @@ from edgar import set_identity, configure_http, Company
 SCHEMA_DIR = Path(__file__).resolve().parents[1] / "schema"
 sys.path.insert(0, str(SCHEMA_DIR))
 from models import (  # noqa: E402
-    BalanceSheet, DistributionsLeverage, Fact, FeesExpenseSupport, FilingExtraction,
-    FinancialHighlights, IncomeStatement, PortfolioSummary, ShareClassNAV,
+    BalanceSheet, DistributionsLeverage, Fact, FairValueHierarchy, FeesExpenseSupport,
+    FilingExtraction, FinancialHighlights, IncomeStatement, PortfolioSummary, ShareClassNAV,
     StatementOfChanges, Source,
 )
 
@@ -84,6 +84,17 @@ SHARE_CLASS_AXIS = "dim_us-gaap_StatementClassOfStockAxis"
 # Some filers (e.g. Blackstone) report income components split by investment affiliation
 # (unaffiliated / affiliated-noncontrolled / affiliated-controlled) instead of one total.
 AFFILIATION_AXIS = "dim_us-gaap_InvestmentIssuerAffiliationAxis"
+# Fair-value hierarchy (Data Dictionary §6). Investment fair value is tagged by level on
+# this axis (cross-tabbed with asset-type / valuation-technique). First concept wins.
+FV_HIERARCHY_AXIS = "dim_us-gaap_FairValueByFairValueHierarchyLevelAxis"
+FV_CONCEPTS = ["us-gaap:InvestmentOwnedAtFairValue", "us-gaap:InvestmentsFairValueDisclosure"]
+# hierarchy member suffix -> FairValueHierarchy field
+FV_LEVEL_FIELDS = {
+    "FairValueInputsLevel1Member": "fv_level_1",
+    "FairValueInputsLevel2Member": "fv_level_2",
+    "FairValueInputsLevel3Member": "fv_level_3",
+    "FairValueMeasuredAtNetAssetValuePerShareMember": "fv_nav_practical_expedient",
+}
 PER_CLASS_CONCEPTS: dict[str, list[str]] = {
     # Same ordering rationale as total_net_assets (StockholdersEquity first so First Eagle's
     # mis-signed per-class AssetsNet doesn't drive a negative computed NAV).
@@ -382,6 +393,60 @@ class FactSet:
                 classes.append(c)
         return sorted(classes)
 
+    def fv_hierarchy(self, total: float | None) -> dict[str, Fact]:
+        """{fv_level_1/2/3, fv_nav_practical_expedient: Fact} from the fair-value hierarchy
+        axis at the reporting date. Per level, PREFER the per-level TOTAL row (hierarchy axis
+        is the only dimension — reliable, reconciles to the undimensioned total); else FALL
+        BACK to summing the asset-type breakdown (hierarchy + exactly one other dim). The
+        breakdown is often cross-tabbed (asset-type x valuation-technique), so a naive sum can
+        double-count — we therefore TRUST the fallback only if the levels reconcile to `total`
+        (the undimensioned investments-at-fair-value); otherwise we discard and leave §6 for
+        the LLM/HTML fallback rather than store double-counted values."""
+        if FV_HIERARCHY_AXIS not in self.df.columns:
+            return {}
+        dim_cols = self._dim_cols
+        for concept in FV_CONCEPTS:
+            rows = self.df[
+                (self.df["concept"] == concept)
+                & (self.df["period_type"] == "instant")
+                & self.df[FV_HIERARCHY_AXIS].notna()
+                & self.df["numeric_value"].notna()
+            ].copy()
+            if rows.empty:
+                continue
+            rows["_inst"] = rows["period_instant"].map(self._iso)
+            rows = rows[rows["_inst"] == self.reporting_date]
+            if rows.empty:
+                continue
+            rows["_ndim"] = rows[dim_cols].notna().sum(axis=1)
+            out: dict[str, Fact] = {}
+            used_sum = False
+            for member, field in FV_LEVEL_FIELDS.items():
+                lr = rows[rows[FV_HIERARCHY_AXIS].astype(str).str.endswith(member)]
+                if lr.empty:
+                    continue
+                level_total = lr[lr["_ndim"] == 1]                 # only the hierarchy axis
+                if not level_total.empty:
+                    val = float(level_total["numeric_value"].iloc[0])
+                else:
+                    breakdown = lr[lr["_ndim"] == 2]                # hierarchy + one other axis
+                    if breakdown.empty:
+                        continue
+                    val = float(breakdown["numeric_value"].sum())
+                    used_sum = True
+                out[field] = Fact(value=val, source=Source.XBRL, confidence=0.95,
+                                  raw_text=f"{concept.split(':')[-1]} {member}")
+            if not out:
+                continue
+            # Self-check the asset-type-sum fallback: if levels don't reconcile to the known
+            # total, the breakdown was cross-tabbed (double-counted) -> discard it.
+            if used_sum and total is not None:
+                s = sum(f.value for f in out.values())
+                if abs(s - total) > max(abs(total) * 0.005, 1000.0):
+                    return {}
+            return out
+        return {}
+
 
 # ── Extractor ─────────────────────────────────────────────────────────────────
 
@@ -473,6 +538,16 @@ def extract_filing(company, filing, cik: str, form: str) -> FilingExtraction:
         for cls in classes
     ]
 
+    # Fair-value hierarchy (§6) — dimensional; lights up C4 when the levels reconcile to the
+    # undimensioned investments-at-fair-value (which doubles as fv_total).
+    fv = FairValueHierarchy()
+    ifv = bs.investments_at_fair_value.value
+    for field, fact in facts.fv_hierarchy(ifv).items():
+        setattr(fv, field, fact)
+    if any(getattr(fv, f).value is not None
+           for f in ("fv_level_1", "fv_level_2", "fv_level_3", "fv_nav_practical_expedient")):
+        fv.fv_total = bs.investments_at_fair_value
+
     extraction = FilingExtraction(
         cik=str(int(cik)).zfill(10),
         fund_name=str(getattr(company, "name", "") or company.name),
@@ -483,6 +558,7 @@ def extract_filing(company, filing, cik: str, form: str) -> FilingExtraction:
         filing_date=FactSet._iso(filing.filing_date) or None,
         share_classes=classes,
         balance_sheet=bs,
+        fair_value=fv,
         income_statement=inc,
         statement_of_changes=changes,
         financial_highlights=highlights,
