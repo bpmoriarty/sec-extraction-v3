@@ -103,6 +103,11 @@ INCOME_CONCEPTS: dict[str, list[str]] = {
     "interest_income": ["us-gaap:InterestIncomeOperatingPaidInCash",
                         "us-gaap:InvestmentIncomeInterest", "us-gaap:InterestIncomeOperating"],
     "pik_interest_income": ["us-gaap:InterestIncomeOperatingPaidInKind"],
+    # PIK dividends + the combined interest-and-dividend PIK line. Captured so C7 can
+    # bound a filer's total PIK income (some break PIK out here, some fold it into the
+    # interest line). Additive: these feed the C7 PIK band only, not C5/derived.
+    "pik_dividend_income": ["us-gaap:DividendIncomeOperatingPaidInKind"],
+    "pik_income_combined": ["us-gaap:InterestAndDividendIncomeOperatingPaidInKind"],
     "dividend_income": ["us-gaap:DividendIncomeOperating", "us-gaap:InvestmentIncomeDividend"],
     "other_investment_income": ["us-gaap:OtherIncome", "us-gaap:OtherInvestmentIncomeOperating"],
     "total_investment_income": ["us-gaap:GrossInvestmentIncomeOperating",

@@ -89,6 +89,12 @@ class IncomeStatement(BaseModel):                    # Data Dictionary §4
     # a shortfall usually means a filer broke out an income line we didn't capture).
     interest_income: Fact = Field(default_factory=Fact)
     pik_interest_income: Fact = Field(default_factory=Fact)
+    # PIK can also arrive as dividends (or a single combined interest+dividend PIK line).
+    # BDC PIK tagging is inconsistent — some filers fold PIK into the interest line,
+    # others break it out across these overlapping concepts — so C7 reads all of them to
+    # bound the filer's total PIK rather than demand the components sum exactly.
+    pik_dividend_income: Fact = Field(default_factory=Fact)
+    pik_income_combined: Fact = Field(default_factory=Fact)
     dividend_income: Fact = Field(default_factory=Fact)
     other_investment_income: Fact = Field(default_factory=Fact)
     total_investment_income: Fact = Field(default_factory=Fact)

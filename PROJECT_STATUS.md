@@ -10,13 +10,16 @@ handle many filers with minimal per-filer manual work.
 
 ## Current State
 
-**Phase: Two full volume runs + 5 validation fixes (C5 ×3, net-assets, C2) landed & verified.
-Clear-rate now 218 pass / 82 review of 300 (73%, up from 51% at session start). The hard
-correctness failures are essentially gone (C1 12→3, A1 11→5, C5 51→30, C2 51→9). Remaining
-queue is soft: C5 ~30 (Antares-type, no anchor), C7 27 (income completeness), A2 18 (NAV
-range). Added a `--revalidate` runner mode (re-validate in place, no re-extraction).
-Next: C7 / A2, then harder XBRL (fair value C4, roll-forward C6) and/or LLM fallback.**
-**Last Session: 2026-06-05 (session 4)**
+**Phase: C7 PIK-band fix landed & verified (session 5). Clear-rate now 240 pass / 60 review
+of 300 (80%, up from 51% at project start). The hard correctness failures are gone (C1 12→3,
+A1 11→5, C5 51→30, C2 51→9) and C7 income-completeness is now PIK-tolerant (C7 27→1, with
+0 regressions on any other rule — verified by reverting C7 and re-validating in place).
+Remaining queue: A2 27 (NAV range — now the LARGEST bucket), C5 30 (Antares-type, no anchor),
+C2 9, A1 5, C3 4, C1 3, C7 1 (one genuine missing-dividend gap). Use `--revalidate` for
+rule-only changes (re-validate in place, no re-extraction); the C7 fix needed a full re-run
+because it added extractor fields.
+Next: A2 (NAV range), then harder XBRL (fair value C4, roll-forward C6) and/or LLM fallback.**
+**Last Session: 2026-06-07 (session 5)**
 
 ### What's Working
 - Virtual environment set up (`uv venv` inside `sec-extraction-v3/`)
@@ -145,10 +148,12 @@ re-runs validation over the existing JSONs in place (rewrites validation fields 
 the review index fresh), offline in seconds. Used it to land the C2 fix. Use this for any
 future C-rule tweak instead of a full network re-run.
 
-**Remaining review queue (82 filings):** C5 ~30 (Antares-type, no authoritative anchor +
-gross-only expense), C7 27 (income components don't sum to TII — uncaptured income line),
-A2 18 (NAV outside $1–$100 plausible band). All flag-and-keep; values are not wrong balance
-sheets. Next diagnostic targets: C7 then A2 (likely systematic, same as prior findings).
+**Remaining review queue (60 filings, after session-5 C7 fix):** A2 27 (NAV outside $1–$100
+plausible band — now the LARGEST bucket; note the old "A2 18" here was stale, carried from the
+192/108 state — A2 was actually 27 in the 218/82 baseline too), C5 30 (Antares-type, no
+authoritative anchor + gross-only expense), C2 9, A1 5, C3 4, C1 3, C7 1 (the one genuine
+missing-dividend gap). All flag-and-keep; values are not wrong balance sheets. Next
+diagnostic target: A2.
 
 ### What's Not Done Yet
 - No-CIK funds still excluded from downloader until CIKs are sourced. This now
@@ -399,6 +404,38 @@ with generic concept-list work (no per-CIK hacks):
   passes). Only some earlier-year filings flagged — a separate, lower-priority year-by-year
   check, not a concept-mapping bug.
 
+### C7 income-completeness — PIK-band anchor (2026-06-07 session 5)
+
+C7 originally demanded the income components (interest + PIK + dividend + other) sum EXACTLY
+to total_investment_income. 27 filings failed, concentrated in 2 filers with OPPOSITE causes,
+both about PIK (paid-in-kind) income:
+
+- **Ares Strategic Income (10 filings): PIK double-counted.** Ares's interest line
+  (`InterestIncomeOperating`) is **PIK-inclusive** — it already contains PIK interest — so
+  adding `InterestIncomeOperatingPaidInKind` on top overshoots by exactly the PIK amount
+  (gap = −PIK, the fingerprint across all 10).
+- **Blue Owl Credit Income (12 filings): PIK dividend uncaptured.** Blue Owl's interest line
+  is **PIK-exclusive**, and it breaks PIK out across overlapping concepts (us-gaap split +
+  us-gaap combined `InterestAndDividendIncomeOperatingPaidInKind` + a custom `orcic:` combined).
+  We captured only `InterestIncomeOperatingPaidInKind`, missing the **PIK dividend**
+  (`DividendIncomeOperatingPaidInKind`) — exactly the shortfall.
+
+**Key lesson:** the same PIK concept means different things to different filers (inclusive vs
+exclusive of the cash interest line), so no single concept-list edit fixes both — they pull
+opposite directions. **Fix = anchor on the authoritative total + PIK band (mirrors C5):**
+let `core = interest + dividend + other` (PIK-free, consistent) and pass if
+`-tol <= (total - core) <= pik_avail + tol`, where `pik_avail = max(pik_interest + pik_dividend,
+pik_combined)`. PIK-inclusive filers → shortfall ~0 → pass; PIK-exclusive → shortfall ~ tagged
+PIK → pass; a genuine NON-PIK missing income line → shortfall exceeds PIK → still fails.
+
+- **Extractor:** added `pik_dividend_income` + `pik_income_combined` fields/concepts (additive;
+  feed the C7 band only, not C5/derived). Gating in C7 unchanged (same 4 components required)
+  so the rule only ADDS pass paths — nothing passing can regress.
+- **Result:** C7 27→1, review 82→60, pass 218→240 (80%). The 1 residual = Ares 2026-03-31,
+  which has `dividend_income = 0` (a genuinely missing cash-dividend line, NOT PIK) → correctly
+  still flagged. **Regression-verified:** reverted C7, re-validated in place → every other rule
+  (A1/A2/C1/C2/C3/C5) byte-identical; only C7 moved.
+
 - **Per-filer / dimensional long tail = LLM-fallback territory:** income components &
   total_expenses on some filers; fair-value hierarchy (§6, dimensional + custom `ck...`
   concepts); statement-of-changes roll-forward (custom repurchase concepts); per-class
@@ -436,6 +473,7 @@ with generic concept-list work (no per-CIK hacks):
 
 | Date | What Happened |
 |------|---------------|
+| 2026-06-07 (session 5) | **C7 income-completeness fix (PIK-band anchor).** Pulled latest code on the home machine; re-ran the full extraction to rebuild `data/extracted/` (reproduced 218/82 exactly — confirms the dataset is regenerable and the JSONs are correctly gitignored, not pushed). Diagnosed C7 (27 fails): concentrated in 2 filers with OPPOSITE PIK causes — Ares (10) double-counts PIK (PIK-inclusive interest line) and Blue Owl (12) misses PIK dividend (PIK-exclusive, PIK split across overlapping us-gaap + custom `orcic:` concepts). Same PIK concept means different things per filer → no single concept edit fixes both. Implemented the PIK-band anchor (mirrors C5): `core = int+div+oth` must reconcile to the authoritative total once tagged PIK is allowed as a band. Added `pik_dividend_income` + `pik_income_combined` (schema + extractor, additive); rewrote C7 with gating unchanged so it only ADDS pass paths. Full re-run → **240 pass / 60 review (80%), C7 27→1.** The 1 residual = Ares 2026-03-31 (genuine missing cash-dividend, not PIK) — correctly still flagged. **Regression-verified by reverting C7 + re-validating in place: every other rule byte-identical (A1 5, A2 27, C1 3, C2 9, C3 4, C5 30) — only C7 moved.** Also corrected the stale "A2 18" in this doc → A2 was always 27; it is now the largest remaining bucket and the next target. |
 | 2026-06-05 (session 4) | **Full volume run + results analysis + C5 rework.** Ran the extractor over all BDCs × 10 yrs: 295 written / 24 funds, 151 review, 126 no_xbrl, 1 error. Diagnosed buckets: all 126 no_xbrl are pre-2022 (pre-inline-XBRL) filings — not a bug; only NC SLF has zero XBRL anywhere. Review queue = cosmetic C5 flags + 16 genuinely-broken extractions in 3 filers (First Eagle/Terra/Bain) + NAV/component remainder. The 1 error = Golub 10-Q 2024-12-31 `KeyError('concept')`. Applied the 2 refinements (net-of-waiver + tax-aware C5, commit `9918097`); re-ran full → C5 fails 107→51, errors 1→0. Diagnosed the residual 51 across 4 funds (Crescent/Antares/Oaktree/John Hancock): NOT waiver/tax — it's expense support + gross-vs-net expenses + split Current/Deferred tax, and the extracted NII *values* are correct. Added 2 more independent levers: tax-capture fix (`f98a7f9`) + anchor cross-check (`c642efd`). Verified no regressions; clears Crescent/Oaktree/John Hancock, leaves Antares-type (no anchor) as flag-and-keep residual. Then diagnosed the 3 "structurally-broken" filers → 3 distinct situations, all fixed generically (net-assets concept reorder + LLC concepts, `923c29b`): First Eagle mis-signed AssetsNet → prefer StockholdersEquity; Terra LLC → add MembersCapital/MembersEquity; Bain already clean (earlier years deferred). Regression-tested across 24 funds, 0 regressions. First Eagle per-class sign residual left flag-and-keep. **Ran the 2nd full re-run: 192 pass / 108 review of 300 (64%); C1 12→3, A1 11→5, C5 51→30.** Then diagnosed C2 (NAV-per-share) → ~43 of 51 flags were rounding artifacts on small share classes (net assets/shares rounded to thousands → can't match reported NAV to the cent); fixed with a rounding-aware tolerance (`d9aac9e`). Added a `--revalidate` runner mode (`5c6b622`) to re-run validation in place with no re-extraction, and used it to land C2: **final 218 pass / 82 review (73%)**, C2 51→9 (8 = First Eagle sign residual), 0 regressions. All committed & pushed. |
 | 2026-06-05 (session 3) | **Set up the project on the Morningstar corporate machine + synced to GitHub.** Installed git (winget). Cloned the repo. Verified the venv/deps. Smoke-tested the runner (`--max-funds 1 --max-filings 2`) → 0 filings: diagnosed as corporate SSL inspection blocking EDGAR (`CERTIFICATE_VERIFY_FAILED`). Fixed with `configure_http(use_system_certs=True)` after `set_identity()` in all 6 EDGAR-touching scripts (+ rules.py self-test); re-ran smoke test → 4 AB Private Lending filings extracted & validated (balance sheet reconciles; status=review as expected per the known C5 waiver/tax item). Committed (`5f4d321`) and pushed to `origin/master`; set local git identity + upstream tracking. Pandas 3.0.3 noted as a watch item. Next: Brian kicks off the full volume run. |
 | 2026-06-05 (session 2) | **Built the pipeline.** Added `src/validation/rules.py` (C1–C7 + reasonableness, flag-and-keep; missing inputs = skipped) and `src/extraction/run_extraction.py` (resumable runner → per-filing JSON in `data/extracted/`, gitignored). Tested on 2 funds (8 filings written; a new fund, AB Private Lending, extracted & passed — generalization signal). Volume test surfaced 3 coverage gaps, all fixed: combined class members ('SDAndI'), missing total_debt (debt sum fallback), expense concepts (recovered AB + Blackstone). New finding logged: C5 gross-vs-net-of-waiver expenses + income tax (2 pending refinements). Full volume run not yet executed — Brian to kick off. |

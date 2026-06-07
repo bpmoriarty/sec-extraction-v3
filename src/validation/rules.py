@@ -172,18 +172,35 @@ def validate(e: FilingExtraction) -> FilingExtraction:
         add("C6", "Net-asset roll-forward", "identity", status,
             None if status == "pass" else f"rolled {calc:,.0f} != ending {end:,.0f}")
 
-    # ── C7: income components sum to total (completeness, flag-keep) ──────────
-    comps = v(inc.interest_income, inc.pik_interest_income, inc.dividend_income,
-              inc.other_investment_income)
-    if tii is None or any(c is None for c in comps):
-        add("C7", "Income components sum to total", "identity", "skipped",
+    # ── C7: income components reconcile to total (completeness, flag-keep) ─────
+    # BDC PIK (paid-in-kind) tagging is inconsistent: some filers fold PIK INTO the
+    # interest line (PIK-inclusive), others break it out separately (PIK-exclusive) —
+    # and the breakout scatters across overlapping us-gaap + custom concepts. So instead
+    # of demanding the components sum EXACTLY, we anchor on the filer's authoritative
+    # total and treat PIK as a band: the clean PIK-free components (interest+dividend+
+    # other) must not overshoot the total, and any shortfall must be explainable by the
+    # filer's tagged PIK. A genuine uncaptured NON-PIK income line still fails (mirrors
+    # the C5 anchor strategy). Gating is unchanged from the old strict rule (same four
+    # components required) so this only ADDS pass paths — nothing passing can start to fail.
+    int_i, pik_i, div_i, oth_i = v(inc.interest_income, inc.pik_interest_income,
+                                   inc.dividend_income, inc.other_investment_income)
+    if tii is None or any(c is None for c in (int_i, pik_i, div_i, oth_i)):
+        add("C7", "Income components reconcile to total", "identity", "skipped",
             "not all components present")
     else:
-        diff = sum(comps) - tii
-        status = "pass" if abs(diff) <= _tol(tii) else "fail"
-        add("C7", "Income components sum to total", "identity", status,
-            None if status == "pass" else f"components {sum(comps):,.0f} != total {tii:,.0f} "
-            f"(diff {diff:,.0f}) - likely an uncaptured income line")
+        core = int_i + div_i + oth_i                       # PIK-free, consistent across filers
+        pik_div, pik_comb = v(inc.pik_dividend_income, inc.pik_income_combined)
+        pik_split = pik_i + (pik_div or 0.0)               # PIK interest + PIK dividend
+        pik_avail = max(pik_split, pik_comb or 0.0)        # best estimate of total PIK income
+        shortfall = tii - core
+        tol = _tol(tii)
+        # PIK-inclusive filer -> shortfall ~ 0; PIK-exclusive -> shortfall ~ pik_avail.
+        if -tol <= shortfall <= pik_avail + tol:
+            add("C7", "Income components reconcile to total", "identity", "pass")
+        else:
+            add("C7", "Income components reconcile to total", "identity", "fail",
+                f"core (int+div+oth) {core:,.0f} vs total {tii:,.0f} (shortfall {shortfall:,.0f}, "
+                f"tagged PIK {pik_avail:,.0f}) - unexplained income gap")
 
     # ── Reasonableness (flag-and-keep) ───────────────────────────────────────
     acov = d.asset_coverage_pct.value
