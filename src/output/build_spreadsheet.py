@@ -19,6 +19,7 @@ Run:  uv run python src/output/build_spreadsheet.py
 
 from __future__ import annotations
 
+import csv
 import json
 from pathlib import Path
 
@@ -29,7 +30,12 @@ from openpyxl.worksheet.datavalidation import DataValidation
 
 ROOT = Path(__file__).resolve().parents[2]
 EXTRACTED = ROOT / "data" / "extracted"
+HOLDINGS = ROOT / "data" / "holdings"
 OUT = ROOT / "data" / "dataset" / "semiliquid_bdc_dataset.xlsx"
+
+# Columns in the per-filing holdings CSVs (written by run_extraction._write_holdings).
+HOLDING_CSV_COLS = ["issuer", "affiliation", "fair_value", "cost", "principal", "rate",
+                    "spread", "pik_rate", "floor", "shares", "commitment", "pct_na"]
 
 # ── Column spec for the Data tab ────────────────────────────────────────────────
 # (section, column_name, section_obj, field) — section_obj is the top-level JSON key
@@ -116,8 +122,13 @@ DATA_FIELDS: list[tuple[str, str, str, str]] = [
     ("Derived", "non_accrual_pct_cost", "derived", "non_accrual_pct_cost"),
     ("Derived", "distribution_coverage_ratio", "derived", "distribution_coverage_ratio"),
     ("Derived", "portfolio_mark", "derived", "portfolio_mark"),
-    ("Derived", "net_lending_spread", "derived", "net_lending_spread"),
+    # net_lending_spread computed in-workbook = weighted_avg_portfolio_yield - weighted_avg_interest_rate
+    ("Derived", "net_lending_spread", "__netspread__", ""),
     ("Derived", "liquidity_coverage", "derived", "liquidity_coverage"),
+    # Holdings reconciliation diagnostic (computed in-workbook): sum of schedule-of-investments
+    # fair value / balance-sheet investments_at_fair_value. ~1.0 = the SOI ties to the balance
+    # sheet; far from 1.0 = a data-quality concern (flagged amber). NOT a validation rule.
+    ("Derived", "holdings_fv_recon", "__recon__", ""),
 ]
 
 META_COLS = ["cik", "fund_name", "form_type", "reporting_date", "period_months",
@@ -196,9 +207,9 @@ DERIVED_DEFS: list[tuple[str, str, str]] = [
      "Portfolio (by cost) on non-accrual; usually higher than the fair-value version. "
      "NOT YET POPULATED — pending the LLM/HTML phase."),
     ("net_lending_spread", "weighted_avg_portfolio_yield - weighted_avg_interest_rate",
-     "Gross spread between what the portfolio earns and the fund's cost of debt. NOT YET "
-     "COMPUTED — weighted_avg_portfolio_yield is now holdings-derived (below), but the cost-of-"
-     "debt leg (weighted_avg_interest_rate) is inconsistently tagged; pending a later increment."),
+     "Gross spread between what the portfolio earns and the fund's cost of debt. Computed "
+     "in-workbook where BOTH legs exist; yield is holdings-derived and the cost-of-debt leg "
+     "(weighted_avg_interest_rate) is tagged for only ~86 filings, so coverage is limited."),
     ("liquidity_coverage", "(cash_and_equivalents + undrawn_debt_capacity) / unfunded_commitments",
      "Available liquidity vs. commitments the fund may have to fund. NOT YET COMPUTED — "
      "unfunded_commitments is now holdings-derived (below), but undrawn_debt_capacity isn't "
@@ -240,6 +251,11 @@ HOLDINGS_DERIVED_DEFS: list[tuple[str, str, str]] = [
     ("unfunded_commitments", "sum(commitment) over holdings",
      "Total unfunded commitments the fund may still have to fund (feeds liquidity_coverage). "
      "Stored under the Liquidity section. NULL for filers that don't tag per-holding commitments."),
+    ("holdings_fv_recon", "sum(holdings fair_value) / investments_at_fair_value",
+     "DATA-QUALITY DIAGNOSTIC (not a validation rule): does the schedule of investments tie to "
+     "the balance-sheet investments line? ~1.0 = reconciles; far from 1.0 (flagged amber) means "
+     "the holdings or the balance-sheet line is structurally off for that filer (e.g. fund-of-"
+     "funds look-through) — a follow-up signal, not a confirmed error."),
 ]
 
 # Validation/review codes for the Review-tab key: (code, short name, type, what it verifies).
@@ -295,7 +311,8 @@ NUMBER_FORMATS = {
     "weighted_avg_spread": PCT_FMT,
     "portfolio_mark": RATIO_FMT, "leverage_ratio": RATIO_FMT, "asset_coverage_ratio": RATIO_FMT,
     "asset_coverage_pct": RATIO_FMT, "distribution_coverage_ratio": RATIO_FMT,
-    "net_lending_spread": RATIO_FMT, "liquidity_coverage": RATIO_FMT,
+    "net_lending_spread": PCT_FMT, "liquidity_coverage": RATIO_FMT,
+    "holdings_fv_recon": RATIO_FMT,
     "distributions_per_share": DEC_FMT, "num_holdings": "#,##0",
     # as-tagged §7/§8 rates & ratios (scale varies by filer) -> plain decimal, not money
     "expense_ratio": DEC_FMT, "gross_expense_ratio": DEC_FMT, "net_investment_income_ratio": DEC_FMT,
@@ -329,6 +346,33 @@ def load_filings() -> list[dict]:
     for p in sorted(EXTRACTED.glob("*.json")):
         out.append(json.loads(p.read_text(encoding="utf-8")))
     return out
+
+
+def filing_stem(j: dict) -> str:
+    """The shared filename stem cik_form_reportingdate (JSON, holdings CSV)."""
+    return f"{j.get('cik')}_{j.get('form_type')}_{j.get('reporting_date')}"
+
+
+def read_holdings(stem: str) -> list[dict]:
+    """Holding rows for one filing from its CSV (numeric fields coerced to float)."""
+    path = HOLDINGS / f"{stem}.csv"
+    if not path.exists():
+        return []
+    rows = []
+    with path.open(encoding="utf-8") as fh:
+        for r in csv.DictReader(fh):
+            for c in HOLDING_CSV_COLS:
+                if c not in ("issuer", "affiliation"):
+                    r[c] = float(r[c]) if r.get(c) not in (None, "") else None
+            rows.append(r)
+    return rows
+
+
+def holdings_fv_sum(stem: str) -> float | None:
+    """Sum of current-period holding fair values for one filing (for the reconciliation)."""
+    rows = read_holdings(stem)
+    s = sum(r["fair_value"] for r in rows if r.get("fair_value") is not None)
+    return s or None
 
 
 def sec_url(j: dict) -> str:
@@ -369,11 +413,20 @@ def build_data_tab(wb, filings: list[dict]):
             j.get("period_months"), j.get("vehicle_type"), j.get("validation_status"),
             ",".join(fails),
         ]
+        stem = filing_stem(j)
         for _, _, sec, fld in DATA_FIELDS:
             if sec == "__calc__":      # fair-value % = level / fv_total
                 num = fact_value(j, "fair_value", fld)
                 den = fact_value(j, "fair_value", "fv_total")
                 row.append((num / den) if (num is not None and den) else None)
+            elif sec == "__netspread__":   # yield - cost of debt
+                y = fact_value(j, "portfolio_summary", "weighted_avg_portfolio_yield")
+                cod = fact_value(j, "distributions_leverage", "weighted_avg_interest_rate")
+                row.append((y - cod) if (y is not None and cod is not None) else None)
+            elif sec == "__recon__":       # sum(holdings FV) / investments_at_fair_value
+                sfv = holdings_fv_sum(stem)
+                ifv = fact_value(j, "balance_sheet", "investments_at_fair_value")
+                row.append((sfv / ifv) if (sfv is not None and ifv) else None)
             else:
                 row.append(fact_value(j, sec, fld))
         ws.append(row)
@@ -395,6 +448,11 @@ def build_data_tab(wb, filings: list[dict]):
             col = field_col.get(fld)
             if col:
                 ws.cell(row=r, column=col).fill = FLAG_CELL_FILL
+        # Data-quality flag: holdings don't reconcile to the balance sheet (>5% off).
+        recon_col = field_col.get("holdings_fv_recon")
+        recon_val = ws.cell(row=r, column=recon_col).value if recon_col else None
+        if isinstance(recon_val, (int, float)) and abs(recon_val - 1.0) > 0.05:
+            ws.cell(row=r, column=recon_col).fill = FLAG_CELL_FILL
     ws.freeze_panes = "C3"
     _autosize(ws, headers, start_row=2)
     return ws
@@ -553,6 +611,39 @@ def build_gold_tab(wb, filings: list[dict]):
     return ws, len(gold)
 
 
+def build_holdings_tab(wb, filings: list[dict]):
+    """Holding-level schedule of investments for the GOLD sample only (the full ~130k rows
+    stay in data/holdings/ CSVs — putting them all here would bloat the workbook). One row
+    per holding, sorted by fund then fair value descending."""
+    ws = wb.create_sheet("Holdings (Gold)")
+    headers = ["fund_name", "reporting_date", "issuer", "affiliation", "fair_value", "cost",
+               "principal", "rate", "spread", "pik_rate", "floor", "shares", "commitment", "pct_na"]
+    ws.append(headers)
+    style_header(ws, 1, len(headers))
+    money_cols = {"fair_value", "cost", "principal", "commitment"}
+    pct_cols = {"rate", "spread", "pik_rate", "floor", "pct_na"}
+    n_funds = 0
+    for j in pick_gold(filings):
+        rows = read_holdings(filing_stem(j))
+        if not rows:
+            continue
+        n_funds += 1
+        rows.sort(key=lambda h: (h.get("fair_value") or 0), reverse=True)
+        for h in rows:
+            ws.append([j.get("fund_name"), j.get("reporting_date"), h.get("issuer"),
+                       h.get("affiliation")] + [h.get(c) for c in headers[4:]])
+            r = ws.max_row
+            for ci, name in enumerate(headers, start=1):
+                cell = ws.cell(row=r, column=ci)
+                cell.border = BORDER
+                if isinstance(cell.value, (int, float)):
+                    cell.number_format = (MONEY_FMT if name in money_cols
+                                          else PCT_FMT if name in pct_cols else "#,##0")
+    ws.freeze_panes = "A2"
+    _autosize(ws, headers, start_row=1, max_w=45)
+    return ws, n_funds
+
+
 def build_definitions_tab(wb):
     """A glossary tab: every calculated/derived data point with its formula (in exact Data-tab
     column names) and a plain-language explanation. No numbers — methodology only."""
@@ -613,12 +704,14 @@ def main():
     build_shareclasses_tab(wb, filings)
     build_review_tab(wb, filings)
     _, n_gold = build_gold_tab(wb, filings)
+    _, n_hold = build_holdings_tab(wb, filings)
     build_definitions_tab(wb)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     wb.save(OUT)
     n_review = sum(1 for j in filings if j.get("validation_status") == "review")
     print(f"Wrote {OUT}")
-    print(f"  Data: {len(filings)} filings | Review: {n_review} | Gold sample: {n_gold} filings")
+    print(f"  Data: {len(filings)} filings | Review: {n_review} | Gold: {n_gold} | "
+          f"Holdings tab: {n_hold} gold funds")
 
 
 if __name__ == "__main__":
