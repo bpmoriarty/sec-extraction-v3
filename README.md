@@ -1,8 +1,9 @@
 # SEC Filing Extraction — v3
 
-A pipeline for downloading and eventually extracting financial data from SEC EDGAR
+A pipeline for downloading and extracting structured financial data from SEC EDGAR
 filings across a broad set of semiliquid funds (interval funds, tender offer funds,
-unlisted BDCs, and unlisted REITs).
+unlisted BDCs, and unlisted REITs). Extraction is live for the BDC pilot (XBRL-based);
+interval/HTML funds are a later phase.
 
 ---
 
@@ -11,7 +12,11 @@ unlisted BDCs, and unlisted REITs).
 ```
 sec-extraction-v3/
 ├── data/
-│   └── fund_universe.csv          # Master list of all funds + CIKs + categories
+│   ├── fund_universe.csv          # Master list of all funds + CIKs + categories
+│   ├── extracted/                 # One JSON per filing (gitignored, regenerable)
+│   ├── holdings/                  # One CSV per filing — schedule of investments (gitignored)
+│   ├── review_queue/              # index.txt of filings flagged for review (gitignored)
+│   └── dataset/                   # Assembled analysis workbook (gitignored, rebuildable)
 ├── docs/
 │   └── DATA_DICTIONARY.md         # What financial data we extract (the spec)
 ├── src/
@@ -22,8 +27,15 @@ sec-extraction-v3/
 │   ├── downloader/
 │   │   ├── initial_pull.py        # Step 4: Download all historical filings
 │   │   └── update_pull.py         # Step 5: Check for new filings (run periodically)
-│   └── schema/
-│       └── models.py              # Typed schema for extracted data (pydantic)
+│   ├── schema/
+│   │   └── models.py              # Typed schema for extracted data (pydantic)
+│   ├── extraction/
+│   │   ├── bdc_xbrl.py            # BDC XBRL extractor (maps us-gaap concepts → schema)
+│   │   └── run_extraction.py      # Resumable runner: extract → validate → per-filing JSON
+│   ├── validation/
+│   │   └── rules.py               # Validation layer (identity checks C1–C5/C7 + reasonableness)
+│   └── output/
+│       └── build_spreadsheet.py   # Assemble the JSONs into the analysis workbook
 ├── United States Semiliquid Funds Mstar.xlsx       # Morningstar input (universe build)
 ├── semiliquid fund categorization Mstar.xlsx       # Morningstar input (vehicle types)
 └── PROJECT_STATUS.md              # Running log of decisions and progress
@@ -55,6 +67,15 @@ uv pip install edgartools pandas openpyxl rapidfuzz --link-mode=copy
 > OneDrive, iCloud, or any cloud-synced directory (these block the hardlinks that
 > `uv` uses by default). If the project is on a regular local drive, you can omit
 > `--link-mode=copy` and just run `uv pip install edgartools pandas openpyxl rapidfuzz`.
+
+### 3. Corporate networks (SSL inspection)
+
+On a corporate network that does SSL inspection (e.g. the Morningstar machine), EDGAR
+HTTPS calls fail with `SSLVerificationError: CERTIFICATE_VERIFY_FAILED`. Every
+EDGAR-touching script already handles this by calling `configure_http(use_system_certs=True)`
+right after `set_identity()` — this uses the Windows certificate store (which trusts the
+corporate root CA) and is harmless on home networks. No action needed; just be aware that
+this line is required and shouldn't be removed.
 
 ---
 
@@ -211,40 +232,38 @@ it as text. Dates in this file should always be ISO `YYYY-MM-DD`.
 
 ---
 
-## Extraction (in progress)
+## Extraction & Output
 
-The downloader pipeline above is complete. The next stage — extracting structured
-financial data from the filings — is being built. Its foundation is defined first:
+The extraction pipeline is built and running for the **BDC pilot** (~24 funds, 300
+filings). Data is pulled from structured **XBRL** via `edgartools`; interval funds
+(HTML, no XBRL) are a later phase. Foundation:
 
 - **`docs/DATA_DICTIONARY.md`** — the spec for every field we collect (balance sheet,
-  per-class NAV, income incl. PIK breakout, fair-value hierarchy, etc.), with units,
-  sources, and the validation rules.
-- **`src/schema/models.py`** — the typed (pydantic) version of that spec, which
-  validates extracted data and will generate the output columns.
+  per-class NAV, income incl. PIK breakout, fair-value hierarchy, schedule of
+  investments, etc.), with units, sources, and the validation rules.
+- **`src/schema/models.py`** — the typed (pydantic) version of that spec; validates
+  extracted data and generates the output columns. `pydantic` ships with `edgartools`,
+  so no extra install is needed.
 
-For BDCs (the pilot group), data is pulled from structured **XBRL** via `edgartools`;
-interval funds (HTML, no XBRL) are a later phase. See `PROJECT_STATUS.md` and the
-locked plan for details. `pydantic` (used by the schema) ships with `edgartools`, so
-no extra install is needed.
-
-### Data flow (extraction → final spreadsheets)
+### Data flow (extraction → analysis workbook)
 
 Per-filing JSON is the staging layer / source of truth; the spreadsheet is a derived
 view that can be rebuilt anytime without re-extracting.
 
 ```
-  filing  (HTML on disk  /  XBRL fetched from EDGAR)
+  filing  (XBRL fetched from EDGAR)
       │
-      ▼  [extractor]  — map XBRL facts (LLM fallback) into the schema
+      ▼  [extractor: bdc_xbrl.py]  — map us-gaap XBRL facts into the schema + compute derived
   FilingExtraction object   (pydantic validates structure)
       │
-      ▼  [validation]  — run C1–C7 + reasonableness; attach results + review_flags
+      ▼  [validation: rules.py]  — run C1–C5/C7 + reasonableness; attach results + review_flags
       │
-      ├─ write  data/extracted/<fund>_<reporting_date>.json    ← one file per filing
-      └─ identity failures →  data/review_queue/
+      ├─ write  data/extracted/<cik>_<form>_<reporting_date>.json    ← one file per filing
+      ├─ write  data/holdings/<cik>_<form>_<reporting_date>.csv       ← schedule-of-investments rows
+      └─ append flagged filings →  data/review_queue/index.txt
       │
-      ▼  [assembler]  — read ALL extracted JSONs, pivot
-  spreadsheet(s) in  data/dataset/      ← derived, rebuildable view
+      ▼  [assembler: build_spreadsheet.py]  — read ALL extracted JSONs, pivot
+  data/dataset/semiliquid_bdc_dataset.xlsx   ← derived, rebuildable view (5 tabs)
 ```
 
 Why the JSON layer: crash-safe incremental runs, idempotent re-runs (skip already-
@@ -252,6 +271,67 @@ extracted filings), full auditability (every cell traces to a source filing with
 provenance + confidence), and decoupling (restructure the spreadsheet without
 re-extracting). Point-in-time fields are keyed on `reporting_date`; flow fields
 (income, distributions) carry `period_start` / `period_months` (3 = quarter, 12 = annual).
+Holding-level rows are stored SEPARATELY (per-filing CSVs in `data/holdings/`) so the
+validated core JSON stays lean; the §9 summary metrics derived from them live in the JSON.
+
+---
+
+### `src/extraction/run_extraction.py` — the runner
+
+**What it does:**
+For every BDC fund with a CIK, pulls all 10-K / 10-Q filings since 2016, extracts each
+(`bdc_xbrl.extract_filing`), validates it (`rules.validate`), and writes one JSON per
+filing to `data/extracted/` plus a holdings CSV to `data/holdings/`. Resumable
+(skips filings whose JSON already exists), crash-safe (writes per filing), and robust
+(per-filing try/except; filings without XBRL are logged and skipped).
+
+```bash
+uv run python src/extraction/run_extraction.py            # full run (network-bound, minutes)
+uv run python src/extraction/run_extraction.py --max-funds 2 --max-filings 2   # quick test
+```
+
+**⚠️ After changing the extractor, you MUST clear `data/extracted/` before re-running** —
+the runner skips filings whose JSON already exists, so a re-run over the existing output is
+a no-op and your changes won't take effect:
+
+```powershell
+Remove-Item data\extracted -Recurse -Force
+Remove-Item data\holdings  -Recurse -Force
+Remove-Item data\review_queue\index.txt -Force
+uv run python src/extraction/run_extraction.py
+```
+
+**`--revalidate` (no re-extraction):** when you change only a *validation rule* (not the
+extractor), re-run validation over the existing JSONs in place — instant, no network. It
+rewrites each filing's validation fields and regenerates the review index:
+
+```bash
+uv run python src/extraction/run_extraction.py --revalidate
+```
+
+The run prints a summary: `written / skipped / review / no_xbrl / errors`. The
+authoritative pass/review counts come from the JSONs themselves (the printed `review`
+counter can be skewed if a run is interrupted and restarted, since the index appends).
+
+---
+
+### `src/output/build_spreadsheet.py` — the analysis workbook
+
+**What it does:**
+Reads every JSON in `data/extracted/` and writes `data/dataset/semiliquid_bdc_dataset.xlsx`
+with five tabs: **Data** (one row per filing, ~70 fields), **ShareClasses** (one row per
+filing × class), **Review** (flagged filings + a validation-code key), **Check (Gold)** (a
+hand-verification view for ~15 representative filings with a self-computing accuracy %), and
+**Definitions** (every derived/calculated field with its formula + methodology). Flag-and-keep
+values are visibly marked (status/flags columns, amber row tint, amber on the specific cells
+tied to each failing rule).
+
+```bash
+uv run python src/output/build_spreadsheet.py
+```
+
+> Close the workbook in Excel before rebuilding — Windows won't let the script overwrite an
+> open file (`PermissionError`).
 
 ---
 
