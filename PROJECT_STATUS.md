@@ -22,11 +22,15 @@ roll-forward isn't reconstructable from XBRL (94/100 inputs-present filings fail
 for rule-only changes; extractor changes need a CLEAN full re-run (delete data/extracted first —
 the runner SKIPS existing JSONs).
 Next: SPREADSHEET ASSEMBLER built v1 (`src/output/build_spreadsheet.py` → `data/dataset/`,
-gitignored): Data / ShareClasses / Review / Check-Gold tabs, cell-level flag highlighting
-(rule→field map), 15-filing gold check view with a self-computing accuracy %. Brian to
+gitignored): Data / ShareClasses / Review / Check-Gold / **Definitions** tabs, cell-level flag
+highlighting (rule→field map), 15-filing gold check view with a self-computing accuracy %. Brian to
 hand-verify the gold sample + review layout, then iterate; THEN LLM/HTML fallback expands
-coverage. Flag-and-keep values are marked (status+flags col, amber row tint, amber flagged cells).**
-**Last Session: 2026-06-07 (session 6)**
+coverage. Flag-and-keep values are marked (status+flags col, amber row tint, amber flagged cells).
+**Session 7 (2026-06-08): added a Definitions tab (all derived/calculated data points with
+exact-column-name formulas + plain methodology) and a validation-code key on the Review tab
+(C1–C5/C7/A1/A2/I1/I2, Identity vs Reasonableness). Local data RE-RUN on the corporate machine
+this session → reproduced 251 pass / 49 review exactly.**
+**Last Session: 2026-06-08 (session 7)**
 
 ### What's Working
 - Virtual environment set up (`uv venv` inside `sec-extraction-v3/`)
@@ -562,6 +566,7 @@ Re-add C6 ONLY if an authoritative tagged roll-forward SUBTOTAL surfaces to anch
 
 | Date | What Happened |
 |------|---------------|
+| 2026-06-08 (session 7 — corporate sync + spreadsheet definitions) | Pulled sessions 5–6 from GitHub onto the corporate machine (code only; `data/` is gitignored). Confirmed local `data/extracted/` was stale (session-4 vintage — C4 skipped, fv/pik/roll-forward fields empty), so did a CLEAN full re-run (deleted `data/extracted/` first since the runner skips existing JSONs) → **reproduced 251 pass / 49 review of 300 exactly**, with C4/C6-data/C7-PIK fields now populated. Then extended the spreadsheet assembler per Brian: **(1) new Definitions tab** — every derived/calculated data point (§10 derived metrics + workbook fair-value % columns) with its formula in EXACT Data-tab column names + plain-language methodology; not-yet-populated metrics (non-accruals, net_lending_spread, liquidity_coverage) honestly flagged. **(2) Review-tab code key** — C1–C5/C7/A1/A2/I1/I2 defined, each tagged Identity (fail = extraction likely wrong) vs Reasonableness (flag-and-keep). Verified the build (5 tabs); rebuilt the workbook. Committed & pushed. |
 | 2026-06-07 (session 6 — portfolio gap) | Brian opened the spreadsheet and noticed the non-accrual columns (AX/AY) were empty. Investigated: the whole portfolio §9 section was only ever DEFINED in the schema — only `investments_at_cost` was mapped (265/300); non_accruals, num_holdings, yield, % floating, PIK balance, top-10 are all 0/300. Probed XBRL for non-accruals (Apollo/Blackstone/HPS/Oaktree): only custom per-filer concepts tagging different kinds (percentages vs counts) and Oaktree tags none — the dollar amounts the schema wants aren't in clean XBRL (schedule-of-investments footnotes = LLM-fallback). Confirmed this is the deferred LLM work, not a regression. Brian's call: KEEP the empty columns as placeholders, documented as pending. Fixed a circular-reference warning in the gold-tab accuracy formula (`F:F` → `F5:F10000`) earlier in the session. |
 | 2026-06-07 (session 6 — spreadsheet) | **Built the spreadsheet assembler v1** (`src/output/build_spreadsheet.py` → `data/dataset/semiliquid_bdc_dataset.xlsx`, gitignored). Discussed gold-vs-spreadsheet workflow with Brian: the spreadsheet doubles as the hand-check vehicle. Four tabs: **Data** (1 row/filing, ~65 fields by section), **ShareClasses** (1 row/filing×class), **Review** (49 failures + messages), **Check (Gold)** (15 representative filings — clean+messy, LLC+corp, 10-K+10-Q — key fields stacked tall with provenance + Y/N verdict dropdown + self-computing accuracy %). Flag-and-keep marking (Brian's choices): status+flags columns, amber row tint on review rows, AND cell-level amber on the specific fields tied to each failing rule (rule→field map; C2/A2 highlight in ShareClasses). Uses openpyxl (already present, no new dep). Next: Brian hand-verifies the gold sample → accuracy %, reviews layout, iterate. |
 | 2026-06-07 (session 6 — C6) | **C6 net-asset roll-forward: data captured, check dropped.** Mapped the 4 missing §5 inputs — beginning_net_assets (new `FactSet.instant_scalar_at`: equity at the instant before period_start), ending_net_assets (= total_net_assets), capital_raised (`ProceedsFromIssuanceOfCommonStock`), repurchases (`StockRepurchasedDuringPeriodValue` / `PaymentsForRepurchaseOfCommonStock`). Coverage beg 246 / end 285 / capital 255 / repurchases 166 of 300. Full run showed the strict roll-forward identity is NOT reconstructable from XBRL: 94 of 100 inputs-present filings failed, median gap 2.3% (35 > 5%), driven by uncapturable terms (DRIP, gross/net repurchases incl. payables, offering costs, custom `ck:` concepts) — not tolerance-fixable. **Brian's call: keep the captured DATA, DROP the C6 check** (review 140→49, back to the post-C4 state). 0 regressions. Next: spreadsheet assembler. |

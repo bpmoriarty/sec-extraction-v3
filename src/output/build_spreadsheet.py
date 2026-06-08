@@ -167,6 +167,80 @@ GOLD_FIELDS = [
     ("portfolio_summary", "num_holdings"), ("portfolio_summary", "investments_at_cost"),
 ]
 
+# ── Definitions content ──────────────────────────────────────────────────────────
+# Calculated / derived data points. Each: (column_name, formula, plain-language meaning).
+# Formulas use the EXACT Data-tab column names so any value can be traced and hand-checked.
+DERIVED_DEFS: list[tuple[str, str, str]] = [
+    ("leverage_ratio", "total_debt / total_net_assets",
+     "Borrowings as a multiple of net assets — how levered the fund is."),
+    ("net_debt", "total_debt - cash_and_equivalents",
+     "Borrowings net of cash on hand."),
+    ("asset_coverage_pct", "(total_assets - (total_liabilities - total_debt)) / total_debt",
+     "Assets available per dollar of debt (assets minus non-debt liabilities, divided by debt). "
+     "The 1940-Act leverage-analysis ratio; ~2.0 = 200% coverage. Distinct from the as-tagged "
+     "asset_coverage_ratio column, which is the filer's reported regulatory figure."),
+    ("portfolio_mark", "investments_at_fair_value / investments_at_cost",
+     "Fair value of the portfolio vs. its cost. Below 1.0 = marked below cost (net unrealized loss)."),
+    ("pik_income_ratio", "pik_interest_income / total_investment_income",
+     "Share of income that is paid-in-kind (accrued, not received in cash) — a credit-stress signal."),
+    ("distribution_coverage_ratio", "net_investment_income / distributions_declared",
+     "How well net investment income covers declared distributions. Below 1.0 = distributions "
+     "exceed income earned (likely partial return of capital)."),
+    ("non_accrual_pct_fv", "non_accrual_fair_value / investments_at_fair_value",
+     "Portfolio (by fair value) on non-accrual / not paying. NOT YET POPULATED — non-accrual "
+     "amounts aren't in clean XBRL (schedule-of-investments footnotes); pending the LLM/HTML phase."),
+    ("non_accrual_pct_cost", "non_accrual_at_cost / investments_at_cost",
+     "Portfolio (by cost) on non-accrual; usually higher than the fair-value version. "
+     "NOT YET POPULATED — pending the LLM/HTML phase."),
+    ("net_lending_spread", "weighted_avg_portfolio_yield - weighted_avg_interest_rate",
+     "Gross spread between what the portfolio earns and the fund's cost of debt. NOT YET "
+     "POPULATED — weighted_avg_portfolio_yield isn't in clean XBRL; pending the LLM/HTML phase."),
+    ("liquidity_coverage", "(cash_and_equivalents + undrawn_debt_capacity) / unfunded_commitments",
+     "Available liquidity vs. commitments the fund may have to fund. NOT YET POPULATED — "
+     "undrawn_debt_capacity / unfunded_commitments aren't extracted yet."),
+]
+
+# Percent columns computed inside this workbook (not stored in the JSON).
+WORKBOOK_CALC_DEFS: list[tuple[str, str, str]] = [
+    ("pct_fv_level_1", "fv_level_1 / fv_total",
+     "Level 1 (quoted prices) as a % of total investments at fair value."),
+    ("pct_fv_level_2", "fv_level_2 / fv_total",
+     "Level 2 (observable inputs) as a % of total investments at fair value."),
+    ("pct_fv_level_3", "fv_level_3 / fv_total",
+     "Level 3 (unobservable / model inputs) as a % of total — most direct-lending loans sit here."),
+    ("pct_fv_nav_practical_expedient", "fv_nav_practical_expedient / fv_total",
+     "NAV-measured holdings (money-market / alternative funds) as a % of total."),
+]
+
+# Validation/review codes for the Review-tab key: (code, short name, type, what it verifies).
+# Identity = an accounting equation that MUST hold (a fail means the extraction is likely wrong).
+# Reasonableness = the value is KEPT and flagged for a human to eyeball (flag-and-keep policy).
+REVIEW_CODES: list[tuple[str, str, str, str]] = [
+    ("C1", "Balance sheet equation", "Identity",
+     "total_assets = total_liabilities + total_net_assets."),
+    ("C2", "NAV per share", "Identity",
+     "Per ShareClasses row: nav_per_share = net_assets / shares."),
+    ("C3", "Class net assets sum", "Identity",
+     "The ShareClasses net_assets for a filing add up to total_net_assets."),
+    ("C4", "Fair-value hierarchy sum", "Identity",
+     "fv_level_1 + fv_level_2 + fv_level_3 + fv_nav_practical_expedient = fv_total."),
+    ("C5", "NII reconciles", "Identity",
+     "net_investment_income = total_investment_income - total_expenses (less income_tax_expense "
+     "where tax sits above NII), or equals the filer's tagged income subtotal."),
+    ("C7", "Income components sum", "Identity",
+     "interest_income + pik_interest_income + dividend_income + other_investment_income reconcile "
+     "to total_investment_income (a paid-in-kind band is allowed)."),
+    ("A1", "Net assets positive", "Reasonableness",
+     "total_net_assets > 0 (a basic sanity check)."),
+    ("A2", "NAV in plausible range", "Reasonableness",
+     "A share class's nav_per_share is within $1-$100 (catches ~1000x unit errors); empty/dormant "
+     "classes are skipped."),
+    ("I1", "Asset coverage >= 150%", "Reasonableness",
+     "asset_coverage_pct >= 1.5 (150%, the 1940-Act regulatory minimum)."),
+    ("I2", "Leverage in range", "Reasonableness",
+     "leverage_ratio sits within 0-2."),
+]
+
 # ── Styling ─────────────────────────────────────────────────────────────────────
 HDR_FILL = PatternFill("solid", fgColor="1F3864")
 HDR_FONT = Font(bold=True, color="FFFFFF", size=10)
@@ -333,9 +407,30 @@ def build_shareclasses_tab(wb, filings: list[dict]):
 
 def build_review_tab(wb, filings: list[dict]):
     ws = wb.create_sheet("Review")
+
+    # ── Code key (legend) — what each failing rule means ──────────────────────
+    ws.append(["VALIDATION CODE KEY — what each failing rule checks"])
+    ws["A1"].font = Font(bold=True, size=12)
+    ws.append(["Identity = accounting equation that must hold (a fail means the extraction is "
+               "likely wrong). Reasonableness = value is kept and flagged for a human to eyeball."])
+    ws["A2"].font = Font(italic=True, size=9, color="808080")
+    key_hdr = ws.max_row + 1
+    ws.append(["code", "check", "type", "what it verifies"])
+    style_header(ws, key_hdr, 4)
+    for code, short, typ, meaning in REVIEW_CODES:
+        ws.append([code, short, typ, meaning])
+        r = ws.max_row
+        ws.cell(row=r, column=1).font = Font(bold=True)
+        for c in range(1, 5):
+            ws.cell(row=r, column=c).border = BORDER
+            ws.cell(row=r, column=c).alignment = Alignment(vertical="top")  # meaning overflows right
+    ws.append([])
+
+    # ── The review queue itself (one row per flagged filing) ──────────────────
     headers = ["cik", "fund_name", "reporting_date", "status", "failing_rules", "messages"]
+    hdr_row = ws.max_row + 1
     ws.append(headers)
-    style_header(ws, 1, len(headers))
+    style_header(ws, hdr_row, len(headers))
     for j in filings:
         if j.get("validation_status") != "review":
             continue
@@ -349,8 +444,8 @@ def build_review_tab(wb, filings: list[dict]):
         for c in range(1, len(headers) + 1):
             ws.cell(row=r, column=c).fill = REVIEW_ROW_FILL
             ws.cell(row=r, column=c).border = BORDER
-    ws.freeze_panes = "A2"
-    _autosize(ws, headers, start_row=1, max_w=70)
+    ws.freeze_panes = "A" + str(hdr_row + 1)
+    _autosize(ws, headers, start_row=hdr_row, max_w=70)
     return ws
 
 
@@ -425,6 +520,44 @@ def build_gold_tab(wb, filings: list[dict]):
     return ws, len(gold)
 
 
+def build_definitions_tab(wb):
+    """A glossary tab: every calculated/derived data point with its formula (in exact Data-tab
+    column names) and a plain-language explanation. No numbers — methodology only."""
+    ws = wb.create_sheet("Definitions")
+    ws.append(["DEFINITIONS — calculated & derived data points"])
+    ws["A1"].font = Font(bold=True, size=12)
+    ws.append(["Formulas use the EXACT column names from the Data tab so each value can be traced "
+               "and hand-checked. '/' = divide, '-' = subtract."])
+    ws["A2"].font = Font(italic=True, size=9, color="808080")
+    ws.append([])
+
+    def section(title, rows):
+        ws.append([title])
+        tr = ws.max_row
+        ws.cell(row=tr, column=1).font = Font(bold=True, color="FFFFFF")
+        for c in range(1, 4):
+            ws.cell(row=tr, column=c).fill = SECTION_FILL
+        ws.append(["data point", "formula / methodology", "explanation"])
+        style_header(ws, ws.max_row, 3)
+        for name, formula, expl in rows:
+            ws.append([name, formula, expl])
+            r = ws.max_row
+            ws.cell(row=r, column=1).font = Font(bold=True)
+            for c in range(1, 4):
+                ws.cell(row=r, column=c).border = BORDER
+                ws.cell(row=r, column=c).alignment = Alignment(vertical="top", wrap_text=True)
+        ws.append([])
+
+    section("Derived metrics — computed during extraction (Data tab section: Derived, §10)",
+            DERIVED_DEFS)
+    section("Fair-value % columns — computed in this workbook (Data tab section: FairValue)",
+            WORKBOOK_CALC_DEFS)
+    ws.column_dimensions["A"].width = 32
+    ws.column_dimensions["B"].width = 50
+    ws.column_dimensions["C"].width = 85
+    return ws
+
+
 def _autosize(ws, headers, start_row: int, max_w: int = 22):
     for i, h in enumerate(headers, start=1):
         width = max(len(str(h)), 10)
@@ -445,6 +578,7 @@ def main():
     build_shareclasses_tab(wb, filings)
     build_review_tab(wb, filings)
     _, n_gold = build_gold_tab(wb, filings)
+    build_definitions_tab(wb)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     wb.save(OUT)
     n_review = sum(1 for j in filings if j.get("validation_status") == "review")
