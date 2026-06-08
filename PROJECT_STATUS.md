@@ -519,6 +519,17 @@ Re-add C6 ONLY if an authoritative tagged roll-forward SUBTOTAL surfaces to anch
   concepts); statement-of-changes roll-forward (custom repurchase concepts); per-class
   financial highlights (§7 — turnover/total-return are share-class-dimensioned, expense/NII
   ratios often 10-K only). C7/C-checks flag the unreliable cases.
+- **Portfolio §9 narrative metrics = NOT in clean XBRL (confirmed 2026-06-07; the spreadsheet
+  surfaced the gap when Brian noticed empty non-accrual columns).** Only `investments_at_cost`
+  is mapped (265/300). non_accrual_fair_value / non_accrual_at_cost, num_holdings,
+  weighted_avg_portfolio_yield, pct_floating_rate, capitalized_pik_balance, top_10_concentration
+  are all **0/300** — the extractor never mapped them. Probed Apollo/Blackstone/HPS/Oaktree for
+  non-accruals: only custom per-filer concepts (`ck:`/`bcred:`/`hps:`), tagging DIFFERENT kinds
+  (Apollo = % at cost/FV; Blackstone/HPS = COUNTS of borrowers/loans; Oaktree = nothing) — never
+  the dollar amounts the schema wants (those live in the schedule-of-investments footnotes). →
+  genuine LLM/HTML-fallback work. Columns KEPT as placeholders in the spreadsheet (Brian's call);
+  to be filled in the LLM phase. **Non-accrual $ / % is a key credit metric → a priority candidate
+  when the LLM phase starts.**
 
 ---
 
@@ -551,6 +562,7 @@ Re-add C6 ONLY if an authoritative tagged roll-forward SUBTOTAL surfaces to anch
 
 | Date | What Happened |
 |------|---------------|
+| 2026-06-07 (session 6 — portfolio gap) | Brian opened the spreadsheet and noticed the non-accrual columns (AX/AY) were empty. Investigated: the whole portfolio §9 section was only ever DEFINED in the schema — only `investments_at_cost` was mapped (265/300); non_accruals, num_holdings, yield, % floating, PIK balance, top-10 are all 0/300. Probed XBRL for non-accruals (Apollo/Blackstone/HPS/Oaktree): only custom per-filer concepts tagging different kinds (percentages vs counts) and Oaktree tags none — the dollar amounts the schema wants aren't in clean XBRL (schedule-of-investments footnotes = LLM-fallback). Confirmed this is the deferred LLM work, not a regression. Brian's call: KEEP the empty columns as placeholders, documented as pending. Fixed a circular-reference warning in the gold-tab accuracy formula (`F:F` → `F5:F10000`) earlier in the session. |
 | 2026-06-07 (session 6 — spreadsheet) | **Built the spreadsheet assembler v1** (`src/output/build_spreadsheet.py` → `data/dataset/semiliquid_bdc_dataset.xlsx`, gitignored). Discussed gold-vs-spreadsheet workflow with Brian: the spreadsheet doubles as the hand-check vehicle. Four tabs: **Data** (1 row/filing, ~65 fields by section), **ShareClasses** (1 row/filing×class), **Review** (49 failures + messages), **Check (Gold)** (15 representative filings — clean+messy, LLC+corp, 10-K+10-Q — key fields stacked tall with provenance + Y/N verdict dropdown + self-computing accuracy %). Flag-and-keep marking (Brian's choices): status+flags columns, amber row tint on review rows, AND cell-level amber on the specific fields tied to each failing rule (rule→field map; C2/A2 highlight in ShareClasses). Uses openpyxl (already present, no new dep). Next: Brian hand-verifies the gold sample → accuracy %, reviews layout, iterate. |
 | 2026-06-07 (session 6 — C6) | **C6 net-asset roll-forward: data captured, check dropped.** Mapped the 4 missing §5 inputs — beginning_net_assets (new `FactSet.instant_scalar_at`: equity at the instant before period_start), ending_net_assets (= total_net_assets), capital_raised (`ProceedsFromIssuanceOfCommonStock`), repurchases (`StockRepurchasedDuringPeriodValue` / `PaymentsForRepurchaseOfCommonStock`). Coverage beg 246 / end 285 / capital 255 / repurchases 166 of 300. Full run showed the strict roll-forward identity is NOT reconstructable from XBRL: 94 of 100 inputs-present filings failed, median gap 2.3% (35 > 5%), driven by uncapturable terms (DRIP, gross/net repurchases incl. payables, offering costs, custom `ck:` concepts) — not tolerance-fixable. **Brian's call: keep the captured DATA, DROP the C6 check** (review 140→49, back to the post-C4 state). 0 regressions. Next: spreadsheet assembler. |
 | 2026-06-07 (session 6) | **C4 cash/MMF plug — Brian's hypothesis confirmed.** Diagnosed the 28 C4 fails: the near-misses (Blue Owl Tech, Crescent) were the measured-at-NAV bucket (money-market / alternative investments) tagged OUTSIDE the L1/L2/L3 hierarchy under a different concept — `us-gaap:AlternativeInvestment` (on the hierarchy NAV member) or a custom `...MeasuredAtNetAssetValue` line (undimensioned). Added `FactSet._nav_practical_expedient`: fires only when buckets undershoot the total, kept only if it then reconciles (so no passing filing can break). First pass cleared 10; found a tolerance dead zone (plug trigger 0.5% vs C4 0.1%) stranding 3 Blue Owl Tech filings → aligned plug tol to 0.1% → cleared. **C4 28→15 fails, pass 238→251 (84%), review 62→49, 0 regressions.** Remaining 15: First Eagle 10 (only L3 — LLM territory), PGIM 4 (tiny non-cash residual), Antares 1 (overshoot). Next: C6 net-asset roll-forward. |
