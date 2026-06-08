@@ -534,6 +534,19 @@ Re-add C6 ONLY if an authoritative tagged roll-forward SUBTOTAL surfaces to anch
   genuine LLM/HTML-fallback work. Columns KEPT as placeholders in the spreadsheet (Brian's call);
   to be filled in the LLM phase. **Non-accrual $ / % is a key credit metric → a priority candidate
   when the LLM phase starts.**
+- **REASSESSMENT 2026-06-08 (session 7) — the above was too pessimistic for the *numeric*
+  §9 metrics.** The holding-level schedule of investments IS tagged in clean structured XBRL on
+  `dim_us-gaap_InvestmentIdentifierAxis` (member = "Issuer Name | Affiliation"). Probed 7 funds'
+  latest 10-K (member counts: Apollo 1361, Blackstone 3665, HPS 1511, Oaktree 617, Crescent 718,
+  First Eagle 528; **Terra LLC = no axis**). Robustly tagged across all: FV, cost, principal,
+  `InvestmentBasisSpreadVariableRate` (spread). Inconsistent per-filer: `InvestmentInterestRate`
+  (all-in rate) — Blackstone/HPS/Oaktree/Crescent yes, **Apollo 54, First Eagle 0**; `commitment`
+  (unfunded) — most yes, **Apollo 0**; `maturity`/`pct_na`/`floor` ~half each. CRITICAL: the SOI
+  has CURRENT + PRIOR year (FVdates=2 everywhere) → MUST filter to `period_instant == reporting_date`.
+  Non-accrual still only custom per-filer COUNT concepts (`bcred:`/`hps:`), no clean $ → stays LLM.
+  → **num_holdings, top_10_concentration, pct_floating_rate, % with PIK, total unfunded commitment
+  are derivable from XBRL (not LLM); weighted_avg_portfolio_yield is FRAGILE (rate concept missing
+  for Apollo/First Eagle). Holdings-expansion plan being scoped (session 7).**
 
 ---
 
@@ -566,6 +579,7 @@ Re-add C6 ONLY if an authoritative tagged roll-forward SUBTOTAL surfaces to anch
 
 | Date | What Happened |
 |------|---------------|
+| 2026-06-08 (session 7 — holdings/SOI reassessment) | Brian asked whether the schedule-of-investments / asset-level data is in XBRL or LLM-fallback. Probed 7 funds' latest 10-K: it IS in clean structured XBRL (`dim_us-gaap_InvestmentIdentifierAxis`, member = "Issuer \| Affiliation"). Robust everywhere: FV / cost / principal / spread. Per-filer-inconsistent: all-in rate (Apollo/First Eagle barely tag it), unfunded commitment (Apollo=0), maturity/pct_na/floor (~half). LLC (Terra) tags no axis. SOI carries current+prior year → must filter to reporting_date. Non-accrual = only custom per-filer COUNT concepts (no clean $). Verdict: the deferral was a SCOPE call, not data-availability; num_holdings / top_10 / pct_floating / %-with-PIK / total-unfunded are XBRL-derivable, weighted_avg_yield is fragile. Logged the correction in the data dictionary + the §9 note. Scoping a holdings-expansion plan next (no code yet). |
 | 2026-06-08 (session 7 — corporate sync + spreadsheet definitions) | Pulled sessions 5–6 from GitHub onto the corporate machine (code only; `data/` is gitignored). Confirmed local `data/extracted/` was stale (session-4 vintage — C4 skipped, fv/pik/roll-forward fields empty), so did a CLEAN full re-run (deleted `data/extracted/` first since the runner skips existing JSONs) → **reproduced 251 pass / 49 review of 300 exactly**, with C4/C6-data/C7-PIK fields now populated. Then extended the spreadsheet assembler per Brian: **(1) new Definitions tab** — every derived/calculated data point (§10 derived metrics + workbook fair-value % columns) with its formula in EXACT Data-tab column names + plain-language methodology; not-yet-populated metrics (non-accruals, net_lending_spread, liquidity_coverage) honestly flagged. **(2) Review-tab code key** — C1–C5/C7/A1/A2/I1/I2 defined, each tagged Identity (fail = extraction likely wrong) vs Reasonableness (flag-and-keep). Verified the build (5 tabs); rebuilt the workbook. Committed & pushed. |
 | 2026-06-07 (session 6 — portfolio gap) | Brian opened the spreadsheet and noticed the non-accrual columns (AX/AY) were empty. Investigated: the whole portfolio §9 section was only ever DEFINED in the schema — only `investments_at_cost` was mapped (265/300); non_accruals, num_holdings, yield, % floating, PIK balance, top-10 are all 0/300. Probed XBRL for non-accruals (Apollo/Blackstone/HPS/Oaktree): only custom per-filer concepts tagging different kinds (percentages vs counts) and Oaktree tags none — the dollar amounts the schema wants aren't in clean XBRL (schedule-of-investments footnotes = LLM-fallback). Confirmed this is the deferred LLM work, not a regression. Brian's call: KEEP the empty columns as placeholders, documented as pending. Fixed a circular-reference warning in the gold-tab accuracy formula (`F:F` → `F5:F10000`) earlier in the session. |
 | 2026-06-07 (session 6 — spreadsheet) | **Built the spreadsheet assembler v1** (`src/output/build_spreadsheet.py` → `data/dataset/semiliquid_bdc_dataset.xlsx`, gitignored). Discussed gold-vs-spreadsheet workflow with Brian: the spreadsheet doubles as the hand-check vehicle. Four tabs: **Data** (1 row/filing, ~65 fields by section), **ShareClasses** (1 row/filing×class), **Review** (49 failures + messages), **Check (Gold)** (15 representative filings — clean+messy, LLC+corp, 10-K+10-Q — key fields stacked tall with provenance + Y/N verdict dropdown + self-computing accuracy %). Flag-and-keep marking (Brian's choices): status+flags columns, amber row tint on review rows, AND cell-level amber on the specific fields tied to each failing rule (rule→field map; C2/A2 highlight in ShareClasses). Uses openpyxl (already present, no new dep). Next: Brian hand-verifies the gold sample → accuracy %, reviews layout, iterate. |

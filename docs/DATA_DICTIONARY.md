@@ -152,6 +152,20 @@ different location) → XBRL-first with LLM/secondary-location fallback.
 
 > **Deferred to a later phase:** full **holding-level table** (issuer, industry, security
 > type, rate, maturity, par, cost, fair value, % of net assets, non-accrual flag).
+>
+> **Reassessment 2026-06-08 (session 7):** the holding-level schedule of investments IS
+> tagged in clean structured XBRL on `dim_us-gaap_InvestmentIdentifierAxis` (member = issuer
+> name + affiliation) for inline-XBRL-era filings. Probed HPS (1,511 holdings) & Blackstone
+> (3,665). Per holding, `us-gaap` concepts: InvestmentOwnedAtFairValue / AtCost /
+> BalancePrincipalAmount, InvestmentInterestRate, InvestmentBasisSpreadVariableRate,
+> InvestmentInterestRatePaidInKind, InvestmentInterestRateFloor, InvestmentOwnedBalanceShares,
+> InvestmentCompanyFinancialCommitmentToInvesteeFutureAmount, InvestmentOwnedPercentOfNetAssets
+> (some filers). → The deferral was a SCOPE call, not a data-availability one. Several §9
+> summary metrics marked "LLM-fallback" are actually DERIVABLE from this axis (num_holdings,
+> top_10_concentration, pct_floating_rate, weighted_avg_portfolio_yield, unfunded commitments,
+> % with PIK). NOT clean XBRL concepts (still LLM/parse): industry, security type/seniority,
+> maturity date, reference-rate index, non-accrual flag/$ — these live in the member-label
+> text or footnotes.
 
 ## 10. Derived fields  *(computed by us, not extracted)* — **confirmed 2026-06-03**
 
