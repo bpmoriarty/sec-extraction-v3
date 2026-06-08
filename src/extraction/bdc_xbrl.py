@@ -89,6 +89,30 @@ AFFILIATION_AXIS = "dim_us-gaap_InvestmentIssuerAffiliationAxis"
 # this axis (cross-tabbed with asset-type / valuation-technique). First concept wins.
 FV_HIERARCHY_AXIS = "dim_us-gaap_FairValueByFairValueHierarchyLevelAxis"
 FV_CONCEPTS = ["us-gaap:InvestmentOwnedAtFairValue", "us-gaap:InvestmentsFairValueDisclosure"]
+
+# Schedule of investments — holding-level facts on the investment-identifier axis (§9).
+# Member label is "Issuer Name | Affiliation". Reassessment 2026-06-08 confirmed these are
+# the robustly-tagged us-gaap concepts; per-filer-inconsistent ones (rate, commitment) are
+# handled gracefully (the derived metric stays null when coverage is thin).
+INVESTMENT_AXIS = "dim_us-gaap_InvestmentIdentifierAxis"
+HOLDING_CONCEPTS = {
+    "us-gaap:InvestmentOwnedAtFairValue": "fair_value",
+    "us-gaap:InvestmentOwnedAtCost": "cost",
+    "us-gaap:InvestmentOwnedBalancePrincipalAmount": "principal",
+    "us-gaap:InvestmentInterestRate": "rate",                    # all-in rate (often untagged)
+    "us-gaap:InvestmentBasisSpreadVariableRate": "spread",       # spread over base (robust)
+    "us-gaap:InvestmentInterestRatePaidInKind": "pik_rate",
+    "us-gaap:InvestmentInterestRateFloor": "floor",
+    "us-gaap:InvestmentOwnedBalanceShares": "shares",
+    "us-gaap:InvestmentCompanyFinancialCommitmentToInvesteeFutureAmount": "commitment",
+    "us-gaap:InvestmentOwnedPercentOfNetAssets": "pct_na",
+}
+# Additive holding fields (summed across a member's same-date facts); the rest are rate-like
+# attributes where we keep the first non-null value.
+_HOLDING_ADDITIVE = {"fair_value", "cost", "principal", "commitment", "shares"}
+# Trust the FV-weighted all-in yield only if the rate concept covers >= this share of FV
+# (Apollo/First Eagle barely tag InvestmentInterestRate -> their yield stays null, by design).
+HOLDING_YIELD_COVERAGE_MIN = 0.60
 # hierarchy member suffix -> FairValueHierarchy field
 FV_LEVEL_FIELDS = {
     "FairValueInputsLevel1Member": "fv_level_1",
@@ -523,6 +547,41 @@ class FactSet:
             return out
         return {}
 
+    def holdings(self) -> list[dict]:
+        """Schedule-of-investments rows for the CURRENT period (§9). One dict per holding
+        (investment-identifier member) with the robustly-tagged us-gaap fields. The SOI in a
+        10-K/10-Q carries BOTH current and prior year, so we filter to facts dated at the
+        reporting date (else we'd double-count / mix years). Additive fields are summed across
+        a member's same-date facts; rate-like fields take the first non-null. Returns [] when
+        the axis isn't tagged (older / LLC filers) — those holdings are HTML/LLM territory."""
+        if INVESTMENT_AXIS not in self.df.columns:
+            return []
+        held = self.df[self.df[INVESTMENT_AXIS].notna()
+                       & self.df["numeric_value"].notna()].copy()
+        if held.empty:
+            return []
+        held["_inst"] = held["period_instant"].map(self._iso)
+        held = held[held["_inst"] == self.reporting_date]
+        if held.empty:
+            return []
+        rows: dict[str, dict] = {}
+        for _, r in held.iterrows():
+            field = HOLDING_CONCEPTS.get(r["concept"])
+            if field is None:
+                continue
+            member = str(r[INVESTMENT_AXIS])
+            h = rows.get(member)
+            if h is None:
+                issuer, _, affil = member.partition(" | ")
+                h = {"issuer": issuer.strip(), "affiliation": (affil.strip() or None)}
+                rows[member] = h
+            val = float(r["numeric_value"])
+            if field in _HOLDING_ADDITIVE:
+                h[field] = h.get(field, 0.0) + val
+            elif field not in h:
+                h[field] = val
+        return list(rows.values())
+
 
 # ── Extractor ─────────────────────────────────────────────────────────────────
 
@@ -654,6 +713,12 @@ def extract_filing(company, filing, cik: str, form: str) -> FilingExtraction:
         accession_no=str(filing.accession_no),
         extraction_source_file=None,
     )
+    # Schedule of investments (§9): parse holding-level rows, derive the summary metrics into
+    # portfolio_summary/liquidity, and carry the raw rows on the model (PrivateAttr, not
+    # serialized) so the runner can write them to the separate per-filing holdings CSV.
+    holdings = facts.holdings()
+    extraction._holdings = holdings
+    apply_holdings_summary(extraction, holdings)
     compute_derived(extraction)
     return extraction
 
@@ -662,6 +727,73 @@ def _ratio(num, den):
     if num is None or den in (None, 0):
         return None
     return num / den
+
+
+def _plausible_rate(v) -> bool:
+    """A rate/spread sanity gate for FV-weighted averages. Genuine rates are fractions
+    (e.g. 0.05 = 5%). A minority of holdings carry mis-scaled / junk values (e.g. Apollo
+    tags ~4% of spreads as >=1, up to 7.5) that would otherwise corrupt the weighted mean.
+    We weight only plausible fractions; the raw value is still stored in the holdings CSV."""
+    return v is not None and 0.0 < v < 1.0
+
+
+def _is_affiliated(affil: str | None) -> bool:
+    """Affiliation member labels: 'Non-Affiliated Issuer' (not affiliated) vs 'Affiliated' /
+    'Controlled' / 'Non-Controlled Affiliate' (affiliated). Match 'affiliat' but exclude the
+    'non-affiliat' prefix."""
+    if not affil:
+        return False
+    a = affil.lower()
+    return "affiliat" in a and "non-affiliat" not in a
+
+
+def apply_holdings_summary(e: FilingExtraction, holdings: list[dict]) -> None:
+    """Derive the §9 portfolio summary metrics from the holding-level rows and store them
+    (source=COMPUTED). Each metric computes ONLY when its input covers enough of the portfolio,
+    else it stays null — never emit a partial-coverage number (anti-fragility). Holding rows
+    themselves are stored separately (per-filing CSV); this only fills the summary fields."""
+    ps, liq = e.portfolio_summary, e.liquidity
+
+    def mk(v):
+        return Fact(value=v, source=Source.COMPUTED, confidence=0.95) if v is not None else Fact()
+
+    if not holdings:
+        return
+    fv = [h["fair_value"] for h in holdings if h.get("fair_value") is not None]
+    n_fv, total_fv = len(fv), sum(h["fair_value"] for h in holdings if h.get("fair_value") is not None)
+    if n_fv:
+        ps.num_holdings = mk(float(n_fv))
+        ps.pct_holdings_with_pik = mk(sum(1 for h in holdings if h.get("pik_rate")) / n_fv)
+    if total_fv:
+        ps.top_10_concentration = mk(sum(sorted(fv, reverse=True)[:10]) / total_fv)
+        ps.pct_floating_rate = mk(
+            sum(h["fair_value"] for h in holdings
+                if h.get("fair_value") is not None and h.get("spread") is not None) / total_fv)
+        # pct_affiliated needs the "Issuer | Affiliation" label convention. Some filers
+        # (Apollo, First Eagle) cram the whole SOI row into the member with no separator ->
+        # affiliation unknown. Only compute when affiliation parses for most of the portfolio;
+        # else leave null rather than report a misleading 0%.
+        aff_known_fv = sum(h["fair_value"] for h in holdings
+                           if h.get("fair_value") is not None and h.get("affiliation"))
+        if aff_known_fv / total_fv >= 0.5:
+            ps.pct_affiliated = mk(
+                sum(h["fair_value"] for h in holdings
+                    if h.get("fair_value") is not None and _is_affiliated(h.get("affiliation"))) / total_fv)
+        # FV-weighted spread (spread is tagged across filers; gate out mis-scaled outliers).
+        sp = [(h["fair_value"], h["spread"]) for h in holdings
+              if h.get("fair_value") is not None and _plausible_rate(h.get("spread"))]
+        sp_fv = sum(f for f, _ in sp)
+        if sp_fv:
+            ps.weighted_avg_spread = mk(sum(f * s for f, s in sp) / sp_fv)
+        # FV-weighted all-in yield — only when the (often-untagged) rate concept covers enough FV.
+        rt = [(h["fair_value"], h["rate"]) for h in holdings
+              if h.get("fair_value") is not None and _plausible_rate(h.get("rate"))]
+        rt_fv = sum(f for f, _ in rt)
+        if rt_fv and rt_fv / total_fv >= HOLDING_YIELD_COVERAGE_MIN:
+            ps.weighted_avg_portfolio_yield = mk(sum(f * r for f, r in rt) / rt_fv)
+    commits = [h["commitment"] for h in holdings if h.get("commitment") is not None]
+    if commits:
+        liq.unfunded_commitments = mk(sum(commits))
 
 
 def compute_derived(e: FilingExtraction) -> FilingExtraction:

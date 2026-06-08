@@ -20,6 +20,7 @@ Full run:      uv run python src/extraction/run_extraction.py
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import sys
 import time
@@ -39,8 +40,13 @@ from models import FilingExtraction  # noqa: E402
 EDGAR_IDENTITY = "brianpmoriarty@gmail.com"
 UNIVERSE_FILE = PROJECT_ROOT / "data" / "fund_universe.csv"
 OUT_DIR = PROJECT_ROOT / "data" / "extracted"
+HOLDINGS_DIR = PROJECT_ROOT / "data" / "holdings"   # per-filing schedule-of-investments CSVs
 REVIEW_INDEX = PROJECT_ROOT / "data" / "review_queue" / "index.txt"
 ERROR_LOG = OUT_DIR / "_errors.log"
+
+# Column order for the per-filing holdings CSV (§9 schedule of investments).
+HOLDING_COLS = ["issuer", "affiliation", "fair_value", "cost", "principal", "rate", "spread",
+                "pik_rate", "floor", "shares", "commitment", "pct_na"]
 FORMS = ["10-K", "10-Q"]
 SINCE_YEAR = 2016
 API_PAUSE = 0.3
@@ -106,6 +112,7 @@ def run(max_funds=None, max_filings=None, since_year=SINCE_YEAR) -> None:
                         validate(e)
                         out.write_text(e.model_dump_json(indent=2, exclude_none=False),
                                        encoding="utf-8")
+                        _write_holdings(e, cik, form, rd)
                         stats["written"] += 1
                         if e.validation_status == "review":
                             stats["review"] += 1
@@ -170,6 +177,22 @@ def revalidate() -> None:
     for k, v in stats.items():
         print(f"  {k:12s} {v}")
     print(f"  review index: {REVIEW_INDEX}")
+
+
+def _write_holdings(e, cik: str, form: str, rd: str) -> None:
+    """Write the filing's holding-level schedule-of-investments rows to a per-filing CSV in
+    data/holdings/. No-op when the filing has no holdings (older / LLC filers, no axis). Stored
+    SEPARATELY from the core JSON so the validated dataset stays lean (§9 reassessment)."""
+    holdings = getattr(e, "_holdings", None)
+    if not holdings:
+        return
+    HOLDINGS_DIR.mkdir(parents=True, exist_ok=True)
+    path = HOLDINGS_DIR / f"{cik}_{form}_{rd}.csv"
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        w = csv.writer(fh)
+        w.writerow(["cik", "fund_name", "form_type", "reporting_date"] + HOLDING_COLS)
+        for h in holdings:
+            w.writerow([cik, e.fund_name, form, rd] + [h.get(c) for c in HOLDING_COLS])
 
 
 def _log_error(line: str) -> None:

@@ -27,7 +27,7 @@ from __future__ import annotations
 from datetime import date
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 
 
 # ── Provenance ──────────────────────────────────────────────────────────────────
@@ -184,6 +184,10 @@ class PortfolioSummary(BaseModel):                   # Data Dictionary §9 (hold
     weighted_avg_portfolio_yield: Fact = Field(default_factory=Fact)   # cost basis preferred
     pct_floating_rate: Fact = Field(default_factory=Fact)
     capitalized_pik_balance: Fact = Field(default_factory=Fact)        # rising = stress
+    # Holdings-derived (computed from the schedule of investments; §9 reassessment 2026-06-08).
+    weighted_avg_spread: Fact = Field(default_factory=Fact)            # FV-weighted spread over base rate (robust where all-in yield isn't tagged)
+    pct_holdings_with_pik: Fact = Field(default_factory=Fact)          # share of positions carrying a PIK rate (count basis)
+    pct_affiliated: Fact = Field(default_factory=Fact)                 # FV-weighted share in affiliated/controlled issuers
     # Seniority mix (1st/2nd lien/sub/equity) and internal risk-rating distribution.
     # Internal rating is rarely clean XBRL -> typically an LLM-fallback field.
     composition_by_seniority: Composition = Field(default_factory=Composition)
@@ -255,6 +259,12 @@ class FilingExtraction(BaseModel):
 
     # Per-class section (fund-period-class grain)
     share_classes_nav: list[ShareClassNAV] = Field(default_factory=list)
+
+    # Holding-level schedule-of-investments rows (§9). Stored SEPARATELY (per-filing CSV in
+    # data/holdings/), NOT serialized into this JSON — kept here only as a transient carrier
+    # so the runner can write the CSV. The summary metrics derived from these live in
+    # portfolio_summary / liquidity. PrivateAttr => excluded from model_dump_json.
+    _holdings: list[dict] = PrivateAttr(default_factory=list)
 
     # Review queue: human-readable flags from reasonableness/temporal checks.
     # Per the flag-and-keep policy, values are NEVER discarded — concerns land here.

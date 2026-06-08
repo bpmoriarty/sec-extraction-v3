@@ -12,6 +12,7 @@ Thumbs.db
 
 # Generated extraction output (regenerable from filings via run_extraction.py)
 data/extracted/
+data/holdings/
 data/review_queue/
 # Assembled spreadsheet output (regenerable via src/output/build_spreadsheet.py)
 data/dataset/
