@@ -340,9 +340,11 @@ def build_gold_tab(wb, filings: list[dict]):
     # Accuracy summary block (formulas fill in as you complete the verdict column F).
     ws.append(["GOLD ACCURACY CHECK — fill column F (Y/N) against each filing on SEC.gov"])
     ws["A1"].font = Font(bold=True, size=12)
-    ws.append(["Checked:", "=COUNTIF(F:F,\"Y\")+COUNTIF(F:F,\"N\")",
-               "Correct:", "=COUNTIF(F:F,\"Y\")",
-               "Accuracy:", "=IFERROR(COUNTIF(F:F,\"Y\")/(COUNTIF(F:F,\"Y\")+COUNTIF(F:F,\"N\")),\"-\")"])
+    # Verdict cells live in column F from row 5 down. Reference that range explicitly (NOT
+    # the whole F:F column) so the Accuracy cell in F2 doesn't count itself -> no circular ref.
+    ws.append(["Checked:", "=COUNTIF(F5:F10000,\"Y\")+COUNTIF(F5:F10000,\"N\")",
+               "Correct:", "=COUNTIF(F5:F10000,\"Y\")",
+               "Accuracy:", "=IFERROR(COUNTIF(F5:F10000,\"Y\")/(COUNTIF(F5:F10000,\"Y\")+COUNTIF(F5:F10000,\"N\")),\"-\")"])
     ws["F2"].number_format = "0.0%"
     for c in ("A2", "C2", "E2"):
         ws[c].font = Font(bold=True)
