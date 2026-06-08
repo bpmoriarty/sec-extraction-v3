@@ -148,7 +148,7 @@ GOLD_SELECTION = [
     ("PGIM Private Credit", "10-Q"),         # C4 residual
     ("Golub Capital Private Credit", "10-K"),# clean, 4-class, annual
     ("John Hancock Comvest", "10-Q"),        # most share classes (5)
-    ("Terra Income Fund 6", "10-Q"),         # LLC structure, single-class
+    ("T. Rowe Price OHA Select", "10-Q"),    # newer sponsor entrant — broaden gold coverage
     ("Fidelity Private Credit", "10-Q"),     # LLC, single-class
     ("Oaktree Strategic Credit", "10-Q"),    # C5 split-tax case
     ("Bain Capital Private Credit", "10-Q"), # clean, 4-class
