@@ -21,6 +21,7 @@ Run a quick test:  uv run python src/extraction/bdc_xbrl.py
 
 from __future__ import annotations
 
+import datetime
 import sys
 import warnings
 from pathlib import Path
@@ -183,6 +184,15 @@ DIST_LEVERAGE_CONCEPTS: dict[str, list[str]] = {
 CHANGES_CONCEPTS: dict[str, list[str]] = {
     "distributions_declared": ["us-gaap:InvestmentCompanyDividendDistribution",
                                "us-gaap:DistributionsMade"],
+    # Capital share transactions (DURATION), best-effort. The net-asset roll-forward has many
+    # filer-specific components (DRIP reinvestment, offering costs, early-repurchase deductions),
+    # so C6 is SOFT (flag-and-keep): it passes for filers whose components net out within
+    # tolerance, and the captured line items stay useful data regardless of whether C6 closes.
+    "capital_raised": ["us-gaap:ProceedsFromIssuanceOfCommonStock",
+                       "us-gaap:StockIssuedDuringPeriodValueNewIssues"],
+    "repurchases": ["us-gaap:StockRepurchasedDuringPeriodValue",
+                    "us-gaap:PaymentsForRepurchaseOfCommonStock",
+                    "us-gaap:StockRepurchasedAndRetiredDuringPeriodValue"],
 }
 
 
@@ -221,6 +231,27 @@ class FactSet:
                 return Fact(value=float(val), source=Source.XBRL, confidence=0.98,
                             raw_text=str(pick.iloc[0].get("label", "")) or None)
         return Fact()  # not found -> empty, value stays None
+
+    def instant_scalar_at(self, concepts: list[str], date_iso: str) -> Fact:
+        """First non-dimensioned instant value among candidates whose instant == date_iso.
+        Used for the statement-of-changes BEGINNING balance (equity at the prior period end,
+        i.e. the day before period_start)."""
+        for concept in concepts:
+            rows = self.df[
+                (self.df["concept"] == concept)
+                & (self.df["is_dimensioned"] == False)  # noqa: E712
+                & (self.df["period_type"] == "instant")
+            ]
+            if rows.empty:
+                continue
+            rows = rows.copy()
+            rows["_inst"] = rows["period_instant"].map(self._iso)
+            cur = rows[(rows["_inst"] == date_iso) & rows["numeric_value"].notna()]
+            if not cur.empty:
+                r = cur.iloc[0]
+                return Fact(value=float(r["numeric_value"]), source=Source.XBRL, confidence=0.95,
+                            raw_text=str(r.get("label", "")) or None)
+        return Fact()
 
     def sum_scalar(self, concepts: list[str]) -> Fact:
         """Sum current-period non-dimensioned values across concepts (e.g. some filers
@@ -568,6 +599,15 @@ def extract_filing(company, filing, cik: str, form: str) -> FilingExtraction:
     changes = StatementOfChanges()
     for field, concepts in CHANGES_CONCEPTS.items():
         setattr(changes, field, facts.scalar_any(concepts, target_months))
+    # Net-asset balances for the C6 roll-forward (soft / flag-and-keep). Ending = current net
+    # assets; beginning = equity at the instant before period_start (the prior period end).
+    # Captured for the spreadsheet regardless of whether the roll-forward identity reconciles.
+    changes.ending_net_assets = bs.total_net_assets
+    if period_start:
+        beg_date = (datetime.date.fromisoformat(period_start)
+                    - datetime.timedelta(days=1)).isoformat()
+        changes.beginning_net_assets = facts.instant_scalar_at(
+            BALANCE_SHEET_CONCEPTS["total_net_assets"], beg_date)
 
     # Per-share-class NAV (Data Dictionary §3)
     classes = facts.share_classes()

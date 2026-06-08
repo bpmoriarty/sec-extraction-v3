@@ -15,11 +15,14 @@ handle many filers with minimal per-filer manual work.
 near-miss gap was the measured-at-NAV bucket (money-market / alternative investments) tagged
 OUTSIDE the L1/L2/L3 hierarchy — now captured. Cleared Blue Owl Tech (6) + Crescent (7);
 remaining 15 fails = First Eagle 10 (only L3 tagged — LLM territory), PGIM 4 (tiny non-cash
-residual ~0.3%), Antares 1 (levels OVERSHOOT — different issue). All session-5 wins hold;
-0 regressions. Use `--revalidate` for rule-only changes; extractor changes need a CLEAN full
-re-run (delete data/extracted first — the runner SKIPS existing JSONs).
-Next: C6 net-asset roll-forward, then spreadsheet assembler (Brian wants a clean confident
-dataset to analyze BEFORE the LLM/HTML fallback expands coverage).**
+residual ~0.3%), Antares 1 (levels OVERSHOOT — different issue). C6 roll-forward: extracted the
+§5 DATA (beginning/ending net assets, capital_raised, repurchases) but DROPPED the check — the
+roll-forward isn't reconstructable from XBRL (94/100 inputs-present filings failed, median gap
+2.3%); data kept for the spreadsheet. All session-5 wins hold; 0 regressions. Use `--revalidate`
+for rule-only changes; extractor changes need a CLEAN full re-run (delete data/extracted first —
+the runner SKIPS existing JSONs).
+Next: SPREADSHEET ASSEMBLER (Brian wants a clean confident dataset to analyze BEFORE the LLM/HTML
+fallback expands coverage). Flag-and-keep values (C4/C5/etc.) must be visibly marked in output.**
 **Last Session: 2026-06-07 (session 6)**
 
 ### What's Working
@@ -492,6 +495,22 @@ First Eagle 10 (only L3 tagged — genuine LLM/HTML territory), PGIM 4 (tiny ~0.
 no matching concept), Antares 1 (levels OVERSHOOT the total — a "what is fv_total measuring"
 question, not a missing bucket).
 
+### C6 net-asset roll-forward — DATA captured, CHECK dropped (2026-06-07 session 6)
+
+Attempted C6 (`beg + capital_raised - repurchases + net-ops - distributions = end`). Extracted the
+4 missing §5 inputs: beginning_net_assets (equity at the instant before period_start, via new
+`FactSet.instant_scalar_at`), ending_net_assets (= total_net_assets), capital_raised
+(`ProceedsFromIssuanceOfCommonStock`), repurchases (`StockRepurchasedDuringPeriodValue` /
+`PaymentsForRepurchaseOfCommonStock`). Coverage: beg 246/300, end 285/300, capital 255, repurchases
+166. BUT the strict identity is NOT reconstructable from XBRL — even clean filers (Apollo, HPS) miss
+by ~0.2–0.9%, and a full run failed 94 of 100 inputs-present filings (median gap 2.3%, 35 over 5%).
+The unrecoverable terms: DRIP reinvestment, gross-vs-net repurchases (incl. unpaid payables),
+offering costs, early-repurchase deductions — many under custom `ck:` concepts. **Decision (Brian):
+KEEP the captured DATA (useful line items for the spreadsheet) but DROP the C6 check entirely** (no
+validation_check emitted) rather than flood the queue with 94 incomplete-extraction flags. Review
+returned 140→49. The extractor still populates statement_of_changes; only the rule was removed.
+Re-add C6 ONLY if an authoritative tagged roll-forward SUBTOTAL surfaces to anchor against (cf. C5).
+
 - **Per-filer / dimensional long tail = LLM-fallback territory:** income components &
   total_expenses on some filers; fair-value hierarchy (§6, dimensional + custom `ck...`
   concepts); statement-of-changes roll-forward (custom repurchase concepts); per-class
@@ -529,6 +548,7 @@ question, not a missing bucket).
 
 | Date | What Happened |
 |------|---------------|
+| 2026-06-07 (session 6 — C6) | **C6 net-asset roll-forward: data captured, check dropped.** Mapped the 4 missing §5 inputs — beginning_net_assets (new `FactSet.instant_scalar_at`: equity at the instant before period_start), ending_net_assets (= total_net_assets), capital_raised (`ProceedsFromIssuanceOfCommonStock`), repurchases (`StockRepurchasedDuringPeriodValue` / `PaymentsForRepurchaseOfCommonStock`). Coverage beg 246 / end 285 / capital 255 / repurchases 166 of 300. Full run showed the strict roll-forward identity is NOT reconstructable from XBRL: 94 of 100 inputs-present filings failed, median gap 2.3% (35 > 5%), driven by uncapturable terms (DRIP, gross/net repurchases incl. payables, offering costs, custom `ck:` concepts) — not tolerance-fixable. **Brian's call: keep the captured DATA, DROP the C6 check** (review 140→49, back to the post-C4 state). 0 regressions. Next: spreadsheet assembler. |
 | 2026-06-07 (session 6) | **C4 cash/MMF plug — Brian's hypothesis confirmed.** Diagnosed the 28 C4 fails: the near-misses (Blue Owl Tech, Crescent) were the measured-at-NAV bucket (money-market / alternative investments) tagged OUTSIDE the L1/L2/L3 hierarchy under a different concept — `us-gaap:AlternativeInvestment` (on the hierarchy NAV member) or a custom `...MeasuredAtNetAssetValue` line (undimensioned). Added `FactSet._nav_practical_expedient`: fires only when buckets undershoot the total, kept only if it then reconciles (so no passing filing can break). First pass cleared 10; found a tolerance dead zone (plug trigger 0.5% vs C4 0.1%) stranding 3 Blue Owl Tech filings → aligned plug tol to 0.1% → cleared. **C4 28→15 fails, pass 238→251 (84%), review 62→49, 0 regressions.** Remaining 15: First Eagle 10 (only L3 — LLM territory), PGIM 4 (tiny non-cash residual), Antares 1 (overshoot). Next: C6 net-asset roll-forward. |
 | 2026-06-07 (session 5 — C4) | **Fair-value hierarchy C4 now extracts (0 → 220 pass).** Built `FactSet.fv_hierarchy`: per-level TOTAL rows preferred (hierarchy axis only); asset-type-sum fallback self-checked against the undimensioned total and discarded if it double-counts (TPG 1.9× → skipped). Wired into `extract_filing` (fv_total = investments_at_fair_value; NAV-practical-expedient 4th bucket populates for HPS/Blackstone). Validated end-to-end before the run. NOTE: first full run was a no-op — forgot to clear `data/extracted/` (runner skips existing JSONs); cleared and re-ran. Result: **C4 220 pass / 28 fail / 52 skip, review 43→62, 0 regressions on other rules.** Brian's call: KEEP the 28 honest fails (4 funds — First Eagle only-L3 + Crescent/Blue Owl Tech/PGIM/Antares near-misses) rather than skip; **leading hypothesis is the reconciling plug is cash / money-market / cash-equivalents excluded from the FV table** (Brian, from prior data-product work). These (like all flag-and-keep values) must be marked in the final spreadsheet. Next: identify the cash/MMF plugs. |
 | 2026-06-07 (session 5) | **C7 income-completeness fix (PIK-band anchor).** Pulled latest code on the home machine; re-ran the full extraction to rebuild `data/extracted/` (reproduced 218/82 exactly — confirms the dataset is regenerable and the JSONs are correctly gitignored, not pushed). Diagnosed C7 (27 fails): concentrated in 2 filers with OPPOSITE PIK causes — Ares (10) double-counts PIK (PIK-inclusive interest line) and Blue Owl (12) misses PIK dividend (PIK-exclusive, PIK split across overlapping us-gaap + custom `orcic:` concepts). Same PIK concept means different things per filer → no single concept edit fixes both. Implemented the PIK-band anchor (mirrors C5): `core = int+div+oth` must reconcile to the authoritative total once tagged PIK is allowed as a band. Added `pik_dividend_income` + `pik_income_combined` (schema + extractor, additive); rewrote C7 with gating unchanged so it only ADDS pass paths. Full re-run → **240 pass / 60 review (80%), C7 27→1.** The 1 residual = Ares 2026-03-31 (genuine missing cash-dividend, not PIK) — correctly still flagged. **Regression-verified by reverting C7 + re-validating in place: every other rule byte-identical (A1 5, A2 27, C1 3, C2 9, C3 4, C5 30) — only C7 moved.** Also corrected the stale "A2 18" in this doc → A2 was always 27. **Then fixed A2 (same session):** diagnosed the 27 fails as 26 dormant/unfunded share classes (0 shares + 0/None net assets → NAV 0.00) + 1 genuine ~1000× unit error (Ares 2023-06-30 class I, NAV 26,750); rule-only fix skips NAV 0/None (C2 still catches any funded-class zero). **A2 27→1, review 60→43, pass 257/300 (86%), 0 regressions** (rule-only, verified via `--revalidate` — every other rule byte-identical). Remaining 43 is now the irreducible tail (C5 Antares 30, First Eagle residuals, 2 genuine Ares anomalies). |

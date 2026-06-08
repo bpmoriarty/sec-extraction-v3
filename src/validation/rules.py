@@ -159,18 +159,16 @@ def validate(e: FilingExtraction) -> FilingExtraction:
                 f"TII-exp {tii - exp:,.0f}{tax_note} != NII {nii:,.0f} "
                 f"(closest '{best}' off by {diffs[best]:,.0f})")
 
-    # ── C6: net-asset roll-forward (identity) — ready for when §5 extracts ────
-    soc = e.statement_of_changes
-    beg, cap, rep, dist, end = v(soc.beginning_net_assets, soc.capital_raised,
-                                 soc.repurchases, soc.distributions_declared, soc.ending_net_assets)
-    nio = inc.net_increase_in_net_assets_ops.value
-    if None in (beg, cap, rep, dist, end, nio):
-        add("C6", "Net-asset roll-forward", "identity", "skipped", "missing inputs")
-    else:
-        calc = beg + cap - rep + nio - dist
-        status = "pass" if abs(calc - end) <= _tol(end) else "fail"
-        add("C6", "Net-asset roll-forward", "identity", status,
-            None if status == "pass" else f"rolled {calc:,.0f} != ending {end:,.0f}")
+    # ── C6: net-asset roll-forward — DROPPED (2026-06-07 session 6) ───────────
+    # The statement-of-changes roll-forward (beg + capital_raised - repurchases + net-ops -
+    # distributions = end) is NOT reconstructable from XBRL: filers tag many components we
+    # cannot capture reliably (DRIP reinvestment, gross-vs-net repurchases incl. unpaid
+    # payables, offering costs, early-repurchase deductions), often under custom ck: concepts.
+    # A full run showed 94 of 100 filings with all six inputs failing — median gap 2.3%, 35
+    # over 5% — NOT tolerance-fixable. Decision (Brian): KEEP the captured statement-of-changes
+    # DATA (beginning/ending net assets, capital_raised, repurchases — useful for the
+    # spreadsheet) but emit NO C6 check. Re-add only if an authoritative tagged roll-forward
+    # SUBTOTAL becomes available to anchor against (the way C5 anchors NII).
 
     # ── C7: income components reconcile to total (completeness, flag-keep) ─────
     # BDC PIK (paid-in-kind) tagging is inconsistent: some filers fold PIK INTO the
