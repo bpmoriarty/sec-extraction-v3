@@ -60,6 +60,12 @@ DATA_FIELDS: list[tuple[str, str, str, str]] = [
     ("FairValue", "fv_level_3", "fair_value", "fv_level_3"),
     ("FairValue", "fv_nav_practical_expedient", "fair_value", "fv_nav_practical_expedient"),
     ("FairValue", "fv_total", "fair_value", "fv_total"),
+    # Fair-value % of total investments (computed = level / fv_total). The $ values stay above;
+    # "__calc__" marks a derived column whose `field` names the level it divides by fv_total.
+    ("FairValue", "pct_fv_level_1", "__calc__", "fv_level_1"),
+    ("FairValue", "pct_fv_level_2", "__calc__", "fv_level_2"),
+    ("FairValue", "pct_fv_level_3", "__calc__", "fv_level_3"),
+    ("FairValue", "pct_fv_nav_practical_expedient", "__calc__", "fv_nav_practical_expedient"),
     # Statement of changes (§5)
     ("Changes", "beginning_net_assets", "statement_of_changes", "beginning_net_assets"),
     ("Changes", "capital_raised", "statement_of_changes", "capital_raised"),
@@ -119,7 +125,8 @@ META_COLS = ["cik", "fund_name", "form_type", "reporting_date", "period_months",
 RULE_FIELDS: dict[str, list[str]] = {
     "C1": ["total_assets", "total_liabilities", "total_net_assets"],
     "C3": ["total_net_assets"],
-    "C4": ["fv_level_1", "fv_level_2", "fv_level_3", "fv_nav_practical_expedient", "fv_total"],
+    "C4": ["fv_level_1", "fv_level_2", "fv_level_3", "fv_nav_practical_expedient", "fv_total",
+           "pct_fv_level_1", "pct_fv_level_2", "pct_fv_level_3", "pct_fv_nav_practical_expedient"],
     "C5": ["total_investment_income", "total_expenses", "net_investment_income"],
     "C7": ["interest_income", "pik_interest_income", "dividend_income",
            "other_investment_income", "total_investment_income"],
@@ -169,7 +176,27 @@ FLAG_CELL_FILL = PatternFill("solid", fgColor="F4B183")    # stronger amber for 
 PASS_FILL = PatternFill("solid", fgColor="E2EFDA")
 THIN = Side(style="thin", color="D9D9D9")
 BORDER = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
-MONEY_FMT = "#,##0"
+MONEY_FMT = "#,##0"      # default: dollar amounts
+PCT_FMT = "0.0%"         # decimals we compute as fractions (fair-value %, PIK ratio, …)
+RATIO_FMT = "0.000"      # multiples / coverage ratios we compute (portfolio_mark, leverage, …)
+DEC_FMT = "0.0000"       # as-tagged rates/ratios whose scale we don't force into %
+
+# Per-column number format (column NAME -> format). Anything not listed uses MONEY_FMT.
+NUMBER_FORMATS = {
+    "pct_fv_level_1": PCT_FMT, "pct_fv_level_2": PCT_FMT, "pct_fv_level_3": PCT_FMT,
+    "pct_fv_nav_practical_expedient": PCT_FMT,
+    "pik_income_ratio": PCT_FMT, "non_accrual_pct_fv": PCT_FMT, "non_accrual_pct_cost": PCT_FMT,
+    "portfolio_mark": RATIO_FMT, "leverage_ratio": RATIO_FMT, "asset_coverage_ratio": RATIO_FMT,
+    "asset_coverage_pct": RATIO_FMT, "distribution_coverage_ratio": RATIO_FMT,
+    "net_lending_spread": RATIO_FMT, "liquidity_coverage": RATIO_FMT,
+    "distributions_per_share": DEC_FMT, "num_holdings": "#,##0",
+    # as-tagged §7/§8 rates & ratios (scale varies by filer) -> plain decimal, not money
+    "expense_ratio": DEC_FMT, "gross_expense_ratio": DEC_FMT, "net_investment_income_ratio": DEC_FMT,
+    "total_return": DEC_FMT, "portfolio_turnover": DEC_FMT, "return_of_capital_pct": DEC_FMT,
+    "weighted_avg_interest_rate": DEC_FMT, "weighted_avg_portfolio_yield": DEC_FMT,
+    "pct_floating_rate": DEC_FMT, "repurchase_proration_pct": DEC_FMT,
+    "weighted_avg_debt_maturity": "0.0",
+}
 
 
 def fact_value(j: dict, section: str, field: str):
@@ -236,18 +263,23 @@ def build_data_tab(wb, filings: list[dict]):
             ",".join(fails),
         ]
         for _, _, sec, fld in DATA_FIELDS:
-            row.append(fact_value(j, sec, fld))
+            if sec == "__calc__":      # fair-value % = level / fv_total
+                num = fact_value(j, "fair_value", fld)
+                den = fact_value(j, "fair_value", "fv_total")
+                row.append((num / den) if (num is not None and den) else None)
+            else:
+                row.append(fact_value(j, sec, fld))
         ws.append(row)
         r = ws.max_row
         is_review = j.get("validation_status") == "review"
-        # row tint + number formats
+        # row tint + per-column number formats
         for c in range(1, len(headers) + 1):
             cell = ws.cell(row=r, column=c)
             cell.border = BORDER
             if is_review:
                 cell.fill = REVIEW_ROW_FILL
             if c > len(META_COLS) and isinstance(cell.value, (int, float)):
-                cell.number_format = MONEY_FMT
+                cell.number_format = NUMBER_FORMATS.get(headers[c - 1], MONEY_FMT)
         # cell-level highlight on fields implicated by each failing rule
         flagged_fields: set[str] = set()
         for rule in fails:
