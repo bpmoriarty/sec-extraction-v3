@@ -40,8 +40,21 @@ unfunded_commitments **145**, pct_affiliated **22** (only "Issuer | Affiliation"
 re-run: **251 pass / 49 review unchanged (0 regressions)**, ~130k holding rows across 256 CSVs.
 Anti-fragility gates earned their keep (plausible-fraction filter killed Apollo's mis-scaled
 spread 29.69%→4.56%; metrics null when coverage thin). Commits `2454511` + `4b02728`.
-**Next: Phase 2** — Σ-holdings vs balance-sheet reconciliation (soft), net_lending_spread,
-a Holdings spreadsheet tab (gold funds); then Phase 3 (LLM: industry/seniority/non-accrual $).
+**Session 7 (cont.) — HOLDINGS PHASE 2 LANDED (assembler-only, no re-run).** Commit `26e5787`.
+(1) **holdings_fv_recon** — Σ(holdings FV) / investments_at_fair_value, a DATA-QUALITY
+DIAGNOSTIC, NOT a validation rule: the offline analysis (Σ from the 130k CSV rows vs the JSONs)
+showed it's too noisy to gate on — only 86/251 within 0.1%, median 1.022, 94 >5% off. Surfaced
+as an amber-flagged Data column; flags structural mismatches (Prospect 35–55×, Kennedy Lewis
+~6.5×, Crescent 7× — fund-of-funds look-through or a mis-mapped investments line). **Phase 1
+ratio metrics are unaffected** (internal holdings ratios, independent of the balance sheet).
+(2) **net_lending_spread** — workbook column = weighted_avg_portfolio_yield −
+weighted_avg_interest_rate; 54 filings (both legs present). (3) **Holdings (Gold) tab** —
+holding-level SOI for the 15 gold funds (10,857 rows); full ~130k rows stay in data/holdings/.
+**DATA-QUALITY FOLLOW-UPS (deferred, like First Eagle was):** Prospect Floating Rate (CIK
+0001521945) and Kennedy Lewis (0001911321) — holdings sum many× their balance-sheet investments
+line; investigate whether it's the SOI structure (look-through) or a mis-mapped balance-sheet
+concept. **Next: Phase 3** (LLM: industry/seniority/maturity/non-accrual $) and/or hand-verify
+the gold sample.
 **Last Session: 2026-06-08 (session 7)**
 
 ### What's Working
@@ -591,6 +604,7 @@ Re-add C6 ONLY if an authoritative tagged roll-forward SUBTOTAL surfaces to anch
 
 | Date | What Happened |
 |------|---------------|
+| 2026-06-08 (session 7 — holdings Phase 2) | Built Phase 2 entirely in the assembler (no re-run). FIRST measured the Σ-holdings vs balance-sheet reconciliation offline (130k CSV rows vs JSONs): NOT rule-quality (86/251 within 0.1%, median 1.022, 94 >5% off; extreme outliers Prospect 35–55×, Kennedy Lewis 6.5×) → kept it as a DATA-QUALITY DIAGNOSTIC column (amber when >5% off), not a validation rule, per the plan's contingency. Probed Prospect's worst (55×): 67 holdings, all single-axis, no double-counting → genuine structural mismatch (look-through or mis-mapped investments line) → logged as a deferred follow-up. Added net_lending_spread (workbook column, 54 filings) and a Holdings (Gold) tab (10,857 rows, 15 funds). Confirmed Phase 1 ratio metrics are unaffected by recon mismatch (internal ratios). Commit `26e5787`. |
 | 2026-06-08 (session 7 — holdings Phase 1) | Built holdings extraction: `FactSet.holdings()` parses the schedule of investments off `dim_us-gaap_InvestmentIdentifierAxis` (current-period filter — SOI carries current+prior year), and `apply_holdings_summary()` derives the §9 metrics into the core JSON. Holdings rows stored SEPARATELY as per-filing CSVs in `data/holdings/` (gitignored), carried via a model PrivateAttr so they never bloat the validated JSON. Schema +3 portfolio fields (weighted_avg_spread, pct_holdings_with_pik, pct_affiliated). Verified on 6 funds (CSV↔holdings match, no JSON leak, 0 core regressions) → clean full re-run: **251/49 unchanged**, ~130k holding rows / 256 CSVs. Coverage: num_holdings/top10/pct_floating/pct_PIK 255/300, weighted_avg_spread 237, weighted_avg_portfolio_yield 151 (gated), unfunded_commitments 145, pct_affiliated 22. Anti-fragility gates worked: plausible-fraction filter fixed Apollo's mis-scaled spread (29.69%→4.56%); metrics null when coverage thin (yield for Apollo/First Eagle, pct_affiliated for non-"Issuer\|Affiliation" filers). Spreadsheet: new §9 columns + Definitions section. Commits `2454511`/`4b02728`. Found: member-label structure varies — BX/HPS clean "Issuer \| Affiliation", Apollo/First Eagle cram the whole SOI row into the member (issuer field denormalized → Phase 2/LLM concern for the holdings table). |
 | 2026-06-08 (session 7 — holdings/SOI reassessment) | Brian asked whether the schedule-of-investments / asset-level data is in XBRL or LLM-fallback. Probed 7 funds' latest 10-K: it IS in clean structured XBRL (`dim_us-gaap_InvestmentIdentifierAxis`, member = "Issuer \| Affiliation"). Robust everywhere: FV / cost / principal / spread. Per-filer-inconsistent: all-in rate (Apollo/First Eagle barely tag it), unfunded commitment (Apollo=0), maturity/pct_na/floor (~half). LLC (Terra) tags no axis. SOI carries current+prior year → must filter to reporting_date. Non-accrual = only custom per-filer COUNT concepts (no clean $). Verdict: the deferral was a SCOPE call, not data-availability; num_holdings / top_10 / pct_floating / %-with-PIK / total-unfunded are XBRL-derivable, weighted_avg_yield is fragile. Logged the correction in the data dictionary + the §9 note. Scoping a holdings-expansion plan next (no code yet). |
 | 2026-06-08 (session 7 — corporate sync + spreadsheet definitions) | Pulled sessions 5–6 from GitHub onto the corporate machine (code only; `data/` is gitignored). Confirmed local `data/extracted/` was stale (session-4 vintage — C4 skipped, fv/pik/roll-forward fields empty), so did a CLEAN full re-run (deleted `data/extracted/` first since the runner skips existing JSONs) → **reproduced 251 pass / 49 review of 300 exactly**, with C4/C6-data/C7-PIK fields now populated. Then extended the spreadsheet assembler per Brian: **(1) new Definitions tab** — every derived/calculated data point (§10 derived metrics + workbook fair-value % columns) with its formula in EXACT Data-tab column names + plain-language methodology; not-yet-populated metrics (non-accruals, net_lending_spread, liquidity_coverage) honestly flagged. **(2) Review-tab code key** — C1–C5/C7/A1/A2/I1/I2 defined, each tagged Identity (fail = extraction likely wrong) vs Reasonableness (flag-and-keep). Verified the build (5 tabs); rebuilt the workbook. Committed & pushed. |
