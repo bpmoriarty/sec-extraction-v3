@@ -93,7 +93,10 @@ DATA_FIELDS: list[tuple[str, str, str, str]] = [
     ("Portfolio", "non_accrual_fair_value", "portfolio_summary", "non_accrual_fair_value"),
     ("Portfolio", "non_accrual_at_cost", "portfolio_summary", "non_accrual_at_cost"),
     ("Portfolio", "weighted_avg_portfolio_yield", "portfolio_summary", "weighted_avg_portfolio_yield"),
+    ("Portfolio", "weighted_avg_spread", "portfolio_summary", "weighted_avg_spread"),
     ("Portfolio", "pct_floating_rate", "portfolio_summary", "pct_floating_rate"),
+    ("Portfolio", "pct_holdings_with_pik", "portfolio_summary", "pct_holdings_with_pik"),
+    ("Portfolio", "pct_affiliated", "portfolio_summary", "pct_affiliated"),
     ("Portfolio", "capitalized_pik_balance", "portfolio_summary", "capitalized_pik_balance"),
     ("Portfolio", "top_10_concentration", "portfolio_summary", "top_10_concentration"),
     # Liquidity & obligations (§12)
@@ -194,10 +197,12 @@ DERIVED_DEFS: list[tuple[str, str, str]] = [
      "NOT YET POPULATED — pending the LLM/HTML phase."),
     ("net_lending_spread", "weighted_avg_portfolio_yield - weighted_avg_interest_rate",
      "Gross spread between what the portfolio earns and the fund's cost of debt. NOT YET "
-     "POPULATED — weighted_avg_portfolio_yield isn't in clean XBRL; pending the LLM/HTML phase."),
+     "COMPUTED — weighted_avg_portfolio_yield is now holdings-derived (below), but the cost-of-"
+     "debt leg (weighted_avg_interest_rate) is inconsistently tagged; pending a later increment."),
     ("liquidity_coverage", "(cash_and_equivalents + undrawn_debt_capacity) / unfunded_commitments",
-     "Available liquidity vs. commitments the fund may have to fund. NOT YET POPULATED — "
-     "undrawn_debt_capacity / unfunded_commitments aren't extracted yet."),
+     "Available liquidity vs. commitments the fund may have to fund. NOT YET COMPUTED — "
+     "unfunded_commitments is now holdings-derived (below), but undrawn_debt_capacity isn't "
+     "extracted yet."),
 ]
 
 # Percent columns computed inside this workbook (not stored in the JSON).
@@ -210,6 +215,31 @@ WORKBOOK_CALC_DEFS: list[tuple[str, str, str]] = [
      "Level 3 (unobservable / model inputs) as a % of total — most direct-lending loans sit here."),
     ("pct_fv_nav_practical_expedient", "fv_nav_practical_expedient / fv_total",
      "NAV-measured holdings (money-market / alternative funds) as a % of total."),
+]
+
+# Holdings-derived §9 metrics — computed from the schedule of investments (the separate
+# per-filing holdings CSV in data/holdings/). Formulas use the holdings CSV column names.
+HOLDINGS_DERIVED_DEFS: list[tuple[str, str, str]] = [
+    ("num_holdings", "count of holdings (current period)",
+     "Number of portfolio positions (schedule-of-investments line items) at the reporting date."),
+    ("top_10_concentration", "sum(10 largest fair_value) / sum(fair_value)",
+     "Fair value of the 10 largest holdings as a share of the whole portfolio — concentration."),
+    ("pct_floating_rate", "sum(fair_value where spread tagged) / sum(fair_value)",
+     "Share of the portfolio (by fair value) on a floating rate (carries a spread over a base rate)."),
+    ("weighted_avg_portfolio_yield", "sum(fair_value * rate) / sum(fair_value), over holdings with a rate",
+     "Fair-value-weighted all-in interest rate. NULL when the rate concept is tagged for <60% of "
+     "fair value (e.g. Apollo, First Eagle don't tag it) — reported only when reliable."),
+    ("weighted_avg_spread", "sum(fair_value * spread) / sum(fair_value), over holdings with a spread",
+     "Fair-value-weighted spread over the base rate. More robust than the all-in yield (spread is "
+     "tagged across filers); mis-scaled outliers (>=1) are excluded from the average."),
+    ("pct_holdings_with_pik", "count(holdings with a pik_rate) / num_holdings",
+     "Share of positions (count basis) carrying a payment-in-kind rate — a credit-stress signal."),
+    ("pct_affiliated", "sum(fair_value where affiliated) / sum(fair_value)",
+     "Share (by fair value) in affiliated/controlled issuers. NULL when issuer affiliation isn't "
+     "parseable from the holding label (some filers don't use the 'Issuer | Affiliation' convention)."),
+    ("unfunded_commitments", "sum(commitment) over holdings",
+     "Total unfunded commitments the fund may still have to fund (feeds liquidity_coverage). "
+     "Stored under the Liquidity section. NULL for filers that don't tag per-holding commitments."),
 ]
 
 # Validation/review codes for the Review-tab key: (code, short name, type, what it verifies).
@@ -260,6 +290,9 @@ NUMBER_FORMATS = {
     "pct_fv_level_1": PCT_FMT, "pct_fv_level_2": PCT_FMT, "pct_fv_level_3": PCT_FMT,
     "pct_fv_nav_practical_expedient": PCT_FMT,
     "pik_income_ratio": PCT_FMT, "non_accrual_pct_fv": PCT_FMT, "non_accrual_pct_cost": PCT_FMT,
+    # Holdings-derived §9 metrics (computed fractions -> show as %)
+    "top_10_concentration": PCT_FMT, "pct_holdings_with_pik": PCT_FMT, "pct_affiliated": PCT_FMT,
+    "weighted_avg_spread": PCT_FMT,
     "portfolio_mark": RATIO_FMT, "leverage_ratio": RATIO_FMT, "asset_coverage_ratio": RATIO_FMT,
     "asset_coverage_pct": RATIO_FMT, "distribution_coverage_ratio": RATIO_FMT,
     "net_lending_spread": RATIO_FMT, "liquidity_coverage": RATIO_FMT,
@@ -267,8 +300,8 @@ NUMBER_FORMATS = {
     # as-tagged §7/§8 rates & ratios (scale varies by filer) -> plain decimal, not money
     "expense_ratio": DEC_FMT, "gross_expense_ratio": DEC_FMT, "net_investment_income_ratio": DEC_FMT,
     "total_return": DEC_FMT, "portfolio_turnover": DEC_FMT, "return_of_capital_pct": DEC_FMT,
-    "weighted_avg_interest_rate": DEC_FMT, "weighted_avg_portfolio_yield": DEC_FMT,
-    "pct_floating_rate": DEC_FMT, "repurchase_proration_pct": DEC_FMT,
+    "weighted_avg_interest_rate": DEC_FMT, "weighted_avg_portfolio_yield": PCT_FMT,
+    "pct_floating_rate": PCT_FMT, "repurchase_proration_pct": DEC_FMT,
     "weighted_avg_debt_maturity": "0.0",
 }
 
@@ -552,6 +585,8 @@ def build_definitions_tab(wb):
             DERIVED_DEFS)
     section("Fair-value % columns — computed in this workbook (Data tab section: FairValue)",
             WORKBOOK_CALC_DEFS)
+    section("Portfolio metrics — computed from the schedule of investments / holdings (§9)",
+            HOLDINGS_DERIVED_DEFS)
     ws.column_dimensions["A"].width = 32
     ws.column_dimensions["B"].width = 50
     ws.column_dimensions["C"].width = 85
