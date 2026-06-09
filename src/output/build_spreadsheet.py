@@ -78,6 +78,12 @@ DATA_FIELDS: list[tuple[str, str, str, str]] = [
     ("Changes", "repurchases", "statement_of_changes", "repurchases"),
     ("Changes", "distributions_declared", "statement_of_changes", "distributions_declared"),
     ("Changes", "ending_net_assets", "statement_of_changes", "ending_net_assets"),
+    # Capital share activity (§5 detail) — summed across share classes
+    ("Changes", "shares_issued_new", "statement_of_changes", "shares_issued_new"),
+    ("Changes", "proceeds_new_issues", "statement_of_changes", "proceeds_new_issues"),
+    ("Changes", "shares_issued_drip", "statement_of_changes", "shares_issued_drip"),
+    ("Changes", "value_drip", "statement_of_changes", "value_drip"),
+    ("Changes", "shares_repurchased", "statement_of_changes", "shares_repurchased"),
     # Cash-flow statement (§5b)
     ("CashFlow", "net_cash_operating", "cash_flow", "net_cash_operating"),
     ("CashFlow", "net_cash_investing", "cash_flow", "net_cash_investing"),
@@ -282,6 +288,24 @@ EXTRACTED_METHOD_DEFS: list[tuple[str, str, str]] = [
      "liquidity_coverage."),
 ]
 
+# Capital share activity (§5 detail) — extracted per share class and summed.
+SHARE_ACTIVITY_DEFS: list[tuple[str, str, str]] = [
+    ("shares_issued_new", "us-gaap:StockIssuedDuringPeriodSharesNewIssues (sum over classes)",
+     "Shares sold to new/existing investors during the period (subscriptions), summed across share "
+     "classes. Detail behind capital_raised."),
+    ("proceeds_new_issues", "us-gaap:StockIssuedDuringPeriodValueNewIssues (sum over classes)",
+     "Dollars raised from new subscriptions, summed across classes. May differ from capital_raised "
+     "(which is the cash-flow ProceedsFromIssuanceOfCommonStock)."),
+    ("shares_issued_drip", "us-gaap:StockIssuedDuringPeriodSharesDividendReinvestmentPlan (sum)",
+     "Shares issued via dividend reinvestment (DRIP), summed across classes."),
+    ("value_drip", "us-gaap:StockIssuedDuringPeriodValueDividendReinvestmentPlan (sum)",
+     "Dollar value of reinvested distributions. A wash in cash terms (a distribution that comes "
+     "back as shares) — increases net assets in the roll-forward."),
+    ("shares_repurchased", "us-gaap:StockRepurchasedDuringPeriodShares (sum over classes)",
+     "Shares bought back via the periodic tender/repurchase offer, summed across classes. Detail "
+     "behind repurchases."),
+]
+
 # Cash-flow statement fields (§5b) — extracted as-tagged, but a couple of conventions are
 # non-obvious enough to document.
 CASH_FLOW_DEFS: list[tuple[str, str, str]] = [
@@ -369,6 +393,8 @@ NUMBER_FORMATS = {
     "net_lending_spread": PCT_FMT, "liquidity_coverage": RATIO_FMT,
     "holdings_fv_recon": RATIO_FMT,
     "distributions_per_share": DEC_FMT, "num_holdings": "#,##0",
+    # capital share activity — share counts (values use the default money format)
+    "shares_issued_new": "#,##0", "shares_issued_drip": "#,##0", "shares_repurchased": "#,##0",
     # as-tagged §7/§8 rates & ratios (scale varies by filer) -> plain decimal, not money
     "expense_ratio": DEC_FMT, "gross_expense_ratio": DEC_FMT, "net_investment_income_ratio": DEC_FMT,
     "total_return": DEC_FMT, "portfolio_turnover": DEC_FMT, "return_of_capital_pct": DEC_FMT,
@@ -733,6 +759,8 @@ def build_definitions_tab(wb):
             WORKBOOK_CALC_DEFS)
     section("Portfolio metrics — computed from the schedule of investments / holdings (§9)",
             HOLDINGS_DERIVED_DEFS)
+    section("Capital share activity (§5) — extracted per share class and summed",
+            SHARE_ACTIVITY_DEFS)
     section("Cash-flow statement (§5b) — extracted; conventions to note",
             CASH_FLOW_DEFS)
     section("Extracted fields — non-obvious extraction methodology",

@@ -257,6 +257,18 @@ CHANGES_CONCEPTS: dict[str, list[str]] = {
                     "us-gaap:StockRepurchasedAndRetiredDuringPeriodValue"],
 }
 
+# Capital share activity (§5, detail) — DURATION facts, tagged PER SHARE CLASS (no undimensioned
+# total for most filers) -> extracted via duration_class_scalar (undimensioned, else sum over the
+# share-class axis). The DRIP value also feeds the C6 roll-forward retry.
+SHARE_ACTIVITY_CONCEPTS: dict[str, list[str]] = {
+    "shares_issued_new": ["us-gaap:StockIssuedDuringPeriodSharesNewIssues"],
+    "proceeds_new_issues": ["us-gaap:StockIssuedDuringPeriodValueNewIssues"],
+    "shares_issued_drip": ["us-gaap:StockIssuedDuringPeriodSharesDividendReinvestmentPlan"],
+    "value_drip": ["us-gaap:StockIssuedDuringPeriodValueDividendReinvestmentPlan"],
+    "shares_repurchased": ["us-gaap:StockRepurchasedDuringPeriodShares",
+                           "us-gaap:StockRepurchasedAndRetiredDuringPeriodShares"],
+}
+
 
 # ── Fact access ─────────────────────────────────────────────────────────────────
 
@@ -462,6 +474,52 @@ class FactSet:
             if summed is not None:
                 return Fact(value=summed, source=Source.XBRL, confidence=0.95,
                             raw_text=f"{concept.split(':')[-1]} (sum over affiliation)")
+        return Fact()
+
+    def _duration_class_sum(self, concept: str, target_months: int) -> float | None:
+        """Sum a duration concept across StatementClassOfStock members for the primary period.
+        Capital share activity (shares/value issued, repurchased) is tagged PER SHARE CLASS with
+        no undimensioned total for most filers (e.g. Apollo). Mirrors _duration_affiliation_sum:
+        only single-axis (class-only) rows are summed, deduped per class, so cross-tabbed rows
+        can't double-count."""
+        if SHARE_CLASS_AXIS not in self.df.columns:
+            return None
+        rows = self.df[
+            (self.df["concept"] == concept)
+            & (self.df["period_type"] == "duration")
+            & self.df[SHARE_CLASS_AXIS].notna()
+        ].copy()
+        if rows.empty:
+            return None
+        dim_cols = self._dim_cols
+        rows["_n"] = rows[dim_cols].notna().sum(axis=1)            # share class is the only axis
+        rows["_ps"] = rows["period_start"].map(self._iso)
+        rows["_pe"] = rows["period_end"].map(self._iso)
+        rows = rows[(rows["_n"] == 1) & (rows["_pe"] == self.reporting_date)
+                    & rows["numeric_value"].notna()].copy()
+        if rows.empty:
+            return None
+        rows["_m"] = rows.apply(lambda r: self._months(r["_ps"], r["_pe"]), axis=1)
+        rows = rows[rows["_m"].notna()].copy()
+        if rows.empty:
+            return None
+        rows["_md"] = (rows["_m"] - target_months).abs()
+        rows = rows[rows["_md"] == rows["_md"].min()]              # the primary-period window
+        rows = rows.drop_duplicates(subset=[SHARE_CLASS_AXIS])    # one row per share class
+        return float(rows["numeric_value"].sum())
+
+    def duration_class_scalar(self, concepts: list[str], target_months: int) -> Fact:
+        """Duration value preferring the undimensioned total, else summed across share classes
+        (capital share activity — see _duration_class_sum)."""
+        for concept in concepts:
+            best = self._duration_best(concept, target_months)
+            if best is not None:
+                return Fact(value=float(best["numeric_value"]), source=Source.XBRL,
+                            confidence=0.96, raw_text=str(best.get("label", "")) or None)
+            summed = self._duration_class_sum(concept, target_months)
+            if summed is not None:
+                return Fact(value=summed, source=Source.XBRL, confidence=0.93,
+                            raw_text=f"{concept.split(':')[-1]} (sum over share classes)")
         return Fact()
 
     def scalar_any(self, concepts: list[str], target_months: int) -> Fact:
@@ -790,6 +848,9 @@ def extract_filing(company, filing, cik: str, form: str) -> FilingExtraction:
     changes = StatementOfChanges()
     for field, concepts in CHANGES_CONCEPTS.items():
         setattr(changes, field, facts.scalar_any(concepts, target_months))
+    # Capital share activity (§5 detail) — per-share-class duration facts, summed across classes.
+    for field, concepts in SHARE_ACTIVITY_CONCEPTS.items():
+        setattr(changes, field, facts.duration_class_scalar(concepts, target_months))
     # Net-asset balances for the C6 roll-forward (soft / flag-and-keep). Ending = current net
     # assets; beginning = equity at the instant before period_start (the prior period end).
     # Captured for the spreadsheet regardless of whether the roll-forward identity reconciles.

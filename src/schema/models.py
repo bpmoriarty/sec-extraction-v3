@@ -122,6 +122,13 @@ class StatementOfChanges(BaseModel):                 # Data Dictionary §5 (roll
     repurchases: Fact = Field(default_factory=Fact)
     distributions_declared: Fact = Field(default_factory=Fact)
     ending_net_assets: Fact = Field(default_factory=Fact)
+    # Capital share activity (DURATION) — summed across share classes. Detail behind
+    # capital_raised / repurchases; DRIP value also feeds the C6 roll-forward retry.
+    shares_issued_new: Fact = Field(default_factory=Fact)        # share count, subscriptions
+    proceeds_new_issues: Fact = Field(default_factory=Fact)      # $ raised from new subscriptions
+    shares_issued_drip: Fact = Field(default_factory=Fact)       # share count, dividend reinvestment
+    value_drip: Fact = Field(default_factory=Fact)               # $ of reinvested distributions
+    shares_repurchased: Fact = Field(default_factory=Fact)       # share count, tender repurchases
 
 
 class CashFlowStatement(BaseModel):                  # Data Dictionary §5b (statement of cash flows)
