@@ -211,9 +211,9 @@ DERIVED_DEFS: list[tuple[str, str, str]] = [
      "in-workbook where BOTH legs exist; yield is holdings-derived and the cost-of-debt leg "
      "(weighted_avg_interest_rate) is tagged for only ~86 filings, so coverage is limited."),
     ("liquidity_coverage", "(cash_and_equivalents + undrawn_debt_capacity) / unfunded_commitments",
-     "Available liquidity vs. commitments the fund may have to fund. NOT YET COMPUTED — "
-     "unfunded_commitments is now holdings-derived (below), but undrawn_debt_capacity isn't "
-     "extracted yet."),
+     "Available liquidity vs. commitments the fund may have to fund. Computed only when all "
+     "three inputs are present; undrawn_debt_capacity is tagged by only some filers (see below), "
+     "so coverage is partial."),
 ]
 
 # Percent columns computed inside this workbook (not stored in the JSON).
@@ -258,6 +258,16 @@ HOLDINGS_DERIVED_DEFS: list[tuple[str, str, str]] = [
      "funds look-through) — a follow-up signal, not a confirmed error."),
 ]
 
+# Extracted (not derived) fields whose extraction METHODOLOGY is non-obvious enough to document.
+EXTRACTED_METHOD_DEFS: list[tuple[str, str, str]] = [
+    ("undrawn_debt_capacity", "us-gaap:LineOfCreditFacilityRemainingBorrowingCapacity (undimensioned)",
+     "Undrawn revolver / credit-facility capacity. Taken from the UNDIMENSIONED remaining-capacity "
+     "total (a clean fund-level figure). We deliberately do NOT sum the per-facility rows: those are "
+     "cross-tabbed across multiple axes (facility / SPV entity) and some filers duplicate or "
+     "double-count them. NULL for filers that tag capacity only per-facility or via maximum (not "
+     "remaining) capacity — so coverage is partial by design. Feeds liquidity_coverage."),
+]
+
 # Validation/review codes for the Review-tab key: (code, short name, type, what it verifies).
 # Identity = an accounting equation that MUST hold (a fail means the extraction is likely wrong).
 # Reasonableness = the value is KEPT and flagged for a human to eyeball (flag-and-keep policy).
@@ -285,6 +295,9 @@ REVIEW_CODES: list[tuple[str, str, str, str]] = [
      "asset_coverage_pct >= 1.5 (150%, the 1940-Act regulatory minimum)."),
     ("I2", "Leverage in range", "Reasonableness",
      "leverage_ratio sits within 0-2."),
+    ("C8", "Undrawn debt capacity plausible", "Reasonableness",
+     "undrawn_debt_capacity is non-negative and does not exceed total_assets (a larger value "
+     "would signal a double-count / mis-tag). Value is kept either way."),
 ]
 
 # ── Styling ─────────────────────────────────────────────────────────────────────
@@ -678,6 +691,8 @@ def build_definitions_tab(wb):
             WORKBOOK_CALC_DEFS)
     section("Portfolio metrics — computed from the schedule of investments / holdings (§9)",
             HOLDINGS_DERIVED_DEFS)
+    section("Extracted fields — non-obvious extraction methodology",
+            EXTRACTED_METHOD_DEFS)
     ws.column_dimensions["A"].width = 32
     ws.column_dimensions["B"].width = 50
     ws.column_dimensions["C"].width = 85

@@ -215,6 +215,16 @@ DIST_LEVERAGE_CONCEPTS: dict[str, list[str]] = {
                                    "us-gaap:DebtWeightedAverageInterestRate"],
 }
 
+# Liquidity (§12) — undrawn revolver/credit-facility capacity. We take the UNDIMENSIONED
+# remaining-capacity total: the probe (Apollo/Blackstone/HPS) confirmed it is a clean
+# fund-level figure (= sum of the per-facility remaining amounts). We deliberately do NOT sum
+# the dimensioned per-facility rows — those are cross-tabbed across the CreditFacility AND
+# LegalEntity (SPV) axes, and the undimensioned MaximumBorrowingCapacity double-counts them
+# (Apollo: 12.9B undimensioned vs a 3.45B real revolver). Plausibility is checked by C8.
+LIQUIDITY_CONCEPTS: dict[str, list[str]] = {
+    "undrawn_debt_capacity": ["us-gaap:LineOfCreditFacilityRemainingBorrowingCapacity"],
+}
+
 # Statement of changes (§5) — only the distributions total for now (enables coverage).
 CHANGES_CONCEPTS: dict[str, list[str]] = {
     "distributions_declared": ["us-gaap:InvestmentCompanyDividendDistribution",
@@ -771,6 +781,12 @@ def extract_filing(company, filing, cik: str, form: str) -> FilingExtraction:
     # Schedule of investments (§9): parse holding-level rows, derive the summary metrics into
     # portfolio_summary/liquidity, and carry the raw rows on the model (PrivateAttr, not
     # serialized) so the runner can write them to the separate per-filing holdings CSV.
+    # Liquidity (§12): undrawn credit-facility capacity (see LIQUIDITY_CONCEPTS). Set before
+    # apply_holdings_summary (which fills liquidity.unfunded_commitments) and compute_derived
+    # (which uses undrawn_debt_capacity for liquidity_coverage).
+    for field, concepts in LIQUIDITY_CONCEPTS.items():
+        setattr(extraction.liquidity, field, facts.scalar(concepts))
+
     holdings = facts.holdings(reconcile_to=bs.investments_at_fair_value.value)
     extraction._holdings = holdings
     apply_holdings_summary(extraction, holdings)
@@ -867,6 +883,7 @@ def compute_derived(e: FilingExtraction) -> FilingExtraction:
     Metrics needing not-yet-extracted inputs (distribution coverage, lending spread,
     liquidity coverage) are left for later increments."""
     bs, inc, ps, d = e.balance_sheet, e.income_statement, e.portfolio_summary, e.derived
+    liq = e.liquidity
 
     def mk(v):
         return Fact(value=v, source=Source.COMPUTED, confidence=0.95) if v is not None else Fact()
@@ -884,6 +901,11 @@ def compute_derived(e: FilingExtraction) -> FilingExtraction:
     d.pik_income_ratio = mk(_ratio(inc.pik_interest_income.value, inc.total_investment_income.value))
     d.distribution_coverage_ratio = mk(
         _ratio(inc.net_investment_income.value, e.statement_of_changes.distributions_declared.value))
+    # Liquidity coverage (§10): can the fund fund its unfunded commitments from cash + undrawn
+    # debt capacity? Computes only when all three inputs are present (else null, per coverage policy).
+    undrawn, unfunded = liq.undrawn_debt_capacity.value, liq.unfunded_commitments.value
+    if None not in (cash, undrawn, unfunded) and unfunded:
+        d.liquidity_coverage = mk((cash + undrawn) / unfunded)
     return e
 
 

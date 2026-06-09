@@ -236,6 +236,25 @@ def validate(e: FilingExtraction) -> FilingExtraction:
             add(f"A2[{sc.class_label}]", "NAV in plausible range", "reasonableness", "fail",
                 f"NAV {nav:.2f} outside $1-$100")
 
+    # ── C8: undrawn debt capacity plausible (reasonableness, flag-and-keep) ───
+    # We take the UNDIMENSIONED LineOfCreditFacilityRemainingBorrowingCapacity (a clean
+    # fund-level figure across the probed filers). The dimensioned per-facility rows are
+    # cross-tabbed across CreditFacility + LegalEntity axes and the MaximumBorrowingCapacity
+    # total double-counts them, so a max-vs-(drawn+undrawn) reconciliation isn't reliable.
+    # Instead we bound the figure: undrawn capacity above the fund's TOTAL ASSETS would signal
+    # a double-count / mis-tag. Negative is impossible. Value is KEPT either way (flag-and-keep).
+    undrawn = e.liquidity.undrawn_debt_capacity.value
+    if undrawn is None:
+        add("C8", "Undrawn debt capacity plausible", "reasonableness", "skipped", "not tagged")
+    elif undrawn < 0:
+        add("C8", "Undrawn debt capacity plausible", "reasonableness", "fail",
+            f"undrawn capacity {undrawn:,.0f} is negative")
+    elif ta is not None and undrawn > ta:
+        add("C8", "Undrawn debt capacity plausible", "reasonableness", "fail",
+            f"undrawn capacity {undrawn:,.0f} exceeds total assets {ta:,.0f} (possible double-count)")
+    else:
+        add("C8", "Undrawn debt capacity plausible", "reasonableness", "pass")
+
     # ── Roll up ──────────────────────────────────────────────────────────────
     e.validation_checks = checks
     fails = [c for c in checks if c.status == "fail"]
