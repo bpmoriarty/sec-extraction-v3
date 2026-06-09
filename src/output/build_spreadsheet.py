@@ -78,6 +78,15 @@ DATA_FIELDS: list[tuple[str, str, str, str]] = [
     ("Changes", "repurchases", "statement_of_changes", "repurchases"),
     ("Changes", "distributions_declared", "statement_of_changes", "distributions_declared"),
     ("Changes", "ending_net_assets", "statement_of_changes", "ending_net_assets"),
+    # Cash-flow statement (§5b)
+    ("CashFlow", "net_cash_operating", "cash_flow", "net_cash_operating"),
+    ("CashFlow", "net_cash_investing", "cash_flow", "net_cash_investing"),
+    ("CashFlow", "net_cash_financing", "cash_flow", "net_cash_financing"),
+    ("CashFlow", "effect_of_fx", "cash_flow", "effect_of_fx"),
+    ("CashFlow", "net_change_in_cash", "cash_flow", "net_change_in_cash"),
+    ("CashFlow", "interest_paid", "cash_flow", "interest_paid"),
+    ("CashFlow", "investment_purchases", "cash_flow", "investment_purchases"),
+    ("CashFlow", "investment_sales", "cash_flow", "investment_sales"),
     # Fees (§11)
     ("Fees", "management_fee", "fees", "management_fee"),
     ("Fees", "incentive_fee", "fees", "incentive_fee"),
@@ -144,6 +153,8 @@ RULE_FIELDS: dict[str, list[str]] = {
     "C5": ["total_investment_income", "total_expenses", "net_investment_income"],
     "C7": ["interest_income", "pik_interest_income", "dividend_income",
            "other_investment_income", "total_investment_income"],
+    "C9": ["net_cash_operating", "net_cash_investing", "net_cash_financing", "effect_of_fx",
+           "net_change_in_cash"],
     "A1": ["total_net_assets"],
     "I1": ["asset_coverage_ratio"],
     "I2": ["leverage_ratio"],
@@ -271,6 +282,31 @@ EXTRACTED_METHOD_DEFS: list[tuple[str, str, str]] = [
      "liquidity_coverage."),
 ]
 
+# Cash-flow statement fields (§5b) — extracted as-tagged, but a couple of conventions are
+# non-obvious enough to document.
+CASH_FLOW_DEFS: list[tuple[str, str, str]] = [
+    ("net_cash_operating", "us-gaap:NetCashProvidedByUsedInOperatingActivities",
+     "Cash from operations. For an investment company this INCLUDES buying/selling investments "
+     "(there is usually no separate investing section), so it is typically a large negative number "
+     "in a growing fund (deploying capital)."),
+    ("net_cash_financing", "us-gaap:NetCashProvidedByUsedInFinancingActivities",
+     "Cash from financing — share issuance/repurchases and net borrowings. Usually the positive "
+     "offset to operating in a growing fund."),
+    ("net_cash_investing", "us-gaap:NetCashProvidedByUsedInInvestingActivities",
+     "Investing-activities cash. Usually ABSENT for BDCs (investments are an operating activity); "
+     "treated as 0 in the C9 footing check when not tagged."),
+    ("net_change_in_cash", "PeriodIncreaseDecrease...IncludingExchangeRateEffect",
+     "Bottom-line change in cash for the period, INCLUDING the FX effect. C9 checks that "
+     "operating + investing + financing + effect_of_fx equals this."),
+    ("interest_paid", "us-gaap:InterestPaidNet",
+     "Cash interest actually paid in the period (vs. the accrued interest expense on the income "
+     "statement)."),
+    ("investment_purchases", "us-gaap:PaymentsForPurchaseOfInvestmentOperatingActivity",
+     "Cash used to buy investments during the period — a gross deployment / turnover signal."),
+    ("investment_sales", "us-gaap:ProceedsFromDispositionOfInvestmentOperatingActivity",
+     "Cash from selling / repaying investments — the other half of the turnover signal."),
+]
+
 # Validation/review codes for the Review-tab key: (code, short name, type, what it verifies).
 # Identity = an accounting equation that MUST hold (a fail means the extraction is likely wrong).
 # Reasonableness = the value is KEPT and flagged for a human to eyeball (flag-and-keep policy).
@@ -301,6 +337,9 @@ REVIEW_CODES: list[tuple[str, str, str, str]] = [
     ("C8", "Undrawn debt capacity plausible", "Reasonableness",
      "undrawn_debt_capacity is non-negative and does not exceed total_assets (a larger value "
      "would signal a double-count / mis-tag). Value is kept either way."),
+    ("C9", "Cash flow statement foots", "Identity",
+     "net_cash_operating + net_cash_investing + net_cash_financing + effect_of_fx = "
+     "net_change_in_cash (investing/fx default to 0 when a filer omits them)."),
 ]
 
 # ── Styling ─────────────────────────────────────────────────────────────────────
@@ -694,6 +733,8 @@ def build_definitions_tab(wb):
             WORKBOOK_CALC_DEFS)
     section("Portfolio metrics — computed from the schedule of investments / holdings (§9)",
             HOLDINGS_DERIVED_DEFS)
+    section("Cash-flow statement (§5b) — extracted; conventions to note",
+            CASH_FLOW_DEFS)
     section("Extracted fields — non-obvious extraction methodology",
             EXTRACTED_METHOD_DEFS)
     ws.column_dimensions["A"].width = 32

@@ -124,6 +124,22 @@ class StatementOfChanges(BaseModel):                 # Data Dictionary §5 (roll
     ending_net_assets: Fact = Field(default_factory=Fact)
 
 
+class CashFlowStatement(BaseModel):                  # Data Dictionary §5b (statement of cash flows)
+    # DURATION facts for the primary period. For an investment company, buying/selling
+    # investments is an OPERATING activity (there's usually no separate investing section), so
+    # investing is often absent (treated as 0 in the C9 footing identity). net_change_in_cash is
+    # the bottom-line change INCLUDING the FX effect; effect_of_fx is captured so C9 can foot
+    # exactly: operating + investing + financing + fx = net_change_in_cash.
+    net_cash_operating: Fact = Field(default_factory=Fact)
+    net_cash_investing: Fact = Field(default_factory=Fact)
+    net_cash_financing: Fact = Field(default_factory=Fact)
+    effect_of_fx: Fact = Field(default_factory=Fact)
+    net_change_in_cash: Fact = Field(default_factory=Fact)
+    interest_paid: Fact = Field(default_factory=Fact)            # cash interest paid (vs accrued expense)
+    investment_purchases: Fact = Field(default_factory=Fact)     # portfolio turnover signal
+    investment_sales: Fact = Field(default_factory=Fact)
+
+
 class FairValueHierarchy(BaseModel):                 # Data Dictionary §6 (4-bucket)
     fv_level_1: Fact = Field(default_factory=Fact)
     fv_level_2: Fact = Field(default_factory=Fact)
@@ -249,6 +265,7 @@ class FilingExtraction(BaseModel):
     balance_sheet: BalanceSheet = Field(default_factory=BalanceSheet)
     income_statement: IncomeStatement = Field(default_factory=IncomeStatement)
     statement_of_changes: StatementOfChanges = Field(default_factory=StatementOfChanges)
+    cash_flow: CashFlowStatement = Field(default_factory=CashFlowStatement)
     fair_value: FairValueHierarchy = Field(default_factory=FairValueHierarchy)
     financial_highlights: FinancialHighlights = Field(default_factory=FinancialHighlights)
     distributions_leverage: DistributionsLeverage = Field(default_factory=DistributionsLeverage)

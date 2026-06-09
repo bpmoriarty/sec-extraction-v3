@@ -200,6 +200,27 @@ def validate(e: FilingExtraction) -> FilingExtraction:
                 f"core (int+div+oth) {core:,.0f} vs total {tii:,.0f} (shortfall {shortfall:,.0f}, "
                 f"tagged PIK {pik_avail:,.0f}) - unexplained income gap")
 
+    # ── C9: statement of cash flows foots (identity) ─────────────────────────
+    # operating + investing + financing + fx = net change in cash. For an investment company,
+    # investing is often absent (investments are an operating activity) and FX is usually zero —
+    # both default to 0. Tolerance is relative to the GROSS flows (op/fin run to billions while the
+    # net change can be small), so dollar-level rounding doesn't trip it.
+    cf = e.cash_flow
+    op, fin, nch = v(cf.net_cash_operating, cf.net_cash_financing, cf.net_change_in_cash)
+    inv = cf.net_cash_investing.value or 0.0
+    fx = cf.effect_of_fx.value or 0.0
+    if None in (op, fin, nch):
+        add("C9", "Cash flow statement foots", "identity", "skipped", "missing inputs")
+    else:
+        diff = (op + inv + fin + fx) - nch
+        tol = max(_tol(nch), 0.005 * max(abs(op), abs(fin), abs(nch)))
+        if abs(diff) <= tol:
+            add("C9", "Cash flow statement foots", "identity", "pass")
+        else:
+            add("C9", "Cash flow statement foots", "identity", "fail",
+                f"op {op:,.0f} + inv {inv:,.0f} + fin {fin:,.0f} + fx {fx:,.0f} "
+                f"!= net change {nch:,.0f} (diff {diff:,.0f})")
+
     # ── Reasonableness (flag-and-keep) ───────────────────────────────────────
     acov = d.asset_coverage_pct.value
     if acov is None:

@@ -34,9 +34,9 @@ from edgar import set_identity, configure_http, Company
 SCHEMA_DIR = Path(__file__).resolve().parents[1] / "schema"
 sys.path.insert(0, str(SCHEMA_DIR))
 from models import (  # noqa: E402
-    BalanceSheet, DistributionsLeverage, Fact, FairValueHierarchy, FeesExpenseSupport,
-    FilingExtraction, FinancialHighlights, IncomeStatement, PortfolioSummary, ShareClassNAV,
-    StatementOfChanges, Source,
+    BalanceSheet, CashFlowStatement, DistributionsLeverage, Fact, FairValueHierarchy,
+    FeesExpenseSupport, FilingExtraction, FinancialHighlights, IncomeStatement, PortfolioSummary,
+    ShareClassNAV, StatementOfChanges, Source,
 )
 
 warnings.filterwarnings("ignore")
@@ -219,6 +219,28 @@ DIST_LEVERAGE_CONCEPTS: dict[str, list[str]] = {
 # us-gaap:LineOfCreditFacilityRemainingBorrowingCapacity via FactSet.undrawn_capacity(), which
 # handles the undimensioned total (Apollo/Blackstone/HPS) and the cross-tabbed per-facility case
 # (AB/BlackRock/John Hancock/PGIM/Prospect). See that method for the methodology and C8 for the gate.
+
+# Statement of cash flows (§5b) — DURATION facts, undimensioned, for the primary period. For an
+# investment company, buying/selling investments is an OPERATING activity (no separate investing
+# section usually), so net_cash_investing is often absent. net_change_in_cash is the bottom-line
+# change INCLUDING the FX effect; effect_of_fx is captured so C9 foots exactly (op+inv+fin+fx).
+CASH_FLOW_CONCEPTS: dict[str, list[str]] = {
+    "net_cash_operating": ["us-gaap:NetCashProvidedByUsedInOperatingActivities"],
+    "net_cash_investing": ["us-gaap:NetCashProvidedByUsedInInvestingActivities"],
+    "net_cash_financing": ["us-gaap:NetCashProvidedByUsedInFinancingActivities"],
+    "effect_of_fx": [
+        "us-gaap:EffectOfExchangeRateOnCashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
+        "us-gaap:EffectOfExchangeRateOnCashAndCashEquivalents"],
+    "net_change_in_cash": [
+        "us-gaap:CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsPeriodIncreaseDecreaseIncludingExchangeRateEffect",
+        "us-gaap:CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsPeriodIncreaseDecreaseExcludingExchangeRateEffect",
+        "us-gaap:CashAndCashEquivalentsPeriodIncreaseDecrease"],
+    "interest_paid": ["us-gaap:InterestPaidNet", "us-gaap:InterestPaid"],
+    "investment_purchases": ["us-gaap:PaymentsForPurchaseOfInvestmentOperatingActivity",
+                             "us-gaap:PaymentsToAcquireInvestments"],
+    "investment_sales": ["us-gaap:ProceedsFromDispositionOfInvestmentOperatingActivity",
+                         "us-gaap:ProceedsFromSaleMaturityAndCollectionsOfInvestments"],
+}
 
 # Statement of changes (§5) — only the distributions total for now (enables coverage).
 CHANGES_CONCEPTS: dict[str, list[str]] = {
@@ -743,6 +765,10 @@ def extract_filing(company, filing, cik: str, form: str) -> FilingExtraction:
     fees = FeesExpenseSupport()
     for field, concepts in FEE_CONCEPTS.items():
         setattr(fees, field, facts.duration_scalar(concepts, target_months))
+    # Statement of cash flows (§5b) — duration facts for the primary period.
+    cash_flow = CashFlowStatement()
+    for field, concepts in CASH_FLOW_CONCEPTS.items():
+        setattr(cash_flow, field, facts.duration_scalar(concepts, target_months))
     period_start = facts.duration_period_start(
         INCOME_CONCEPTS["total_investment_income"] + ["us-gaap:NetInvestmentIncome"],
         target_months,
@@ -811,6 +837,7 @@ def extract_filing(company, filing, cik: str, form: str) -> FilingExtraction:
         fair_value=fv,
         income_statement=inc,
         statement_of_changes=changes,
+        cash_flow=cash_flow,
         financial_highlights=highlights,
         distributions_leverage=dist_lev,
         fees=fees,
