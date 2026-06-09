@@ -113,6 +113,9 @@ _HOLDING_ADDITIVE = {"fair_value", "cost", "principal", "commitment", "shares"}
 # Trust the FV-weighted all-in yield only if the rate concept covers >= this share of FV
 # (Apollo/First Eagle barely tag InvestmentInterestRate -> their yield stays null, by design).
 HOLDING_YIELD_COVERAGE_MIN = 0.60
+# Layer-1 scale-reconciliation tolerance: dropping a minority decimals-scale group only counts
+# as "the fix" if the remaining leaves land within this fraction of the balance-sheet total.
+HOLDINGS_SCALE_TOL = 0.05
 # hierarchy member suffix -> FairValueHierarchy field
 FV_LEVEL_FIELDS = {
     "FairValueInputsLevel1Member": "fv_level_1",
@@ -547,13 +550,19 @@ class FactSet:
             return out
         return {}
 
-    def holdings(self) -> list[dict]:
+    def holdings(self, reconcile_to: float | None = None) -> list[dict]:
         """Schedule-of-investments rows for the CURRENT period (§9). One dict per holding
         (investment-identifier member) with the robustly-tagged us-gaap fields. The SOI in a
         10-K/10-Q carries BOTH current and prior year, so we filter to facts dated at the
         reporting date (else we'd double-count / mix years). Additive fields are summed across
         a member's same-date facts; rate-like fields take the first non-null. Returns [] when
-        the axis isn't tagged (older / LLC filers) — those holdings are HTML/LLM territory."""
+        the axis isn't tagged (older / LLC filers) — those holdings are HTML/LLM territory.
+
+        `reconcile_to` (the balance-sheet investments-at-fair-value total) enables Layer-1
+        scale recovery: a few filers double-tag a handful of holdings at a 1000x-inflated scale
+        (decimals=-3 phantom twins, e.g. Prospect) alongside the correct decimals=0 leaves. When
+        the holdings span multiple decimals scales and the full sum is wildly off, we drop the
+        minority scale-group IF that makes the remaining leaves reconcile — see _reconcile_scale."""
         if INVESTMENT_AXIS not in self.df.columns:
             return []
         held = self.df[self.df[INVESTMENT_AXIS].notna()
@@ -565,6 +574,7 @@ class FactSet:
         if held.empty:
             return []
         rows: dict[str, dict] = {}
+        member_scale: dict[str, str] = {}  # member -> decimals of its fair_value fact (Layer 1)
         for _, r in held.iterrows():
             field = HOLDING_CONCEPTS.get(r["concept"])
             if field is None:
@@ -580,7 +590,44 @@ class FactSet:
                 h[field] = h.get(field, 0.0) + val
             elif field not in h:
                 h[field] = val
+            if field == "fair_value" and member not in member_scale:
+                member_scale[member] = str(r.get("decimals"))
+        return _reconcile_scale(rows, member_scale, reconcile_to)
+
+
+def _reconcile_scale(rows: dict[str, dict], member_scale: dict[str, str],
+                     target: float | None) -> list[dict]:
+    """Layer 1: recover Prospect-style scale errors. A clean SOI reports every holding at one
+    `decimals` scale; a few filers double-tag a handful of holdings at a 1000x-inflated scale
+    (decimals=-3 phantom twins) so the leaf sum balloons. When (a) we have a balance-sheet
+    investments total to reconcile against, (b) the full holdings sum is materially off it,
+    (c) the holdings span >1 decimals scale, and (d) dropping the MINORITY scale-group (fewer
+    rows) makes the remainder reconcile within HOLDINGS_SCALE_TOL — drop that group. Only fires
+    when it demonstrably fixes the sum, so clean single-scale filers are untouched. Filings that
+    don't fit this shape (e.g. Kennedy Lewis subtotal contamination) fall through unchanged and
+    are caught by the Layer-2 gate in apply_holdings_summary."""
+    members = list(rows.keys())
+    if not target or target <= 0 or not members:
         return list(rows.values())
+
+    def fv_sum(ms) -> float:
+        return sum((rows[m].get("fair_value") or 0.0) for m in ms)
+
+    total = fv_sum(members)
+    if total <= 0 or abs(total / target - 1.0) <= HOLDINGS_SCALE_TOL:
+        return list(rows.values())  # already reconciles (or no FV) — keep all
+    scales = {member_scale.get(m) for m in members if rows[m].get("fair_value") is not None}
+    if len(scales) < 2:
+        return list(rows.values())  # single scale -> not a scale-dup problem
+    for d in scales:
+        keep = [m for m in members if member_scale.get(m) != d]
+        drop = [m for m in members if member_scale.get(m) == d]
+        if not keep or len(drop) >= len(keep):       # only ever drop a minority group
+            continue
+        if abs(fv_sum(keep) / target - 1.0) <= HOLDINGS_SCALE_TOL:
+            keepset = set(keep)
+            return [rows[m] for m in members if m in keepset]
+    return list(rows.values())  # no clean scale fix -> leave for the Layer-2 gate
 
 
 # ── Extractor ─────────────────────────────────────────────────────────────────
@@ -716,7 +763,7 @@ def extract_filing(company, filing, cik: str, form: str) -> FilingExtraction:
     # Schedule of investments (§9): parse holding-level rows, derive the summary metrics into
     # portfolio_summary/liquidity, and carry the raw rows on the model (PrivateAttr, not
     # serialized) so the runner can write them to the separate per-filing holdings CSV.
-    holdings = facts.holdings()
+    holdings = facts.holdings(reconcile_to=bs.investments_at_fair_value.value)
     extraction._holdings = holdings
     apply_holdings_summary(extraction, holdings)
     compute_derived(extraction)
