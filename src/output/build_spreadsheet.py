@@ -108,6 +108,13 @@ DATA_FIELDS: list[tuple[str, str, str, str]] = [
     ("Fees", "management_fee", "fees", "management_fee"),
     ("Fees", "incentive_fee", "fees", "incentive_fee"),
     ("Fees", "expense_support_net", "fees", "expense_support_net"),
+    # Expense breakdown (§11, Theme 5)
+    ("Fees", "interest_expense", "fees", "interest_expense"),
+    ("Fees", "administrative_fees", "fees", "administrative_fees"),
+    ("Fees", "professional_fees", "fees", "professional_fees"),
+    ("Fees", "other_g_and_a", "fees", "other_g_and_a"),
+    ("Fees", "director_trustee_fees", "fees", "director_trustee_fees"),
+    ("Fees", "amortization_of_financing_costs", "fees", "amortization_of_financing_costs"),
     # Financial highlights (§7)
     ("Highlights", "expense_ratio", "financial_highlights", "expense_ratio"),
     ("Highlights", "gross_expense_ratio", "financial_highlights", "gross_expense_ratio"),
@@ -173,6 +180,8 @@ RULE_FIELDS: dict[str, list[str]] = {
            "other_investment_income", "total_investment_income"],
     "C9": ["net_cash_operating", "net_cash_investing", "net_cash_financing", "effect_of_fx",
            "net_change_in_cash"],
+    "C10": ["interest_expense", "administrative_fees", "professional_fees", "other_g_and_a",
+            "director_trustee_fees", "amortization_of_financing_costs"],
     "A1": ["total_net_assets"],
     "I1": ["asset_coverage_ratio"],
     "I2": ["leverage_ratio"],
@@ -300,6 +309,23 @@ EXTRACTED_METHOD_DEFS: list[tuple[str, str, str]] = [
      "liquidity_coverage."),
 ]
 
+# Expense breakdown (§11, Theme 5) — gross expense lines decomposing total_expenses.
+EXPENSE_DETAIL_DEFS: list[tuple[str, str, str]] = [
+    ("interest_expense", "us-gaap:InterestExpenseDebt (or Borrowings/Operating/…)",
+     "Dollar interest cost of the fund's borrowings — usually the largest non-fee expense. "
+     "Tagged under several concepts across filers; we take the total."),
+    ("administrative_fees", "us-gaap:AdministrativeFeesExpense", "Administration / fund-services fees."),
+    ("professional_fees", "us-gaap:ProfessionalFees", "Legal, audit, and other professional fees."),
+    ("other_g_and_a", "us-gaap:OtherGeneralAndAdministrativeExpense", "Other general & administrative expense."),
+    ("director_trustee_fees", "us-gaap:TrusteeFees / NoninterestExpenseDirectorsFees",
+     "Board of directors / trustees fees."),
+    ("amortization_of_financing_costs", "us-gaap:AmortizationOfFinancingCosts",
+     "Non-cash amortization of deferred debt-issuance costs (added back in operating cash flow)."),
+    ("(note)", "GROSS vs NET",
+     "These are GROSS expense lines; their sum can exceed the NET total_expenses (which is after "
+     "fee waivers / expense support). C10 only flags an implausibly large sum (>2x total)."),
+]
+
 # Balance-sheet detail (§2, Theme 4) — direct instant extractions; a few have non-obvious meaning.
 BALANCE_DETAIL_DEFS: list[tuple[str, str, str]] = [
     ("receivable_for_investments", "us-gaap:ReceivableInvestmentSale",
@@ -394,6 +420,10 @@ REVIEW_CODES: list[tuple[str, str, str, str]] = [
     ("C9", "Cash flow statement foots", "Identity",
      "net_cash_operating + net_cash_investing + net_cash_financing + effect_of_fx = "
      "net_change_in_cash (investing/fx default to 0 when a filer omits them)."),
+    ("C10", "Expense breakdown sane", "Reasonableness",
+     "The captured expense components (management/incentive/interest/admin/professional/G&A/"
+     "trustee/amortization) sum to <= 2x total_expenses. They are GROSS lines, so a loose bound "
+     "(not an exact footing) avoids false flags when waivers reduce the net total."),
 ]
 
 # ── Styling ─────────────────────────────────────────────────────────────────────
@@ -789,6 +819,8 @@ def build_definitions_tab(wb):
             WORKBOOK_CALC_DEFS)
     section("Portfolio metrics — computed from the schedule of investments / holdings (§9)",
             HOLDINGS_DERIVED_DEFS)
+    section("Expense breakdown (§11) — gross lines decomposing total_expenses",
+            EXPENSE_DETAIL_DEFS)
     section("Balance-sheet detail (§2) — direct extractions; non-obvious ones noted",
             BALANCE_DETAIL_DEFS)
     section("Capital share activity (§5) — extracted per share class and summed",

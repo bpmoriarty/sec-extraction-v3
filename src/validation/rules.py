@@ -289,6 +289,29 @@ def validate(e: FilingExtraction) -> FilingExtraction:
     else:
         add("C8", "Undrawn debt capacity plausible", "reasonableness", "pass")
 
+    # ── C10: expense breakdown is sane vs total expenses (reasonableness) ─────
+    # The captured expense components (management/incentive/interest/admin/professional/G&A/
+    # trustee/amortization) are GROSS lines, so their sum can EXCEED net total_expenses when a
+    # filer waives/supports expenses. We therefore only flag a sum that is implausibly large
+    # (> 2x total_expenses) — that signals a mis-mapped concept (e.g. a balance-sheet figure),
+    # not normal waiver gross-up. Flag-and-keep; values are never discarded.
+    fe = e.fees
+    te = inc.total_expenses.value
+    comps = [getattr(fe, k).value for k in (
+        "management_fee", "incentive_fee", "interest_expense", "administrative_fees",
+        "professional_fees", "other_g_and_a", "director_trustee_fees",
+        "amortization_of_financing_costs")]
+    present = [c for c in comps if c is not None]
+    if te is None or not present or te <= 0:
+        add("C10", "Expense breakdown sane", "reasonableness", "skipped", "missing inputs")
+    else:
+        s = sum(present)
+        if s <= 2.0 * te:
+            add("C10", "Expense breakdown sane", "reasonableness", "pass")
+        else:
+            add("C10", "Expense breakdown sane", "reasonableness", "fail",
+                f"expense components sum {s:,.0f} > 2x total_expenses {te:,.0f} (possible mis-map)")
+
     # ── Roll up ──────────────────────────────────────────────────────────────
     e.validation_checks = checks
     fails = [c for c in checks if c.status == "fail"]

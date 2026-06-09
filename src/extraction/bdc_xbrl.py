@@ -209,6 +209,23 @@ FEE_CONCEPTS: dict[str, list[str]] = {
     "incentive_fee": ["us-gaap:IncentiveFeeExpense"],
 }
 
+# Expense breakdown (§11, Theme 5) — DURATION facts that decompose total_expenses. These are
+# GROSS lines (their sum can exceed NET total_expenses when waivers apply -> C10 bounds each
+# component, not the sum). Interest expense is tagged under many concepts -> prefer the total.
+EXPENSE_CONCEPTS: dict[str, list[str]] = {
+    "interest_expense": ["us-gaap:InterestExpenseDebt", "us-gaap:InterestExpenseBorrowings",
+                         "us-gaap:InterestExpenseOperating", "us-gaap:InterestExpense",
+                         "us-gaap:InterestAndDebtExpense",
+                         "us-gaap:InterestExpenseDebtExcludingAmortization"],
+    "administrative_fees": ["us-gaap:AdministrativeFeesExpense"],
+    "professional_fees": ["us-gaap:ProfessionalFees"],
+    "other_g_and_a": ["us-gaap:OtherGeneralAndAdministrativeExpense",
+                      "us-gaap:GeneralAndAdministrativeExpense"],
+    "director_trustee_fees": ["us-gaap:TrusteeFees", "us-gaap:NoninterestExpenseDirectorsFees"],
+    "amortization_of_financing_costs": ["us-gaap:AmortizationOfFinancingCosts",
+                                        "us-gaap:AmortizationOfFinancingCostsAndDiscounts"],
+}
+
 # Portfolio scalars (Data Dictionary §9) — INSTANT facts.
 PORTFOLIO_SCALAR_CONCEPTS: dict[str, list[str]] = {
     "investments_at_cost": ["us-gaap:InvestmentOwnedAtCost", "us-gaap:InvestmentOwnedAtCostNet"],
@@ -837,6 +854,9 @@ def extract_filing(company, filing, cik: str, form: str) -> FilingExtraction:
                                           raw_text="Current + Deferred income tax")
     fees = FeesExpenseSupport()
     for field, concepts in FEE_CONCEPTS.items():
+        setattr(fees, field, facts.duration_scalar(concepts, target_months))
+    # Expense breakdown (§11, Theme 5) — duration facts decomposing total_expenses.
+    for field, concepts in EXPENSE_CONCEPTS.items():
         setattr(fees, field, facts.duration_scalar(concepts, target_months))
     # Statement of cash flows (§5b) — duration facts for the primary period.
     cash_flow = CashFlowStatement()

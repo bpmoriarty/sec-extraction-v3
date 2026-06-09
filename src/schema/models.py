@@ -191,6 +191,14 @@ class FeesExpenseSupport(BaseModel):                 # Data Dictionary §11
     management_fee: Fact = Field(default_factory=Fact)
     incentive_fee: Fact = Field(default_factory=Fact)
     expense_support_net: Fact = Field(default_factory=Fact)    # negative = net recoupment
+    # Expense breakdown (DURATION) — decomposes total_expenses. interest_expense is the $ cost
+    # of debt; these are GROSS lines (their sum can exceed NET total_expenses when waivers apply).
+    interest_expense: Fact = Field(default_factory=Fact)
+    administrative_fees: Fact = Field(default_factory=Fact)
+    professional_fees: Fact = Field(default_factory=Fact)
+    other_g_and_a: Fact = Field(default_factory=Fact)
+    director_trustee_fees: Fact = Field(default_factory=Fact)
+    amortization_of_financing_costs: Fact = Field(default_factory=Fact)
 
 
 class LiquidityObligations(BaseModel):               # Data Dictionary §12
