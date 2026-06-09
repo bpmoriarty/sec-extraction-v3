@@ -73,6 +73,21 @@ BALANCE_SHEET_CONCEPTS: dict[str, list[str]] = {
         "us-gaap:Borrowings",
         "us-gaap:DebtAndCapitalLeaseObligations",
     ],
+    # Balance-sheet detail (§2, Theme 4) — undimensioned instant facts, same extraction as above.
+    "interest_receivable": ["us-gaap:InterestReceivable"],
+    "receivable_for_investments": ["us-gaap:ReceivableInvestmentSale"],
+    "other_assets": ["us-gaap:OtherAssets"],
+    "payable_for_investments": ["us-gaap:PayableInvestmentPurchase"],
+    "interest_payable": ["us-gaap:InterestPayableCurrentAndNoncurrent"],
+    "management_fee_payable": ["us-gaap:ManagementFeePayable",
+                              "us-gaap:ManagementAndIncentiveFeesPayable"],
+    "distribution_payable": ["us-gaap:DistributionPayable",
+                            "us-gaap:DividendsPayableCurrentAndNoncurrent"],
+    "additional_paid_in_capital": ["us-gaap:AdditionalPaidInCapital",
+                                   "us-gaap:AdditionalPaidInCapitalCommonStock"],
+    "accumulated_deficit": ["us-gaap:RetainedEarningsAccumulatedDeficit"],
+    "liabilities_and_equity": ["us-gaap:LiabilitiesAndStockholdersEquity",
+                              "us-gaap:LiabilitiesAndPartnersCapital"],
 }
 
 # When no single combined debt total exists, sum these distinct balance-sheet debt

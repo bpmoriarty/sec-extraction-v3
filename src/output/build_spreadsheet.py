@@ -48,6 +48,17 @@ DATA_FIELDS: list[tuple[str, str, str, str]] = [
     ("Balance", "investments_at_fair_value", "balance_sheet", "investments_at_fair_value"),
     ("Balance", "cash_and_equivalents", "balance_sheet", "cash_and_equivalents"),
     ("Balance", "total_debt", "balance_sheet", "total_debt"),
+    # Balance-sheet detail (§2, Theme 4)
+    ("Balance", "interest_receivable", "balance_sheet", "interest_receivable"),
+    ("Balance", "receivable_for_investments", "balance_sheet", "receivable_for_investments"),
+    ("Balance", "other_assets", "balance_sheet", "other_assets"),
+    ("Balance", "payable_for_investments", "balance_sheet", "payable_for_investments"),
+    ("Balance", "interest_payable", "balance_sheet", "interest_payable"),
+    ("Balance", "management_fee_payable", "balance_sheet", "management_fee_payable"),
+    ("Balance", "distribution_payable", "balance_sheet", "distribution_payable"),
+    ("Balance", "additional_paid_in_capital", "balance_sheet", "additional_paid_in_capital"),
+    ("Balance", "accumulated_deficit", "balance_sheet", "accumulated_deficit"),
+    ("Balance", "liabilities_and_equity", "balance_sheet", "liabilities_and_equity"),
     # Income statement (§4)
     ("Income", "interest_income", "income_statement", "interest_income"),
     ("Income", "pik_interest_income", "income_statement", "pik_interest_income"),
@@ -153,6 +164,7 @@ META_COLS = ["cik", "fund_name", "form_type", "reporting_date", "period_months",
 # rules (C2/A2) highlight in the ShareClasses tab instead, so they're not here.
 RULE_FIELDS: dict[str, list[str]] = {
     "C1": ["total_assets", "total_liabilities", "total_net_assets"],
+    "C1b": ["total_assets", "liabilities_and_equity"],
     "C3": ["total_net_assets"],
     "C4": ["fv_level_1", "fv_level_2", "fv_level_3", "fv_nav_practical_expedient", "fv_total",
            "pct_fv_level_1", "pct_fv_level_2", "pct_fv_level_3", "pct_fv_nav_practical_expedient"],
@@ -288,6 +300,21 @@ EXTRACTED_METHOD_DEFS: list[tuple[str, str, str]] = [
      "liquidity_coverage."),
 ]
 
+# Balance-sheet detail (§2, Theme 4) — direct instant extractions; a few have non-obvious meaning.
+BALANCE_DETAIL_DEFS: list[tuple[str, str, str]] = [
+    ("receivable_for_investments", "us-gaap:ReceivableInvestmentSale",
+     "Unsettled trades — investments sold but not yet settled/collected (a receivable)."),
+    ("payable_for_investments", "us-gaap:PayableInvestmentPurchase",
+     "Unsettled trades — investments bought but not yet paid for (a payable)."),
+    ("accumulated_deficit", "us-gaap:RetainedEarningsAccumulatedDeficit",
+     "Accumulated distributed earnings (losses) — cumulative earnings net of distributions. "
+     "Negative = the fund has distributed more than it has earned to date."),
+    ("liabilities_and_equity", "us-gaap:LiabilitiesAndStockholdersEquity",
+     "The tagged 'total liabilities and net assets' line. MUST equal total_assets — used as the "
+     "C1b cross-check. (interest_receivable, other_assets, interest_payable, management_fee_payable, "
+     "distribution_payable, additional_paid_in_capital are direct, self-explanatory line items.)"),
+]
+
 # Capital share activity (§5 detail) — extracted per share class and summed.
 SHARE_ACTIVITY_DEFS: list[tuple[str, str, str]] = [
     ("shares_issued_new", "us-gaap:StockIssuedDuringPeriodSharesNewIssues (sum over classes)",
@@ -337,6 +364,9 @@ CASH_FLOW_DEFS: list[tuple[str, str, str]] = [
 REVIEW_CODES: list[tuple[str, str, str, str]] = [
     ("C1", "Balance sheet equation", "Identity",
      "total_assets = total_liabilities + total_net_assets."),
+    ("C1b", "Liab+equity total = assets", "Reasonableness",
+     "The tagged liabilities_and_equity (total liabilities and net assets) equals total_assets. "
+     "A redundant cross-check; fires only when both are present."),
     ("C2", "NAV per share", "Identity",
      "Per ShareClasses row: nav_per_share = net_assets / shares."),
     ("C3", "Class net assets sum", "Identity",
@@ -759,6 +789,8 @@ def build_definitions_tab(wb):
             WORKBOOK_CALC_DEFS)
     section("Portfolio metrics — computed from the schedule of investments / holdings (§9)",
             HOLDINGS_DERIVED_DEFS)
+    section("Balance-sheet detail (§2) — direct extractions; non-obvious ones noted",
+            BALANCE_DETAIL_DEFS)
     section("Capital share activity (§5) — extracted per share class and summed",
             SHARE_ACTIVITY_DEFS)
     section("Cash-flow statement (§5b) — extracted; conventions to note",

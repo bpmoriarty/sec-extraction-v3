@@ -80,6 +80,18 @@ class BalanceSheet(BaseModel):                       # Data Dictionary §2
     investments_at_fair_value: Fact = Field(default_factory=Fact)
     cash_and_equivalents: Fact = Field(default_factory=Fact)
     total_debt: Fact = Field(default_factory=Fact)
+    # Balance-sheet detail (instant). Receivables/payables and equity components, plus the
+    # tagged "total liabilities and net assets" line used as a free C1b cross-check vs total_assets.
+    interest_receivable: Fact = Field(default_factory=Fact)
+    receivable_for_investments: Fact = Field(default_factory=Fact)     # unsettled trades (sold)
+    other_assets: Fact = Field(default_factory=Fact)
+    payable_for_investments: Fact = Field(default_factory=Fact)        # unsettled trades (purchased)
+    interest_payable: Fact = Field(default_factory=Fact)
+    management_fee_payable: Fact = Field(default_factory=Fact)
+    distribution_payable: Fact = Field(default_factory=Fact)
+    additional_paid_in_capital: Fact = Field(default_factory=Fact)
+    accumulated_deficit: Fact = Field(default_factory=Fact)            # accumulated distributed earnings (losses)
+    liabilities_and_equity: Fact = Field(default_factory=Fact)         # = total_assets (C1b cross-check)
 
 
 class IncomeStatement(BaseModel):                    # Data Dictionary §4

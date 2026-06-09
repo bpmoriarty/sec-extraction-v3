@@ -83,6 +83,19 @@ def validate(e: FilingExtraction) -> FilingExtraction:
             add("C1", "Balance sheet equation", "identity", "fail",
                 f"assets {ta:,.0f} != liab+NA {tl + tna:,.0f} (diff {diff:,.0f})")
 
+    # ── C1b: tagged "total liabilities and net assets" == total assets (cross-check) ──
+    # A free redundancy: filers tag LiabilitiesAndStockholdersEquity (the bottom-of-balance-sheet
+    # total), which must equal total_assets. Additive reasonableness check (flag-and-keep) — only
+    # fires when both are present, so it never regresses C1.
+    lae = bs.liabilities_and_equity.value
+    if ta is None or lae is None:
+        add("C1b", "Liab+equity total = assets", "reasonableness", "skipped", "missing inputs")
+    elif abs(lae - ta) <= _tol(ta):
+        add("C1b", "Liab+equity total = assets", "reasonableness", "pass")
+    else:
+        add("C1b", "Liab+equity total = assets", "reasonableness", "fail",
+            f"liab+equity total {lae:,.0f} != total assets {ta:,.0f} (diff {lae - ta:,.0f})")
+
     # ── C2: NAV per share class (identity, with unit-error auto-detect) ───────
     for sc in e.share_classes_nav:
         na, sh, nav = v(sc.class_net_assets, sc.class_shares_outstanding, sc.class_nav_per_share)
