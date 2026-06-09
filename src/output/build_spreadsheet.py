@@ -123,9 +123,17 @@ DATA_FIELDS: list[tuple[str, str, str, str]] = [
     ("Highlights", "portfolio_turnover", "financial_highlights", "portfolio_turnover"),
     # Distributions & leverage (§8)
     ("DistLev", "distributions_per_share", "distributions_leverage", "distributions_per_share"),
+    ("DistLev", "return_of_capital_distribution", "distributions_leverage", "return_of_capital_distribution"),
     ("DistLev", "return_of_capital_pct", "distributions_leverage", "return_of_capital_pct"),
     ("DistLev", "asset_coverage_ratio", "distributions_leverage", "asset_coverage_ratio"),
     ("DistLev", "weighted_avg_interest_rate", "distributions_leverage", "weighted_avg_interest_rate"),
+    # Tax basis (§13, Theme 6)
+    ("TaxBasis", "tax_cost_of_investments", "tax_basis", "tax_cost_of_investments"),
+    ("TaxBasis", "tax_unrealized_appreciation", "tax_basis", "tax_unrealized_appreciation"),
+    ("TaxBasis", "tax_unrealized_depreciation", "tax_basis", "tax_unrealized_depreciation"),
+    ("TaxBasis", "tax_unrealized_net", "tax_basis", "tax_unrealized_net"),
+    ("TaxBasis", "undistributed_ordinary_income", "tax_basis", "undistributed_ordinary_income"),
+    ("TaxBasis", "undistributed_lt_capital_gains", "tax_basis", "undistributed_lt_capital_gains"),
     # Portfolio summary (§9)
     ("Portfolio", "num_holdings", "portfolio_summary", "num_holdings"),
     ("Portfolio", "investments_at_cost", "portfolio_summary", "investments_at_cost"),
@@ -182,6 +190,7 @@ RULE_FIELDS: dict[str, list[str]] = {
            "net_change_in_cash"],
     "C10": ["interest_expense", "administrative_fees", "professional_fees", "other_g_and_a",
             "director_trustee_fees", "amortization_of_financing_costs"],
+    "C11": ["tax_unrealized_appreciation", "tax_unrealized_depreciation", "tax_unrealized_net"],
     "A1": ["total_net_assets"],
     "I1": ["asset_coverage_ratio"],
     "I2": ["leverage_ratio"],
@@ -309,6 +318,30 @@ EXTRACTED_METHOD_DEFS: list[tuple[str, str, str]] = [
      "liquidity_coverage."),
 ]
 
+# Tax basis (§13, Theme 6) — the portfolio's tax position + distribution character.
+TAX_BASIS_DEFS: list[tuple[str, str, str]] = [
+    ("tax_cost_of_investments", "us-gaap:TaxBasisOfInvestmentsCostForIncomeTaxPurposes",
+     "Aggregate cost of the portfolio for federal income-tax purposes. Differs from book cost "
+     "(investments_at_cost) due to tax adjustments (wash sales, OID, etc.)."),
+    ("tax_unrealized_appreciation", "us-gaap:TaxBasisOfInvestmentsGrossUnrealizedAppreciation",
+     "Gross built-in GAIN on a tax basis (sum of positions above tax cost)."),
+    ("tax_unrealized_depreciation", "us-gaap:TaxBasisOfInvestmentsGrossUnrealizedDepreciation",
+     "Gross built-in LOSS on a tax basis. C11 checks apprec/deprec reconcile to the net."),
+    ("tax_unrealized_net", "us-gaap:TaxBasisOfInvestmentsUnrealizedAppreciationDepreciationNet",
+     "Net built-in gain/loss on a tax basis = appreciation − depreciation."),
+    ("undistributed_ordinary_income", "InvestmentCompanyDistributableEarnings…OrdinaryIncomeLoss",
+     "Accumulated ordinary income not yet distributed (a net-asset tax bucket) — capacity for "
+     "future income distributions."),
+    ("undistributed_lt_capital_gains", "InvestmentCompanyDistributableEarnings…LongTermCapitalGainLoss",
+     "Accumulated long-term capital gains not yet distributed."),
+    ("return_of_capital_distribution", "us-gaap:InvestmentCompanyTaxReturnOfCapitalDistribution",
+     "$ of distributions characterized as RETURN OF CAPITAL (not income/gains) for tax — a return "
+     "of the investor's own capital. Tagged by ~half of filers."),
+    ("return_of_capital_pct", "return_of_capital_distribution / distributions_declared",
+     "Share of distributions that is return of capital. High = the fund is paying out more than it "
+     "earns (a distribution-quality concern). Computed only when the ROC $ is tagged."),
+]
+
 # Expense breakdown (§11, Theme 5) — gross expense lines decomposing total_expenses.
 EXPENSE_DETAIL_DEFS: list[tuple[str, str, str]] = [
     ("interest_expense", "us-gaap:InterestExpenseDebt (or Borrowings/Operating/…)",
@@ -424,6 +457,9 @@ REVIEW_CODES: list[tuple[str, str, str, str]] = [
      "The captured expense components (management/incentive/interest/admin/professional/G&A/"
      "trustee/amortization) sum to <= 2x total_expenses. They are GROSS lines, so a loose bound "
      "(not an exact footing) avoids false flags when waivers reduce the net total."),
+    ("C11", "Tax unrealized nets out", "Reasonableness",
+     "tax_unrealized_appreciation and tax_unrealized_depreciation reconcile to tax_unrealized_net "
+     "(accepting either sign convention for depreciation)."),
 ]
 
 # ── Styling ─────────────────────────────────────────────────────────────────────
@@ -457,7 +493,7 @@ NUMBER_FORMATS = {
     "shares_issued_new": "#,##0", "shares_issued_drip": "#,##0", "shares_repurchased": "#,##0",
     # as-tagged §7/§8 rates & ratios (scale varies by filer) -> plain decimal, not money
     "expense_ratio": DEC_FMT, "gross_expense_ratio": DEC_FMT, "net_investment_income_ratio": DEC_FMT,
-    "total_return": DEC_FMT, "portfolio_turnover": DEC_FMT, "return_of_capital_pct": DEC_FMT,
+    "total_return": DEC_FMT, "portfolio_turnover": DEC_FMT, "return_of_capital_pct": PCT_FMT,
     "weighted_avg_interest_rate": DEC_FMT, "weighted_avg_portfolio_yield": PCT_FMT,
     "pct_floating_rate": PCT_FMT, "repurchase_proration_pct": DEC_FMT,
     "weighted_avg_debt_maturity": "0.0",
@@ -821,6 +857,8 @@ def build_definitions_tab(wb):
             HOLDINGS_DERIVED_DEFS)
     section("Expense breakdown (§11) — gross lines decomposing total_expenses",
             EXPENSE_DETAIL_DEFS)
+    section("Tax basis & distribution character (§13) — portfolio tax position + return of capital",
+            TAX_BASIS_DEFS)
     section("Balance-sheet detail (§2) — direct extractions; non-obvious ones noted",
             BALANCE_DETAIL_DEFS)
     section("Capital share activity (§5) — extracted per share class and summed",

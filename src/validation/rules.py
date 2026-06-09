@@ -312,6 +312,21 @@ def validate(e: FilingExtraction) -> FilingExtraction:
             add("C10", "Expense breakdown sane", "reasonableness", "fail",
                 f"expense components sum {s:,.0f} > 2x total_expenses {te:,.0f} (possible mis-map)")
 
+    # ── C11: tax unrealized nets out (reasonableness) ────────────────────────
+    # gross appreciation and gross depreciation should reconcile to the net. Filers differ on
+    # whether depreciation is tagged as a positive magnitude or a negative number, so we accept
+    # whichever of (apprec - deprec) or (apprec + deprec) matches the tagged net. Flag-and-keep.
+    tb = e.tax_basis
+    ap, dp, nt = (tb.tax_unrealized_appreciation.value, tb.tax_unrealized_depreciation.value,
+                  tb.tax_unrealized_net.value)
+    if None in (ap, dp, nt):
+        add("C11", "Tax unrealized nets out", "reasonableness", "skipped", "missing inputs")
+    elif min(abs((ap - dp) - nt), abs((ap + dp) - nt)) <= _tol(nt):
+        add("C11", "Tax unrealized nets out", "reasonableness", "pass")
+    else:
+        add("C11", "Tax unrealized nets out", "reasonableness", "fail",
+            f"gross apprec {ap:,.0f} / deprec {dp:,.0f} do not net to {nt:,.0f}")
+
     # ── Roll up ──────────────────────────────────────────────────────────────
     e.validation_checks = checks
     fails = [c for c in checks if c.status == "fail"]

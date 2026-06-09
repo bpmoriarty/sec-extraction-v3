@@ -36,7 +36,7 @@ sys.path.insert(0, str(SCHEMA_DIR))
 from models import (  # noqa: E402
     BalanceSheet, CashFlowStatement, DistributionsLeverage, Fact, FairValueHierarchy,
     FeesExpenseSupport, FilingExtraction, FinancialHighlights, IncomeStatement, PortfolioSummary,
-    ShareClassNAV, StatementOfChanges, Source,
+    ShareClassNAV, StatementOfChanges, Source, TaxBasis,
 )
 
 warnings.filterwarnings("ignore")
@@ -230,6 +230,21 @@ EXPENSE_CONCEPTS: dict[str, list[str]] = {
 PORTFOLIO_SCALAR_CONCEPTS: dict[str, list[str]] = {
     "investments_at_cost": ["us-gaap:InvestmentOwnedAtCost", "us-gaap:InvestmentOwnedAtCostNet"],
 }
+
+# Tax basis (§13, Theme 6) — INSTANT facts (mostly 10-K). The portfolio's tax position +
+# accumulated distributable earnings by tax character.
+TAX_BASIS_CONCEPTS: dict[str, list[str]] = {
+    "tax_cost_of_investments": ["us-gaap:TaxBasisOfInvestmentsCostForIncomeTaxPurposes"],
+    "tax_unrealized_appreciation": ["us-gaap:TaxBasisOfInvestmentsGrossUnrealizedAppreciation"],
+    "tax_unrealized_depreciation": ["us-gaap:TaxBasisOfInvestmentsGrossUnrealizedDepreciation"],
+    "tax_unrealized_net": ["us-gaap:TaxBasisOfInvestmentsUnrealizedAppreciationDepreciationNet"],
+    "undistributed_ordinary_income": [
+        "us-gaap:InvestmentCompanyDistributableEarningsLossAccumulatedOrdinaryIncomeLoss"],
+    "undistributed_lt_capital_gains": [
+        "us-gaap:InvestmentCompanyDistributableEarningsLossAccumulatedLongTermCapitalGainLoss"],
+}
+# Return of capital ($ tax character of distributions, §8) — DURATION. Feeds return_of_capital_pct.
+ROC_CONCEPTS = ["us-gaap:InvestmentCompanyTaxReturnOfCapitalDistribution"]
 
 # Financial highlights (§7). Often per-class and fuller in 10-K; expense/NII ratios may be
 # absent in 10-Q (LLM-fallback / 10-K territory).
@@ -872,6 +887,11 @@ def extract_filing(company, filing, cik: str, form: str) -> FilingExtraction:
     for field, concepts in PORTFOLIO_SCALAR_CONCEPTS.items():
         setattr(portfolio, field, facts.scalar(concepts))
 
+    # Tax basis (§13, Theme 6) — instant facts (mostly 10-K).
+    tax_basis = TaxBasis()
+    for field, concepts in TAX_BASIS_CONCEPTS.items():
+        setattr(tax_basis, field, facts.scalar(concepts))
+
     # Financial highlights (§7) + distributions & leverage (§8) + distributions (§5).
     # These ratios may be tagged instant or duration -> scalar_any.
     highlights = FinancialHighlights()
@@ -880,6 +900,8 @@ def extract_filing(company, filing, cik: str, form: str) -> FilingExtraction:
     dist_lev = DistributionsLeverage()
     for field, concepts in DIST_LEVERAGE_CONCEPTS.items():
         setattr(dist_lev, field, facts.scalar_any(concepts, target_months))
+    # Return of capital ($ tax character of distributions, §8) — duration; feeds return_of_capital_pct.
+    dist_lev.return_of_capital_distribution = facts.duration_scalar(ROC_CONCEPTS, target_months)
     changes = StatementOfChanges()
     for field, concepts in CHANGES_CONCEPTS.items():
         setattr(changes, field, facts.scalar_any(concepts, target_months))
@@ -937,6 +959,7 @@ def extract_filing(company, filing, cik: str, form: str) -> FilingExtraction:
         financial_highlights=highlights,
         distributions_leverage=dist_lev,
         fees=fees,
+        tax_basis=tax_basis,
         portfolio_summary=portfolio,
         share_classes_nav=share_classes_nav,
         accession_no=str(filing.accession_no),
@@ -1069,6 +1092,12 @@ def compute_derived(e: FilingExtraction) -> FilingExtraction:
     undrawn, unfunded = liq.undrawn_debt_capacity.value, liq.unfunded_commitments.value
     if None not in (cash, undrawn, unfunded) and unfunded:
         d.liquidity_coverage = mk((cash + undrawn) / unfunded)
+    # Return-of-capital % of distributions (§8): how much of what's paid out is a return of the
+    # investor's own capital rather than earned income (high = a distribution-quality concern).
+    dl = e.distributions_leverage
+    roc, dist = dl.return_of_capital_distribution.value, e.statement_of_changes.distributions_declared.value
+    if roc is not None and dist:
+        dl.return_of_capital_pct = mk(roc / abs(dist))
     return e
 
 

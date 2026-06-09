@@ -180,7 +180,8 @@ class FinancialHighlights(BaseModel):                # Data Dictionary §7
 
 class DistributionsLeverage(BaseModel):              # Data Dictionary §8
     distributions_per_share: Fact = Field(default_factory=Fact)
-    return_of_capital_pct: Fact = Field(default_factory=Fact)  # % of distributions that is ROC
+    return_of_capital_distribution: Fact = Field(default_factory=Fact)  # $ ROC (tax character)
+    return_of_capital_pct: Fact = Field(default_factory=Fact)  # = ROC $ / distributions_declared
     asset_coverage_ratio: Fact = Field(default_factory=Fact)   # regulatory (I1 check)
     weighted_avg_interest_rate: Fact = Field(default_factory=Fact)  # cost of debt (net_lending_spread)
 
@@ -199,6 +200,17 @@ class FeesExpenseSupport(BaseModel):                 # Data Dictionary §11
     other_g_and_a: Fact = Field(default_factory=Fact)
     director_trustee_fees: Fact = Field(default_factory=Fact)
     amortization_of_financing_costs: Fact = Field(default_factory=Fact)
+
+
+class TaxBasis(BaseModel):                           # Data Dictionary §13 (tax position)
+    # Tax-basis position of the PORTFOLIO (differs from book) + accumulated distributable
+    # earnings by tax character. Mostly disclosed in the 10-K (annual). INSTANT facts.
+    tax_cost_of_investments: Fact = Field(default_factory=Fact)
+    tax_unrealized_appreciation: Fact = Field(default_factory=Fact)   # gross built-in gain
+    tax_unrealized_depreciation: Fact = Field(default_factory=Fact)   # gross built-in loss
+    tax_unrealized_net: Fact = Field(default_factory=Fact)            # net (C11: ≈ apprec − deprec)
+    undistributed_ordinary_income: Fact = Field(default_factory=Fact)
+    undistributed_lt_capital_gains: Fact = Field(default_factory=Fact)
 
 
 class LiquidityObligations(BaseModel):               # Data Dictionary §12
@@ -297,6 +309,7 @@ class FilingExtraction(BaseModel):
     financial_highlights: FinancialHighlights = Field(default_factory=FinancialHighlights)
     distributions_leverage: DistributionsLeverage = Field(default_factory=DistributionsLeverage)
     fees: FeesExpenseSupport = Field(default_factory=FeesExpenseSupport)
+    tax_basis: TaxBasis = Field(default_factory=TaxBasis)
     liquidity: LiquidityObligations = Field(default_factory=LiquidityObligations)
     portfolio_summary: PortfolioSummary = Field(default_factory=PortfolioSummary)
     derived: DerivedMetrics = Field(default_factory=DerivedMetrics)
