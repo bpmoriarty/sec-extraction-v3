@@ -55,7 +55,30 @@ holding-level SOI for the 15 gold funds (10,857 rows); full ~130k rows stay in d
 line; investigate whether it's the SOI structure (look-through) or a mis-mapped balance-sheet
 concept. **Next: Phase 3** (LLM: industry/seniority/maturity/non-accrual $) and/or hand-verify
 the gold sample.
-**Last Session: 2026-06-08 (session 7)**
+**Session 8 (2026-06-09) — HOLDINGS RECONCILIATION FIX (the two deferred follow-ups, RESOLVED).**
+Diagnosed both non-reconciling filers down to the XBRL fact and found TWO DISTINCT failure modes,
+each fixed by a generic, additive, independently-revertable layer (no per-CIK code):
+• **Mode A — scale duplication (Prospect 1521945, ~35–55×).** The filer double-tags a few holdings
+  at a 1000×-inflated scale: the same loan once at decimals=0 (correct $) and again under a slightly
+  different InvestmentIdentifier member at decimals=-3 with a value 1000× too big. The clean 66 leaves
+  reconcile to the balance sheet TO THE DOLLAR. → **Layer 1 (`61c6c8a`)**: `holdings()` captures each
+  holding's `decimals`; `_reconcile_scale()` drops the MINORITY scale-group iff that makes the leaves
+  reconcile within 5%. Fires only when it demonstrably fixes the sum (clean single-scale filers
+  untouched). Recovers ALL Prospect periods to 1.000× (top-10 98.7%→54.8%, yield None→10.5%, float
+  1.9%→96%).
+• **Mode B — subtotal contamination (Kennedy Lewis 1911321 pre-2025, + 1954360 + 1987221, ~6×).**
+  By-industry / by-type / grand-total rows (even "Net Assets") are tagged on the holding axis, so the
+  leaves over-sum ~6×. NOT cleanly recoverable (would need fragile is-this-a-subtotal string heuristics).
+  → **Layer 2 (`7d12733`)**: `apply_holdings_summary()` reconciliation gate — if the (post-Layer-1) leaf
+  sum exceeds investments_at_fair_value by ≥1.25× the SOI is contaminated → SUPPRESS all derived §9
+  metrics (leave null); raw CSV + recon column still flag it. Honest degradation, not a validation rule.
+Blast radius is bimodal & tight: 157/251 reconcile within 0.95–1.05×, 37 within 1.05–1.2×, 1 in 1.2–2×,
+56 at ≥2× (the broken set, clustered in ~4 CIKs). KL FIXED THEIR OWN TAGGING mid-2025 → their last 4
+filings reconcile at 1.00× and pass the gate (metrics kept). **Full clean re-run: 300 written / 0 errors /
+251 pass / 49 review (validation profile UNCHANGED — recon is a diagnostic, not a C-rule). 2 clean
+controls byte-identical (0 regressions).** Both layers pushed to origin/master. Rollback: `git revert
+7d12733` (gate only) or `git revert 61c6c8a` (scale only) — independent.
+**Last Session: 2026-06-09 (session 8)**
 
 ### What's Working
 - Virtual environment set up (`uv venv` inside `sec-extraction-v3/`)
@@ -604,6 +627,7 @@ Re-add C6 ONLY if an authoritative tagged roll-forward SUBTOTAL surfaces to anch
 
 | Date | What Happened |
 |------|---------------|
+| 2026-06-09 (session 8 — holdings reconciliation fix) | Resolved the two deferred non-reconciling filers by diagnosing them to the XBRL fact: TWO DISTINCT failure modes. **Mode A — Prospect (1521945), scale duplication ~35–55×:** a few holdings double-tagged at a 1000× scale (same loan at decimals=0 correct-$ AND under a slightly different InvestmentIdentifier member at decimals=-3 = 1000× too big); the clean 66 leaves reconcile to the balance sheet to the dollar. **Mode B — Kennedy Lewis (1911321) + 1954360 + 1987221, subtotal contamination ~6×:** by-industry/by-type/grand-total rows (even "Net Assets") tagged on the holding axis. Built two generic, additive, independently-revertable layers (no per-CIK code). **Layer 1 (`61c6c8a`):** `holdings()` captures each holding's `decimals`; `_reconcile_scale()` drops the MINORITY scale-group iff that makes the leaves reconcile within 5% — fires only when it demonstrably fixes the sum, clean single-scale filers untouched. Recovers ALL Prospect periods to 1.000× (top-10 98.7%→54.8%, yield None→10.5%, float 1.9%→96%). **Layer 2 (`7d12733`):** `apply_holdings_summary()` reconciliation gate — if the (post-Layer-1) leaf sum ≥1.25× investments_at_fair_value, the SOI is contaminated → suppress ALL derived §9 metrics (leave null), raw CSV + recon column still flag it (honest degradation, NOT a validation rule). Blast radius bimodal/tight: 157/251 within 0.95–1.05×, 37 within 1.05–1.2×, 1 in 1.2–2×, 56 at ≥2× (clustered in ~4 CIKs). KL fixed their own tagging mid-2025 → last 4 filings reconcile 1.00× and KEEP metrics. Tested offline (synthetic) + end-to-end (network re-extract: Prospect recovered, KL old suppressed / new kept, 2 clean controls byte-identical). **Clean full re-run: 300 written / 0 errors / 251 pass / 49 review (validation profile UNCHANGED). 0 regressions.** Both pushed to origin/master. Rollback: `git revert 7d12733` (gate) or `61c6c8a` (scale), independent. |
 | 2026-06-08 (session 7 — holdings Phase 2) | Built Phase 2 entirely in the assembler (no re-run). FIRST measured the Σ-holdings vs balance-sheet reconciliation offline (130k CSV rows vs JSONs): NOT rule-quality (86/251 within 0.1%, median 1.022, 94 >5% off; extreme outliers Prospect 35–55×, Kennedy Lewis 6.5×) → kept it as a DATA-QUALITY DIAGNOSTIC column (amber when >5% off), not a validation rule, per the plan's contingency. Probed Prospect's worst (55×): 67 holdings, all single-axis, no double-counting → genuine structural mismatch (look-through or mis-mapped investments line) → logged as a deferred follow-up. Added net_lending_spread (workbook column, 54 filings) and a Holdings (Gold) tab (10,857 rows, 15 funds). Confirmed Phase 1 ratio metrics are unaffected by recon mismatch (internal ratios). Commit `26e5787`. |
 | 2026-06-08 (session 7 — holdings Phase 1) | Built holdings extraction: `FactSet.holdings()` parses the schedule of investments off `dim_us-gaap_InvestmentIdentifierAxis` (current-period filter — SOI carries current+prior year), and `apply_holdings_summary()` derives the §9 metrics into the core JSON. Holdings rows stored SEPARATELY as per-filing CSVs in `data/holdings/` (gitignored), carried via a model PrivateAttr so they never bloat the validated JSON. Schema +3 portfolio fields (weighted_avg_spread, pct_holdings_with_pik, pct_affiliated). Verified on 6 funds (CSV↔holdings match, no JSON leak, 0 core regressions) → clean full re-run: **251/49 unchanged**, ~130k holding rows / 256 CSVs. Coverage: num_holdings/top10/pct_floating/pct_PIK 255/300, weighted_avg_spread 237, weighted_avg_portfolio_yield 151 (gated), unfunded_commitments 145, pct_affiliated 22. Anti-fragility gates worked: plausible-fraction filter fixed Apollo's mis-scaled spread (29.69%→4.56%); metrics null when coverage thin (yield for Apollo/First Eagle, pct_affiliated for non-"Issuer\|Affiliation" filers). Spreadsheet: new §9 columns + Definitions section. Commits `2454511`/`4b02728`. Found: member-label structure varies — BX/HPS clean "Issuer \| Affiliation", Apollo/First Eagle cram the whole SOI row into the member (issuer field denormalized → Phase 2/LLM concern for the holdings table). |
 | 2026-06-08 (session 7 — holdings/SOI reassessment) | Brian asked whether the schedule-of-investments / asset-level data is in XBRL or LLM-fallback. Probed 7 funds' latest 10-K: it IS in clean structured XBRL (`dim_us-gaap_InvestmentIdentifierAxis`, member = "Issuer \| Affiliation"). Robust everywhere: FV / cost / principal / spread. Per-filer-inconsistent: all-in rate (Apollo/First Eagle barely tag it), unfunded commitment (Apollo=0), maturity/pct_na/floor (~half). LLC (Terra) tags no axis. SOI carries current+prior year → must filter to reporting_date. Non-accrual = only custom per-filer COUNT concepts (no clean $). Verdict: the deferral was a SCOPE call, not data-availability; num_holdings / top_10 / pct_floating / %-with-PIK / total-unfunded are XBRL-derivable, weighted_avg_yield is fragile. Logged the correction in the data dictionary + the §9 note. Scoping a holdings-expansion plan next (no code yet). |
