@@ -260,12 +260,15 @@ HOLDINGS_DERIVED_DEFS: list[tuple[str, str, str]] = [
 
 # Extracted (not derived) fields whose extraction METHODOLOGY is non-obvious enough to document.
 EXTRACTED_METHOD_DEFS: list[tuple[str, str, str]] = [
-    ("undrawn_debt_capacity", "us-gaap:LineOfCreditFacilityRemainingBorrowingCapacity (undimensioned)",
-     "Undrawn revolver / credit-facility capacity. Taken from the UNDIMENSIONED remaining-capacity "
-     "total (a clean fund-level figure). We deliberately do NOT sum the per-facility rows: those are "
-     "cross-tabbed across multiple axes (facility / SPV entity) and some filers duplicate or "
-     "double-count them. NULL for filers that tag capacity only per-facility or via maximum (not "
-     "remaining) capacity — so coverage is partial by design. Feeds liquidity_coverage."),
+    ("undrawn_debt_capacity", "us-gaap:LineOfCreditFacilityRemainingBorrowingCapacity",
+     "Undrawn revolver / credit-facility capacity. Prefer the UNDIMENSIONED total where tagged "
+     "(clean fund-level figure). Otherwise the rows are tagged only per-facility and cross-tabbed "
+     "(the same total appears under a coarse axis and a finer breakdown), so we group by "
+     "axis-signature and take the LARGEST single group's sum — never summing across signatures "
+     "(which would double-count). We do NOT derive it from maximum-capacity − drawn (the maximum "
+     "facts double-count across facility/SPV axes). NULL for filers that tag capacity only via "
+     "maximum (not remaining) capacity or not at all — coverage is partial by design. Feeds "
+     "liquidity_coverage."),
 ]
 
 # Validation/review codes for the Review-tab key: (code, short name, type, what it verifies).

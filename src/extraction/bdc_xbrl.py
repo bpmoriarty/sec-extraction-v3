@@ -215,15 +215,10 @@ DIST_LEVERAGE_CONCEPTS: dict[str, list[str]] = {
                                    "us-gaap:DebtWeightedAverageInterestRate"],
 }
 
-# Liquidity (§12) — undrawn revolver/credit-facility capacity. We take the UNDIMENSIONED
-# remaining-capacity total: the probe (Apollo/Blackstone/HPS) confirmed it is a clean
-# fund-level figure (= sum of the per-facility remaining amounts). We deliberately do NOT sum
-# the dimensioned per-facility rows — those are cross-tabbed across the CreditFacility AND
-# LegalEntity (SPV) axes, and the undimensioned MaximumBorrowingCapacity double-counts them
-# (Apollo: 12.9B undimensioned vs a 3.45B real revolver). Plausibility is checked by C8.
-LIQUIDITY_CONCEPTS: dict[str, list[str]] = {
-    "undrawn_debt_capacity": ["us-gaap:LineOfCreditFacilityRemainingBorrowingCapacity"],
-}
+# Liquidity (§12) — undrawn revolver/credit-facility capacity comes from
+# us-gaap:LineOfCreditFacilityRemainingBorrowingCapacity via FactSet.undrawn_capacity(), which
+# handles the undimensioned total (Apollo/Blackstone/HPS) and the cross-tabbed per-facility case
+# (AB/BlackRock/John Hancock/PGIM/Prospect). See that method for the methodology and C8 for the gate.
 
 # Statement of changes (§5) — only the distributions total for now (enables coverage).
 CHANGES_CONCEPTS: dict[str, list[str]] = {
@@ -322,6 +317,52 @@ class FactSet:
             return Fact(value=total, source=Source.XBRL, confidence=0.95,
                         raw_text=" + ".join(parts))
         return Fact()
+
+    def undrawn_capacity(self) -> Fact:
+        """Undrawn revolver / credit-facility capacity (§12) =
+        us-gaap:LineOfCreditFacilityRemainingBorrowingCapacity at the reporting date.
+
+        Prefer the UNDIMENSIONED total — a clean fund-level figure for filers that tag it
+        (Apollo/Blackstone/HPS). Otherwise the figure is only tagged per-facility, and those rows
+        are CROSS-TABBED: the same total appears under a coarse axis-signature AND a finer
+        breakdown (e.g. AB, John Hancock: the (CreditFacility,) sum equals the
+        (CreditFacility, LineOfCreditFacility) sum). Summing ALL rows double-counts. So we group
+        facts by their exact axis-signature and take the LARGEST single group's sum of distinct
+        members: cross-tab groups are equal (→ that is the total), and a filer that splits debt
+        across genuinely-distinct instrument types (e.g. BlackRock: revolving facilities vs note
+        tranches vs promissory) yields the dominant revolving line — the most relevant, and
+        conservative (never over-counts), liquidity figure. We deliberately do NOT derive undrawn
+        from MaximumBorrowingCapacity − drawn: the maximum-capacity facts double-count across the
+        CreditFacility + LegalEntity axes and not all filers tag facility-level drawn. C8 bounds
+        the result for plausibility."""
+        concept = "us-gaap:LineOfCreditFacilityRemainingBorrowingCapacity"
+        rows = self.df[(self.df["concept"] == concept)
+                       & (self.df["period_type"] == "instant")
+                       & self.df["numeric_value"].notna()].copy()
+        if rows.empty:
+            return Fact()
+        rows["_inst"] = rows["period_instant"].map(self._iso)
+        rows = rows[rows["_inst"] == self.reporting_date]
+        if rows.empty:
+            return Fact()
+        undim = rows[rows["is_dimensioned"] == False]  # noqa: E712
+        if not undim.empty:
+            return Fact(value=float(undim.iloc[0]["numeric_value"]), source=Source.XBRL,
+                        confidence=0.97, raw_text="remaining capacity (undimensioned total)")
+        # Only per-facility rows -> group by axis-signature; take the largest group's distinct sum.
+        dim_cols = self._dim_cols
+        rows["_sig"] = rows.apply(
+            lambda r: tuple(sorted(c for c in dim_cols if pd.notna(r[c]))), axis=1)
+        best = None
+        for sig, grp in rows.groupby("_sig"):
+            grp = grp.drop_duplicates(subset=list(sig)) if sig else grp
+            total = float(grp["numeric_value"].sum())
+            if best is None or total > best:
+                best = total
+        if best is None:
+            return Fact()
+        return Fact(value=best, source=Source.XBRL, confidence=0.90,
+                    raw_text=f"remaining capacity (largest of {rows['_sig'].nunique()} axis groups)")
 
     @staticmethod
     def _months(ps: str, pe: str) -> int | None:
@@ -781,11 +822,10 @@ def extract_filing(company, filing, cik: str, form: str) -> FilingExtraction:
     # Schedule of investments (§9): parse holding-level rows, derive the summary metrics into
     # portfolio_summary/liquidity, and carry the raw rows on the model (PrivateAttr, not
     # serialized) so the runner can write them to the separate per-filing holdings CSV.
-    # Liquidity (§12): undrawn credit-facility capacity (see LIQUIDITY_CONCEPTS). Set before
+    # Liquidity (§12): undrawn credit-facility capacity (see FactSet.undrawn_capacity). Set before
     # apply_holdings_summary (which fills liquidity.unfunded_commitments) and compute_derived
     # (which uses undrawn_debt_capacity for liquidity_coverage).
-    for field, concepts in LIQUIDITY_CONCEPTS.items():
-        setattr(extraction.liquidity, field, facts.scalar(concepts))
+    extraction.liquidity.undrawn_debt_capacity = facts.undrawn_capacity()
 
     holdings = facts.holdings(reconcile_to=bs.investments_at_fair_value.value)
     extraction._holdings = holdings
