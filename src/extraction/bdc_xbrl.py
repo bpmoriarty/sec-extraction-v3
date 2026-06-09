@@ -113,6 +113,14 @@ _HOLDING_ADDITIVE = {"fair_value", "cost", "principal", "commitment", "shares"}
 # Trust the FV-weighted all-in yield only if the rate concept covers >= this share of FV
 # (Apollo/First Eagle barely tag InvestmentInterestRate -> their yield stays null, by design).
 HOLDING_YIELD_COVERAGE_MIN = 0.60
+# Schedule-of-investments reconciliation (Layer 2 gate). The summed holding fair values
+# should ~equal the balance-sheet investments total. A few filers tag SUBTOTAL/aggregation
+# rows (by-industry, by-type, grand totals — e.g. Kennedy Lewis pre-2025) on the holding
+# axis, so the leaves over-sum by multiples. When the (post-Layer-1) sum exceeds the balance
+# sheet by this factor, the SOI is structurally contaminated -> we SUPPRESS the derived §9
+# metrics (leave them null) rather than publish corrupted numbers. 1.25 sits well above the
+# observed legit-noise band (most filings reconcile within 1.05-1.2x; the broken ones are >=2x).
+HOLDINGS_RECON_GATE = 1.25
 # Layer-1 scale-reconciliation tolerance: dropping a minority decimals-scale group only counts
 # as "the fix" if the remaining leaves land within this fraction of the balance-sheet total.
 HOLDINGS_SCALE_TOL = 0.05
@@ -807,7 +815,17 @@ def apply_holdings_summary(e: FilingExtraction, holdings: list[dict]) -> None:
     if not holdings:
         return
     fv = [h["fair_value"] for h in holdings if h.get("fair_value") is not None]
-    n_fv, total_fv = len(fv), sum(h["fair_value"] for h in holdings if h.get("fair_value") is not None)
+    n_fv, total_fv = len(fv), sum(fv)
+    # Layer-2 reconciliation gate: if the leaf holdings (after Layer-1 scale recovery) still
+    # over-sum the balance-sheet investments total beyond HOLDINGS_RECON_GATE, the SOI is
+    # structurally contaminated with subtotal/aggregation rows (e.g. Kennedy Lewis pre-2025,
+    # whose by-industry/by-type/grand-total rows are tagged on the holding axis). Those
+    # corrupt every derived metric (num_holdings, top-10, FV-weighted means), so we SUPPRESS
+    # them — leave the §9 fields null rather than publish wrong numbers. The raw rows still go
+    # to the per-filing CSV, and the spreadsheet's reconciliation column flags the mismatch.
+    ifv = e.balance_sheet.investments_at_fair_value.value
+    if ifv and total_fv and total_fv / ifv >= HOLDINGS_RECON_GATE:
+        return
     if n_fv:
         ps.num_holdings = mk(float(n_fv))
         ps.pct_holdings_with_pik = mk(sum(1 for h in holdings if h.get("pik_rate")) / n_fv)
