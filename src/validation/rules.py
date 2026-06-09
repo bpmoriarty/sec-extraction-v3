@@ -289,43 +289,52 @@ def validate(e: FilingExtraction) -> FilingExtraction:
     else:
         add("C8", "Undrawn debt capacity plausible", "reasonableness", "pass")
 
-    # ── C10: expense breakdown is sane vs total expenses (reasonableness) ─────
+    # ── C10: expense breakdown is sane vs fund size (reasonableness) ──────────
     # The captured expense components (management/incentive/interest/admin/professional/G&A/
-    # trustee/amortization) are GROSS lines, so their sum can EXCEED net total_expenses when a
-    # filer waives/supports expenses. We therefore only flag a sum that is implausibly large
-    # (> 2x total_expenses) — that signals a mis-mapped concept (e.g. a balance-sheet figure),
-    # not normal waiver gross-up. Flag-and-keep; values are never discarded.
+    # trustee/amortization) are GROSS lines. Comparing their sum to NET total_expenses doesn't work:
+    # a ramp-stage fund's adviser waives/supports most costs, so gross can legitimately run several
+    # times net (PGIM's first 10-K: 3.5M gross vs 560K net), and the bridging expense_support_net
+    # tag is often absent. So we instead anchor to FUND SIZE: real expenses — even fully grossed-up —
+    # are a small fraction of net assets in a period, whereas a mis-mapped BALANCE-SHEET figure
+    # (total investments, NAV, a large payable) lands at ~100% of net assets. The 50%-of-NAV line
+    # sits in the wide empty gap between those, so it flags only a balance-sheet-scale mis-map.
+    # Flag-and-keep; values are never discarded.
     fe = e.fees
-    te = inc.total_expenses.value
     comps = [getattr(fe, k).value for k in (
         "management_fee", "incentive_fee", "interest_expense", "administrative_fees",
         "professional_fees", "other_g_and_a", "director_trustee_fees",
         "amortization_of_financing_costs")]
     present = [c for c in comps if c is not None]
-    if te is None or not present or te <= 0:
+    if tna is None or tna <= 0 or not present:
         add("C10", "Expense breakdown sane", "reasonableness", "skipped", "missing inputs")
     else:
         s = sum(present)
-        if s <= 2.0 * te:
+        if s <= 0.5 * tna:
             add("C10", "Expense breakdown sane", "reasonableness", "pass")
         else:
             add("C10", "Expense breakdown sane", "reasonableness", "fail",
-                f"expense components sum {s:,.0f} > 2x total_expenses {te:,.0f} (possible mis-map)")
+                f"expense components sum {s:,.0f} > 50% of net assets {tna:,.0f} "
+                f"(possible balance-sheet mis-map)")
 
     # ── C11: tax unrealized nets out (reasonableness) ────────────────────────
-    # gross appreciation and gross depreciation should reconcile to the net. Filers differ on
-    # whether depreciation is tagged as a positive magnitude or a negative number, so we accept
-    # whichever of (apprec - deprec) or (apprec + deprec) matches the tagged net. Flag-and-keep.
+    # gross appreciation and gross depreciation should reconcile to the net. Filers are wildly
+    # inconsistent on SIGN: depreciation may be a positive magnitude or a negative number, and the
+    # net may be tagged as a net-appreciation (positive) or net-depreciation (positive) figure — so
+    # the tagged net frequently equals -(apprec - deprec). We therefore compare MAGNITUDES:
+    # |apprec - deprec| should equal |net|, regardless of sign convention. A genuine mis-map (e.g.
+    # net accidentally equal to gross appreciation, ignoring depreciation) still trips it. The
+    # tolerance is gross-relative because apprec/deprec carry rounding (often to 100K). Flag-and-keep.
     tb = e.tax_basis
     ap, dp, nt = (tb.tax_unrealized_appreciation.value, tb.tax_unrealized_depreciation.value,
                   tb.tax_unrealized_net.value)
     if None in (ap, dp, nt):
         add("C11", "Tax unrealized nets out", "reasonableness", "skipped", "missing inputs")
-    elif min(abs((ap - dp) - nt), abs((ap + dp) - nt)) <= _tol(nt):
+    elif abs(abs(ap - dp) - abs(nt)) <= max(_tol(nt), 0.015 * max(abs(ap), abs(dp), abs(nt))):
         add("C11", "Tax unrealized nets out", "reasonableness", "pass")
     else:
         add("C11", "Tax unrealized nets out", "reasonableness", "fail",
-            f"gross apprec {ap:,.0f} / deprec {dp:,.0f} do not net to {nt:,.0f}")
+            f"gross apprec {ap:,.0f} / deprec {dp:,.0f} do not net to {nt:,.0f} "
+            f"(|apprec-deprec|={abs(ap - dp):,.0f} vs |net|={abs(nt):,.0f})")
 
     # ── Roll up ──────────────────────────────────────────────────────────────
     e.validation_checks = checks
