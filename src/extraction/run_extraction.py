@@ -53,11 +53,20 @@ API_PAUSE = 0.3
 
 
 def bdc_funds() -> list[dict]:
-    """BDC funds with a CIK, from the universe."""
+    """BDC funds with a CIK, from the universe. Each record carries a NORMALIZED vehicle_type:
+    'Listed BDC' when the universe tags it so, else 'Unlisted BDC'. The BDC-extraction segment is
+    the unlisted set today, so funds selected via category=='bdc' but tagged 'unknown' / 'Tender
+    Offer Fund' (e.g. the non-traded BDCs Kennedy Lewis / NC SLF / Terra / Fidelity Private Credit)
+    are correctly labeled 'Unlisted BDC' rather than left mislabeled. Future listed BDCs carry the
+    'Listed BDC' tag in the universe and are respected here."""
     df = pd.read_csv(UNIVERSE_FILE, dtype={"cik": str})
     df["cik"] = df["cik"].fillna("").str.strip()
-    mask = ((df["vehicle_type"] == "Unlisted BDC") | (df["category"] == "bdc")) & (df["cik"] != "")
-    return df[mask][["cik", "fund_name"]].drop_duplicates("cik").to_dict("records")
+    mask = ((df["vehicle_type"].isin(["Unlisted BDC", "Listed BDC"])) | (df["category"] == "bdc")) \
+        & (df["cik"] != "")
+    recs = df[mask][["cik", "fund_name", "vehicle_type"]].drop_duplicates("cik").to_dict("records")
+    for r in recs:
+        r["vehicle_type"] = "Listed BDC" if r.get("vehicle_type") == "Listed BDC" else "Unlisted BDC"
+    return recs
 
 
 def _year(filing) -> int | None:
@@ -109,6 +118,7 @@ def run(max_funds=None, max_filings=None, since_year=SINCE_YEAR) -> None:
                 else:
                     try:
                         e = extract_filing(company, filing, cik, form)
+                        e.vehicle_type = f.get("vehicle_type")  # fund metadata from the universe
                         validate(e)
                         out.write_text(e.model_dump_json(indent=2, exclude_none=False),
                                        encoding="utf-8")
@@ -148,11 +158,15 @@ def revalidate() -> None:
     and rewrite its validation_status / validation_checks / review_flags. The review index is
     regenerated fresh (not appended). Far cheaper than a full network re-run when only the
     validation logic changed and the extracted data is unchanged.
+
+    Also RE-SYNCS fund metadata from the universe (currently vehicle_type) into each JSON, so a
+    metadata-only change (e.g. correcting/adding a vehicle_type tag) lands without re-extraction.
     """
     files = sorted(OUT_DIR.glob("*.json"))
     if not files:
         print(f"No JSONs to revalidate in {OUT_DIR}")
         return
+    vt_by_cik = {str(f["cik"]).zfill(10): f["vehicle_type"] for f in bdc_funds()}
     REVIEW_INDEX.parent.mkdir(parents=True, exist_ok=True)
     stats = {"revalidated": 0, "pass": 0, "review": 0, "changed": 0}
     review_lines: list[str] = []
@@ -160,6 +174,9 @@ def revalidate() -> None:
         d = json.loads(jf.read_text(encoding="utf-8"))
         old_status = d.get("validation_status")
         e = FilingExtraction.model_validate(d)
+        vt = vt_by_cik.get(str(e.cik).zfill(10))
+        if vt:
+            e.vehicle_type = vt  # re-sync fund metadata from the universe
         e.review_flags = []  # validate() appends — start clean so we don't duplicate
         validate(e)
         jf.write_text(e.model_dump_json(indent=2, exclude_none=False), encoding="utf-8")
