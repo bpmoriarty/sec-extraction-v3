@@ -931,6 +931,27 @@ def extract_filing(company, filing, cik: str, form: str) -> FilingExtraction:
         )
         for cls in classes
     ]
+    # Single-class fallback. Listed BDCs (and some single-class unlisted funds) carry ONE common
+    # class that is NOT tagged on the StatementClassOfStockAxis, so per_class() finds nothing and
+    # share_classes_nav comes out empty. Synthesize a single "common" class from the UNDIMENSIONED
+    # NAV-per-share + shares-outstanding + total net assets so the per-class NAV (and C2/C3)
+    # populate. Fires ONLY when the axis yielded no classes (multi-class funds are untouched -> 0
+    # regressions) AND there is a real per-share signal (NAV or shares tagged) -- so LLCs with no
+    # per-share NAV (e.g. Terra) stay empty as before. class_net_assets = total net assets, so C3
+    # is satisfied by construction and C2 genuinely checks reported NAV vs total/shares.
+    if not share_classes_nav:
+        nav_ps = facts.scalar(PER_CLASS_CONCEPTS["class_nav_per_share"])
+        shares = facts.scalar(PER_CLASS_CONCEPTS["class_shares_outstanding"])
+        # Require a real per-share signal: a tagged NAV/share, or a POSITIVE share count. LLCs
+        # (e.g. Terra) have member units, not shares, and tag shares=0 -> no synthesis, stay empty.
+        if nav_ps.value is not None or (shares.value and shares.value > 0):
+            share_classes_nav = [ShareClassNAV(
+                class_label="common",
+                class_net_assets=bs.total_net_assets,
+                class_shares_outstanding=shares,
+                class_nav_per_share=nav_ps,
+            )]
+            classes = ["common"]
 
     # Fair-value hierarchy (§6) — dimensional; lights up C4 when the levels reconcile to the
     # undimensioned investments-at-fair-value (which doubles as fv_total).

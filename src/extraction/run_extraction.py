@@ -103,7 +103,9 @@ def run(max_funds=None, max_filings=None, since_year=SINCE_YEAR) -> None:
 
         for form in FORMS:
             try:
-                filings = company.get_filings(form=form)
+                # amendments=False -> take the ORIGINAL 10-K/10-Q, not a 10-K/A (amendments often
+                # lack full XBRL, e.g. ARES CAPITAL's latest filing). Good hygiene for all BDCs.
+                filings = company.get_filings(form=form, amendments=False)
             except Exception:
                 continue
             done = 0
