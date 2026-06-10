@@ -113,12 +113,17 @@ def run(max_funds=None, max_filings=None, since_year=SINCE_YEAR) -> None:
                 yr = _year(filing)
                 if yr is not None and yr < since_year:
                     continue
-                rd = str(getattr(filing, "period_of_report", "") or "")[:10] or str(filing.accession_no)
-                out = OUT_DIR / f"{cik}_{form}_{rd}.json"
-                if out.exists():
-                    stats["skipped"] += 1
-                else:
+                # Resolve period_of_report (a NETWORK fetch) + process the filing inside the
+                # try, with a small retry for transient EDGAR timeouts. Previously period_of_report
+                # sat OUTSIDE the try, so one slow EDGAR response aborted the whole run.
+                for attempt in range(3):
                     try:
+                        rd = str(getattr(filing, "period_of_report", "") or "")[:10] \
+                            or str(filing.accession_no)
+                        out = OUT_DIR / f"{cik}_{form}_{rd}.json"
+                        if out.exists():
+                            stats["skipped"] += 1
+                            break
                         e = extract_filing(company, filing, cik, form)
                         e.vehicle_type = f.get("vehicle_type")  # fund metadata from the universe
                         validate(e)
@@ -132,14 +137,22 @@ def run(max_funds=None, max_filings=None, since_year=SINCE_YEAR) -> None:
                                 fh.write(f"{out.name}: {'; '.join(e.review_flags)}\n")
                         print(f"  [{form}] {name[:32]:32s} {rd}  "
                               f"status={e.validation_status}")
+                        break
                     except Exception as ex:
                         msg = repr(ex)
+                        transient = any(k in msg.lower() for k in
+                                        ("timeout", "timed out", "connect", "readerror",
+                                         "remoteprotocol", "temporarily"))
+                        if transient and attempt < 2:
+                            time.sleep(2 * (attempt + 1))   # backoff, then retry
+                            continue
                         if "xbrl" in msg.lower() or "NoneType" in msg:
                             stats["no_xbrl"] += 1
                         else:
                             stats["errors"] += 1
-                        _log_error(f"{cik} {form} {rd}: {msg[:200]}")
-                    time.sleep(API_PAUSE)
+                        _log_error(f"{cik} {form}: {msg[:200]}")
+                        break
+                time.sleep(API_PAUSE)
                 done += 1
                 if max_filings and done >= max_filings:
                     break
