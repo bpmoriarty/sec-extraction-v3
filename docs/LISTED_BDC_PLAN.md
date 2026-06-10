@@ -155,3 +155,68 @@ themes, and all C-rules apply as-is.
 - Runner selector: revert to restore the unlisted-only selection.
 - Universe: the listed rows are tagged `vehicle_type = "Listed BDC"` and can be filtered out or
   removed without touching unlisted rows.
+
+---
+
+## 9. Downstream analysis this unlocks — cross-BDC holdings & mark comparison
+
+**(Stretch / future analysis — separate from the incorporation mechanics above. Idea logged
+2026-06-09 session 10, Brian's request.)**
+
+### The idea & why it's valuable
+
+Once the **full BDC universe** (listed + unlisted) is extracted, pull every BDC's holding-level
+schedule of investments and **match the same underlying credit across different BDCs**, then
+**compare each holder's mark** on it. BDC fair values are manager estimates on illiquid Level-3
+loans with no observable market price — so the *same* loan held by several BDCs can be marked
+differently. That dispersion is the signal: aggressive vs. conservative valuation, a possible early
+credit-deterioration warning when one holder marks down before others, and outlier detection. This
+is novel cross-sectional analysis that the structured holdings data makes possible.
+
+### The comparison unit
+
+Raw `fair_value` isn't comparable (position sizes differ). The comparable unit is **price as a
+percent of par** — `fair_value / principal` (cents on the dollar). We already capture `fair_value`,
+`principal`, and `cost` per holding, so this is computable; `fair_value / cost` (the per-holding
+mark) is a fallback when principal isn't tagged. Compare prices across holders **as of aligned
+reporting periods** (see caveats).
+
+### The matching problem (the messy part — best-effort, confidence-scored)
+
+Issuer names don't match cleanly across filers ("Acme Corp" vs "Acme Holdings LLC" vs a whole SOI
+row crammed into one member — Apollo/First Eagle denormalize). Same issuer can have multiple
+tranches (1st lien term loan, revolver, 2nd lien). So matching is tiered, each tier tagged with a
+confidence, and only high/medium tiers feed price comparison:
+
+1. **Normalize issuer names** — lowercase, strip legal suffixes (Corp/Inc/LLC/LP/Holdings),
+   punctuation; fuzzy-cluster with `rapidfuzz` (already a dependency).
+2. **Block by issuer cluster**, then disambiguate the instrument within it using the fields we have:
+   - **High confidence:** issuer + maturity + spread all align → same tranche.
+   - **Medium:** issuer + spread (or issuer + instrument type) align.
+   - **Low:** issuer only → report as an aggregate, not an instrument-level price compare.
+3. **Compute price** per matched holding, then per matched instrument report the holder set + each
+   mark + **dispersion** (min/max/range/std-dev) and flag outliers (e.g. >N points off the median).
+
+### Caveats (state them in the output — it's discovery, not exact reconciliation)
+
+- **Name conventions vary**; some filers denormalize the issuer — those holdings match weakly or
+  not at all. Expect partial coverage; report match rate.
+- **Period mismatch:** BDCs have different fiscal quarter-ends, so marks are as-of different dates.
+  Align to the nearest common period and **surface the date gap** — a mark difference across a
+  2-month gap isn't purely a valuation difference.
+- **Instrument granularity / missing principal:** fall back to mark (`fv/cost`) and lower the
+  confidence when the tranche can't be pinned down or principal isn't tagged.
+- Output confidence-scored matches; the valuable bit is the **interesting dispersions surfaced for
+  human review**, not a claim of exhaustive matching.
+
+### Where it sits & how to start
+
+- A **new downstream analysis** consuming the per-filing holdings CSVs in `data/holdings/` across
+  ALL BDCs — independent of the core extractor/validation (like the spreadsheet assembler reads the
+  JSONs). Likely a new `src/output/` (or `src/analysis/`) script producing a cross-holder marks
+  table / workbook tab.
+- **Prototypable on the UNLISTED set today** (~130k holding rows / 256 CSVs already on disk) before
+  listed BDCs land — proves the matching approach, then simply scales to the full universe. The
+  matched-issuer overlap (and thus the value) grows substantially once listed BDCs are added.
+- Pair naturally with `holdings_fv_recon` (the existing per-filing diagnostic) — the cross-holder
+  view is the universe-wide complement to that per-filing one.
