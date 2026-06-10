@@ -1036,6 +1036,12 @@ def apply_holdings_summary(e: FilingExtraction, holdings: list[dict]) -> None:
         ps.pct_floating_rate = mk(
             sum(h["fair_value"] for h in holdings
                 if h.get("fair_value") is not None and h.get("spread") is not None) / total_fv)
+        # FV-weighted PIK exposure: share of portfolio DOLLARS in PIK-bearing holdings (vs the
+        # count-basis pct_holdings_with_pik above). Mirrors the FV-weighting of pct_floating_rate /
+        # pct_affiliated — answers "how much of the book carries PIK", not "how many positions".
+        ps.pct_holdings_with_pik_fv_weighted = mk(
+            sum(h["fair_value"] for h in holdings
+                if h.get("fair_value") is not None and h.get("pik_rate")) / total_fv)
         # pct_affiliated needs the "Issuer | Affiliation" label convention. Some filers
         # (Apollo, First Eagle) cram the whole SOI row into the member with no separator ->
         # affiliation unknown. Only compute when affiliation parses for most of the portfolio;

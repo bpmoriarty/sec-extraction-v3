@@ -241,7 +241,8 @@ class PortfolioSummary(BaseModel):                   # Data Dictionary §9 (hold
     capitalized_pik_balance: Fact = Field(default_factory=Fact)        # rising = stress
     # Holdings-derived (computed from the schedule of investments; §9 reassessment 2026-06-08).
     weighted_avg_spread: Fact = Field(default_factory=Fact)            # FV-weighted spread over base rate (robust where all-in yield isn't tagged)
-    pct_holdings_with_pik: Fact = Field(default_factory=Fact)          # share of positions carrying a PIK rate (count basis)
+    pct_holdings_with_pik: Fact = Field(default_factory=Fact)          # share of positions carrying a PIK rate (COUNT basis)
+    pct_holdings_with_pik_fv_weighted: Fact = Field(default_factory=Fact)  # share of PORTFOLIO DOLLARS in PIK-bearing holdings (FV-weighted)
     pct_affiliated: Fact = Field(default_factory=Fact)                 # FV-weighted share in affiliated/controlled issuers
     # Seniority mix (1st/2nd lien/sub/equity) and internal risk-rating distribution.
     # Internal rating is rarely clean XBRL -> typically an LLM-fallback field.

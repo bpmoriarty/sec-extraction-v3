@@ -143,6 +143,7 @@ DATA_FIELDS: list[tuple[str, str, str, str]] = [
     ("Portfolio", "weighted_avg_spread", "portfolio_summary", "weighted_avg_spread"),
     ("Portfolio", "pct_floating_rate", "portfolio_summary", "pct_floating_rate"),
     ("Portfolio", "pct_holdings_with_pik", "portfolio_summary", "pct_holdings_with_pik"),
+    ("Portfolio", "pct_holdings_with_pik_fv_weighted", "portfolio_summary", "pct_holdings_with_pik_fv_weighted"),
     ("Portfolio", "pct_affiliated", "portfolio_summary", "pct_affiliated"),
     ("Portfolio", "capitalized_pik_balance", "portfolio_summary", "capitalized_pik_balance"),
     ("Portfolio", "top_10_concentration", "portfolio_summary", "top_10_concentration"),
@@ -292,6 +293,10 @@ HOLDINGS_DERIVED_DEFS: list[tuple[str, str, str]] = [
      "tagged across filers); mis-scaled outliers (>=1) are excluded from the average."),
     ("pct_holdings_with_pik", "count(holdings with a pik_rate) / num_holdings",
      "Share of positions (count basis) carrying a payment-in-kind rate — a credit-stress signal."),
+    ("pct_holdings_with_pik_fv_weighted", "sum(fair_value where pik_rate tagged) / sum(fair_value)",
+     "Share of the portfolio (by fair value) in PIK-bearing holdings — sizes PIK DOLLAR exposure, "
+     "vs pct_holdings_with_pik which counts positions. A few large PIK loans can be a small count "
+     "but a large fair-value share (or vice versa)."),
     ("pct_affiliated", "sum(fair_value where affiliated) / sum(fair_value)",
      "Share (by fair value) in affiliated/controlled issuers. NULL when issuer affiliation isn't "
      "parseable from the holding label (some filers don't use the 'Issuer | Affiliation' convention)."),
@@ -482,7 +487,8 @@ NUMBER_FORMATS = {
     "pct_fv_nav_practical_expedient": PCT_FMT,
     "pik_income_ratio": PCT_FMT, "non_accrual_pct_fv": PCT_FMT, "non_accrual_pct_cost": PCT_FMT,
     # Holdings-derived §9 metrics (computed fractions -> show as %)
-    "top_10_concentration": PCT_FMT, "pct_holdings_with_pik": PCT_FMT, "pct_affiliated": PCT_FMT,
+    "top_10_concentration": PCT_FMT, "pct_holdings_with_pik": PCT_FMT,
+    "pct_holdings_with_pik_fv_weighted": PCT_FMT, "pct_affiliated": PCT_FMT,
     "weighted_avg_spread": PCT_FMT,
     "portfolio_mark": RATIO_FMT, "leverage_ratio": RATIO_FMT, "asset_coverage_ratio": RATIO_FMT,
     "asset_coverage_pct": RATIO_FMT, "distribution_coverage_ratio": RATIO_FMT,
