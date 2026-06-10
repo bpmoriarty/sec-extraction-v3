@@ -688,6 +688,16 @@ Re-add C6 ONLY if an authoritative tagged roll-forward SUBTOTAL surfaces to anch
    fallback, informed by the volume run; then gold-standard set + spreadsheet assembler.
 8. *(Optional)* Review borderline ISIN/ticker on the ~5 fuzzy master/feeder matches.
 
+**Active roadmap (session 10+):**
+- **Incorporate listed BDCs** into the pipeline (plan: `docs/LISTED_BDC_PLAN.md`). Existing
+  extractor generalizes — 9/10 tested clean; deltas are a generic single-class NAV fallback +
+  `amendments=False`. Awaiting Brian's listed-BDC list (CIK/ticker/name).
+- **Cross-BDC holdings & mark comparison** (`docs/LISTED_BDC_PLAN.md` §9) — match the same credit
+  across BDCs, compare each holder's mark (price = fair_value/principal) to surface valuation
+  dispersion. Prototypable on the unlisted holdings (~130k rows) today; scales to the full universe.
+- **Interval/tender-offer extraction** — LLM-over-clean-text (edgartools `filing.text()`/
+  `get_section()`/`chunk_text()`) into the existing spine; financials NOT in XBRL (session-10 scope).
+
 ---
 
 ## Session Log
