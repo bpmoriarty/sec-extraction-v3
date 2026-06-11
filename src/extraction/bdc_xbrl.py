@@ -125,6 +125,28 @@ HOLDING_CONCEPTS = {
 # Additive holding fields (summed across a member's same-date facts); the rest are rate-like
 # attributes where we keep the first non-null value.
 _HOLDING_ADDITIVE = {"fair_value", "cost", "principal", "commitment", "shares"}
+# STRING-valued holding attributes (date / enumerated reference rate). numeric_value is null for
+# these — read the fact `value`. Tagged by ~half the filers (bimodal: rich or absent; e.g. AB 100%,
+# Apollo 94%, Blackstone/Golub 0%). Captured for ISSUE-LEVEL matching in the cross-BDC holdings
+# comparison (see docs/HOLDINGS_COMPARISON_PLAN.md); not used by the §9 summary metrics. First
+# non-null per member; reference_rate is normalized from the FASB enum URI to SOFR/LIBOR/PRIME/etc.
+HOLDING_STR_CONCEPTS = {
+    "us-gaap:InvestmentMaturityDate": "maturity",
+    "us-gaap:InvestmentVariableInterestRateTypeExtensibleEnumeration": "reference_rate",
+    "us-gaap:InvestmentAcquisitionDate": "acquisition_date",
+}
+
+
+def _parse_reference_rate(uri: str) -> str:
+    """Normalize a FASB extensible-enumeration reference-rate URI to a short label.
+    e.g. 'http://fasb.org/us-gaap/2025#SecuredOvernightFinancingRateSofrMember' -> 'SOFR'."""
+    tok = uri.split("#")[-1].replace("Member", "")
+    low = tok.lower()
+    for needle, label in (("sofr", "SOFR"), ("euribor", "EURIBOR"), ("libor", "LIBOR"),
+                          ("prime", "PRIME"), ("base", "BASE")):
+        if needle in low:
+            return label
+    return tok or uri
 # Trust the FV-weighted all-in yield only if the rate concept covers >= this share of FV
 # (Apollo/First Eagle barely tag InvestmentInterestRate -> their yield stays null, by design).
 HOLDING_YIELD_COVERAGE_MIN = 0.60
@@ -751,8 +773,11 @@ class FactSet:
         minority scale-group IF that makes the remaining leaves reconcile — see _reconcile_scale."""
         if INVESTMENT_AXIS not in self.df.columns:
             return []
+        # Keep numeric holding facts AND the string-valued ones (maturity/reference_rate/acquisition
+        # _date), whose numeric_value is null — those are read from the `value` column.
         held = self.df[self.df[INVESTMENT_AXIS].notna()
-                       & self.df["numeric_value"].notna()].copy()
+                       & (self.df["numeric_value"].notna()
+                          | self.df["concept"].isin(HOLDING_STR_CONCEPTS))].copy()
         if held.empty:
             return []
         held["_inst"] = held["period_instant"].map(self._iso)
@@ -762,8 +787,10 @@ class FactSet:
         rows: dict[str, dict] = {}
         member_scale: dict[str, str] = {}  # member -> decimals of its fair_value fact (Layer 1)
         for _, r in held.iterrows():
-            field = HOLDING_CONCEPTS.get(r["concept"])
-            if field is None:
+            concept = r["concept"]
+            num_field = HOLDING_CONCEPTS.get(concept)
+            str_field = HOLDING_STR_CONCEPTS.get(concept)
+            if num_field is None and str_field is None:
                 continue
             member = str(r[INVESTMENT_AXIS])
             h = rows.get(member)
@@ -771,13 +798,21 @@ class FactSet:
                 issuer, _, affil = member.partition(" | ")
                 h = {"issuer": issuer.strip(), "affiliation": (affil.strip() or None)}
                 rows[member] = h
-            val = float(r["numeric_value"])
-            if field in _HOLDING_ADDITIVE:
-                h[field] = h.get(field, 0.0) + val
-            elif field not in h:
-                h[field] = val
-            if field == "fair_value" and member not in member_scale:
-                member_scale[member] = str(r.get("decimals"))
+            if num_field is not None:
+                if pd.isna(r["numeric_value"]):
+                    continue
+                val = float(r["numeric_value"])
+                if num_field in _HOLDING_ADDITIVE:
+                    h[num_field] = h.get(num_field, 0.0) + val
+                elif num_field not in h:
+                    h[num_field] = val
+                if num_field == "fair_value" and member not in member_scale:
+                    member_scale[member] = str(r.get("decimals"))
+            elif str_field not in h:                       # first non-null string value per member
+                raw = r.get("value")
+                if raw is not None and str(raw).strip():
+                    h[str_field] = (_parse_reference_rate(str(raw))
+                                    if str_field == "reference_rate" else str(raw).strip())
         return _reconcile_scale(rows, member_scale, reconcile_to)
 
 

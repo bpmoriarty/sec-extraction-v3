@@ -46,7 +46,8 @@ ERROR_LOG = OUT_DIR / "_errors.log"
 
 # Column order for the per-filing holdings CSV (§9 schedule of investments).
 HOLDING_COLS = ["issuer", "affiliation", "fair_value", "cost", "principal", "rate", "spread",
-                "pik_rate", "floor", "shares", "commitment", "pct_na"]
+                "pik_rate", "floor", "shares", "commitment", "pct_na",
+                "maturity", "reference_rate", "acquisition_date"]
 FORMS = ["10-K", "10-Q"]
 SINCE_YEAR = 2016
 API_PAUSE = 0.3

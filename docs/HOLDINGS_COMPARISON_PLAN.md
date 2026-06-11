@@ -10,7 +10,9 @@ sketch in `LISTED_BDC_PLAN.md` §9.)
 
 Across the full BDC universe (listed + unlisted), match the **same underlying credit** held by
 multiple BDCs and **compare each holder's mark** (fair value as a % of par) at a given reporting
-date. BDC marks are manager estimates on illiquid Level-3 loans with no observable market price, so
+date. **Two grains, both first-class deliverables:** (a) **issuer-level** — how do BDCs collectively
+mark their exposure to Company X (broader coverage, easier match); (b) **issue-level** — how do they
+mark *this specific tranche* (sharper, cleaner apples-to-apples, harder match). We report both. BDC marks are manager estimates on illiquid Level-3 loans with no observable market price, so
 the same loan held by several BDCs can be marked differently. That **dispersion is the signal** —
 aggressive vs. conservative valuation, an early credit-deterioration warning when one holder marks
 down before others, and outlier detection.
@@ -31,9 +33,14 @@ Consolidated all 793 holdings CSVs → 375,181 rows / 74 funds. Findings that sh
 | `fair_value` / `principal` both present | **60.1%** | Price (FV/par) calculable for ~225k rows |
 | `cost` coverage | 79.7% | FV/cost fallback when principal missing |
 | issuer field with comma ("Name, …, Instrument") | 81.5% | Parse name = text before first comma (after junk-strip) |
-| maturity date | **0% (not extracted)** | Gap — a strong issue key; see §10 |
+| maturity date | **NOW CAPTURED (session 12)** — ~54% of funds tag it, richly (63–100% within-fund) | Strong issue key where present; bimodal (AB 100%, Apollo 97%, Blackstone 0%) |
+| reference rate (SOFR/LIBOR/Prime) | **NOW CAPTURED** — ~42% of funds | Disambiguates the spread basis (S+550 ≠ Prime+550) |
 
-**Verdict: strongly feasible at the issuer level; the work is the issue-level disambiguation.**
+A follow-up 24-fund coverage check corrected an initial 7-fund undercount: maturity is **bimodal** —
+a fund tags it richly or not at all — and ~half tag it. So it's a worthwhile issue key for the
+covered half, captured via the extractor enhancement (§10). Reference-rate type and acquisition date
+captured the same way. **Verdict: strongly feasible at the issuer level; issue-level disambiguation
+is the work, now better-equipped with maturity + reference rate.**
 
 ---
 
@@ -144,15 +151,22 @@ workbook/tab under `data/dataset/`. Pairs naturally with the existing `holdings_
 
 ---
 
-## 10. Recommended prerequisite (optional) — capture maturity
+## 10. Prerequisite — capture maturity + reference rate — DONE (session 12)
 
-Maturity date is a strong issue-matching key but **isn't extracted today**. Adding it (e.g.
-`us-gaap:InvestmentMaturityDate` + related concepts) to the holdings extractor would materially
-improve issue-level precision. This is an extractor change → needs a re-run, so the call is whether
-to add it up front or iterate without it first. **Recommendation:** start the analysis on
-spread+seniority (already sufficient for High/Medium tiers on club deals), measure match quality,
-then add maturity if precision needs lifting. Capturing reference-rate basis (SOFR/LIBOR) is a
-lower-value secondary add.
+Maturity date is a strong issue-matching key but wasn't extracted originally (it wasn't needed for
+the §9 summary metrics). A 24-fund coverage check showed it's tagged by ~54% of funds, richly
+(bimodal). **Added to the holdings extractor** (`bdc_xbrl.py` `HOLDING_STR_CONCEPTS` + string-fact
+handling in `holdings()`; new CSV columns `maturity`, `reference_rate`, `acquisition_date`):
+- `us-gaap:InvestmentMaturityDate` → `maturity` (ISO date)
+- `us-gaap:InvestmentVariableInterestRateTypeExtensibleEnumeration` → `reference_rate` (normalized to
+  SOFR/LIBOR/PRIME/EURIBOR/BASE)
+- `us-gaap:InvestmentAcquisitionDate` → `acquisition_date` (ISO date)
+
+These are STRING-valued facts (numeric_value is null) read from the fact `value`; the extractor now
+keeps them through the reporting-date instant filter. Verified: AB 100%/100%, Apollo 97%/92%,
+Blackstone 0% (doesn't tag — null, no error). **Requires a full clean re-run to populate the CSVs**
+before the matcher is built. Other uncaptured holding concepts (per-holding realized/unrealized
+gain-loss, per-filer commitment/income concepts) are sparse/niche — not captured now.
 
 ---
 
