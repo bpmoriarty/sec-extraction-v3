@@ -30,9 +30,11 @@ from __future__ import annotations
 import argparse
 import glob
 import re
+from collections import defaultdict
 from pathlib import Path
 
 import pandas as pd
+from rapidfuzz import fuzz, process
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 HOLDINGS_DIR = PROJECT_ROOT / "data" / "holdings"
@@ -57,14 +59,26 @@ _CATEGORY_PHRASES = [
     "non-controlled", "non-affiliated",
     # SOI section headers
     "portfolio company debt securities", "portfolio company warrant investments",
-    "portfolio company equity investments", "debt investments", "equity investments",
-    "warrant investments", "investments", "investment",
+    "portfolio company equity investments", "debt securities portfolio", "debt securities",
+    "debt investments", "equity investments", "warrant investments",
+    "us corporate debt", "u s corporate debt", "corporate debt", "us debt", "u s debt",
+    "issuer name", "issuer", "investments", "investment",
+    # sector phrases seen as headers on specific denormalized filers
+    "drug discovery and development", "drug discovery", "cannabis",
+    "transportation services", "utilities services", "business services",
+    "consumer products and services", "consumer products and services",
+    "consumer products", "consumer services", "special retail", "specialty retail",
     # asset classes / seniority used as a bucket header
     "senior secured first lien debt", "first and second lien debt", "first lien debt",
     "second lien debt", "secured debt", "subordinated debt", "unsecured debt",
-    "first lien senior secured", "senior secured", "first lien", "second lien",
-    "unitranche", "broadly syndicated", "one stop", "preferred equity", "common equity",
-    "structured products", "joint ventures", "short term investments",
+    "first lien senior secured", "1st lien senior secured debt", "1st lien last out unitranche",
+    "last out unitranche", "1st lien", "2nd lien", "3rd lien", "senior secured",
+    "first lien", "second lien", "unitranche", "broadly syndicated", "one stop",
+    "preferred equity", "common equity", "common stock", "preferred stock", "common shares",
+    "preferred shares", "structured products", "joint ventures", "short term investments",
+    # sector / asset-class leads on specific denormalized filers (leading-strip only, so safe)
+    "services", "industrial conglomerates", "retail and consumer products",
+    "consumer products and services", "diversified",
     # geographies
     "united states", "united kingdom", "australia", "canada", "netherlands", "luxembourg",
     "germany", "france", "ireland", "switzerland", "new zealand", "europe", "north america",
@@ -79,7 +93,8 @@ _CATEGORY_PHRASES = [
     "health care equipment and services", "health care equipment", "health care technology",
     "health care providers and services", "health care providers", "pharmaceuticals",
     "biotechnology", "life sciences tools and services", "life sciences tools",
-    "commercial services and supplies", "commercial services", "professional services",
+    "commercial services and supplies", "commercial and professional services",
+    "commercial services", "professional services", "equity securities", "debt securities",
     "capital goods", "aerospace and defense", "machinery", "building products",
     "construction and engineering", "electrical equipment", "trading companies and distributors",
     "media", "entertainment", "media and entertainment", "interactive media and services",
@@ -101,8 +116,10 @@ _CATEGORY_PHRASES = [
 # we cut the member there — discarding attribute noise we already capture as clean XBRL facts.
 _STRUCT_MARKER = re.compile(
     r"\b(investment type|type of investment|interest term|interest rate|reference rate(?: and spread)?|"
-    r"maturity\s*/?\s*dissolution|maturity date|commitment type|commitment expiration|"
-    r"investment date|acquisition date|\bindustry\b|\bsector\b|asset type)\b", re.I)
+    r"maturity\s*/?\s*dissolution|maturity|commitment type|commitment expiration|"
+    r"investment date|acquisition date|acquisition\s+\d|\bindustry\b|\bsector\b|asset type|"
+    r"facility type|all[- ]?in rate|benchmark|variable index|variable interest rate|"
+    r"original purchase|purchase date|initial purchase)\b", re.I)
 
 # A stray subtotal percentage or pure-punctuation token between path levels ("Debt Investments
 # 233.2% United States - 220.5% 1st Lien ...") — treated as strippable boilerplate.
@@ -178,8 +195,10 @@ def _strip_category_prefix(s: str) -> str:
     changed = True
     while changed and toks:
         changed = False
-        # strip a leading stray percentage / pure-punctuation token first
-        if toks and (_PCT_TOKEN_RE.match(toks[0]) or _PUNCT_TOKEN_RE.match(toks[0])):
+        # strip a leading stray percentage / bare number / pure-punctuation token first
+        # (denormalized filers embed subtotal percentages, sometimes written "2 2" without a %)
+        if toks and (_PCT_TOKEN_RE.match(toks[0]) or _PUNCT_TOKEN_RE.match(toks[0])
+                     or re.fullmatch(r"\d+(\.\d+)?", toks[0])):
             toks = toks[1:]
             changed = True
             continue
@@ -310,6 +329,137 @@ def normalize_issuer(name: str) -> str | None:
 
 
 # ---------------------------------------------------------------------------
+# Phase 2 — issuer clustering (fuzzy)
+# ---------------------------------------------------------------------------
+
+# Generic tokens dropped when building an issuer's CORE KEY (the distinctive-token fingerprint used
+# for clustering). Three families: (a) sponsor-backed borrower scaffolding ("X Buyer", "Y Bidco",
+# "Z Holdings"); (b) SOI boilerplate that survived Phase-1 parsing on denormalized filers
+# (controlled/affiliated/lien/secured/debt/...); (c) single-word GICS sector remnants. Dropping
+# these means a denormalized "non controlled affiliated software avalara avalara first lien" and a
+# clean "avalara" collapse to the SAME core ('avalara') and merge safely — while boilerplate can no
+# longer bridge two unrelated issuers (the bug that produced a 14k-name mega-cluster).
+_GENERIC_TOKENS = {
+    # sponsor-backed scaffolding / legal
+    "holdings", "holding", "holdco", "topco", "midco", "bidco", "buyer", "parent", "intermediate",
+    "acquisition", "acquisitions", "group", "capital", "partners", "investors", "investor",
+    "investments", "investment", "corp", "company", "inc", "llc", "ltd", "plc", "purchaser",
+    "services", "service", "solutions", "systems", "technologies", "technology", "brands",
+    "usa", "global", "international", "the", "borrower", "finance", "financial", "newco",
+    "national", "american", "ventures", "enterprises", "industries", "and",
+    # SOI boilerplate that can survive denormalized parsing
+    "non", "controlled", "noncontrolled", "affiliated", "affiliate", "nonaffiliated", "control",
+    "lien", "1st", "2nd", "3rd", "first", "second", "third", "senior", "secured", "subordinated",
+    "unsecured", "debt", "loan", "loans", "notes", "note", "revolver", "revolving", "term",
+    "delayed", "draw", "ddtl", "unitranche", "equity", "common", "preferred", "warrant",
+    "warrants", "units", "unit", "interest", "interests", "stock", "shares", "share", "credit",
+    "facility", "due", "sofr", "libor", "prime", "euribor", "spread", "fund", "fixed", "last",
+    "out", "line", "bank", "related", "party", "undrawn", "commitment", "pssl", "pslf", "rate",
+    # structured-template remnants (denormalized filers)
+    "issuer", "name", "maturity", "original", "purchase", "date", "variable", "index", "benchmark",
+    "floor", "initial", "type", "cash", "all", "corporate", "pik", "index", "reference", "loc",
+    "securities", "uk", "warrants", "warrant",
+    # single-word GICS sector remnants
+    "software", "healthcare", "industrials", "materials", "energy", "utilities", "financials",
+    "media", "entertainment", "insurance", "banks", "chemicals", "machinery", "transportation",
+    "pharmaceuticals", "biotechnology", "automobiles", "automotive", "retail", "distributors",
+    "beverages", "internet", "semiconductors", "airlines", "products", "manufacturing",
+}
+
+
+class _UnionFind:
+    def __init__(self, items):
+        self.p = {x: x for x in items}
+
+    def find(self, x):
+        while self.p[x] != x:
+            self.p[x] = self.p[self.p[x]]
+            x = self.p[x]
+        return x
+
+    def union(self, a, b):
+        ra, rb = self.find(a), self.find(b)
+        if ra != rb:
+            self.p[ra] = rb
+
+
+def _sig_tokens(norm: str) -> list[str]:
+    """Distinctive tokens of a normalized name: length>=2, not generic, not all-digits. Keeping
+    2-char tokens matters — short prefixes ('gs'/'pl' in 'gs acquisitionco', 'g1' in 'g1
+    therapeutics') are the only thing distinguishing otherwise-identical sponsor names."""
+    return [t for t in norm.split()
+            if len(t) >= 2 and t not in _GENERIC_TOKENS and not t.isdigit()]
+
+
+def core_key(norm: str) -> str:
+    """The distinctive-token fingerprint of an issuer name: significant tokens, de-duplicated and
+    order-independent. 'finastra usa' -> 'finastra'; 'anaplan anaplan' -> 'anaplan'; a denormalized
+    'non controlled software avalara avalara first lien' -> 'avalara'. Empty when the name is all
+    boilerplate (such rows are left unclustered — honest, not force-matched)."""
+    return " ".join(sorted(set(_sig_tokens(norm))))
+
+
+def cluster_issuers(norms_freq: dict[str, int], threshold: int = 92,
+                    max_block: int = 1500) -> dict[str, str]:
+    """Cluster normalized issuer names into one canonical name each, in two safe steps:
+
+      1. EXACT CORE — names with the same core_key merge (handles 'finastra'/'finastra usa',
+         'anaplan'/'anaplan anaplan', and denormalized variants that collapse to a clean core).
+      2. FUZZY CORE — distinct cores that are typo/spacing variants ('lendingpoint'/'lending point',
+         'u s renal care'/'us renal care') merge when token_sort_ratio >= threshold. Blocked by a
+         shared significant token so it stays tractable; cdist within each block.
+
+    Because clustering keys are DISTINCTIVE tokens only, boilerplate ('controlled', 'lien', 'debt')
+    can't bridge unrelated issuers. Canonical = the original norm with the highest row frequency in
+    the cluster (ties -> shortest). Returns {issuer_norm -> canonical_norm}. Empty-core norms map to
+    themselves (singletons)."""
+    uniq = list(norms_freq)
+    uf = _UnionFind(uniq)
+
+    core_of = {u: core_key(u) for u in uniq}
+    by_core: dict[str, list[str]] = defaultdict(list)
+    for u in uniq:
+        by_core[core_of[u]].append(u)
+
+    # step 1: exact-core merges (skip the empty core — unclusterable boilerplate-only names)
+    core_rep: dict[str, str] = {}   # core_key -> a representative norm
+    for c, members in by_core.items():
+        if not c:
+            continue
+        for m in members[1:]:
+            uf.union(members[0], m)
+        core_rep[c] = members[0]
+
+    # step 2: fuzzy-merge distinct cores, blocked by significant token
+    blocks: dict[str, list[str]] = defaultdict(list)
+    for c in core_rep:
+        for t in set(c.split()):
+            blocks[t].append(c)
+    seen_pairs: set = set()
+    for tok, cores in blocks.items():
+        if len(cores) < 2 or len(cores) > max_block:
+            continue
+        scores = process.cdist(cores, cores, scorer=fuzz.token_sort_ratio, workers=-1)
+        for i in range(len(cores)):
+            row = scores[i]
+            for j in range(i + 1, len(cores)):
+                if row[j] >= threshold:
+                    uf.union(core_rep[cores[i]], core_rep[cores[j]])
+
+    groups: dict[str, list[str]] = defaultdict(list)
+    for u in uniq:
+        groups[uf.find(u)].append(u)
+    canon: dict[str, str] = {}
+    for members in groups.values():
+        # prefer the CLEANEST display name: fewest words, then most frequent, then alphabetical.
+        # (a denormalized 'common stock 1 0 medeanalytics' loses to the plain 'medeanalytics')
+        best = min(members, key=lambda x: (len(x.split()), -norms_freq[x], x))
+        for u in members:
+            canon[u] = best
+    return canon
+
+
+# ---------------------------------------------------------------------------
 # Consolidation
 # ---------------------------------------------------------------------------
 
@@ -350,6 +500,15 @@ def load_consolidated() -> pd.DataFrame:
     df.loc[fallback, "price_basis"] = "cost"
     # guard against absurd prices from scale mismatches / bad par
     df.loc[(df["price"] < 0) | (df["price"] > 5), "price"] = pd.NA
+    return df
+
+
+def add_clusters(df: pd.DataFrame, threshold: int = 90) -> pd.DataFrame:
+    """Add issuer_cluster (canonical normalized name) via Phase-2 fuzzy clustering. Rows that
+    didn't parse keep a null cluster."""
+    freq = df.loc[df["parse_ok"], "issuer_norm"].dropna().value_counts().to_dict()
+    canon = cluster_issuers(freq, threshold=threshold)
+    df["issuer_cluster"] = df["issuer_norm"].map(canon)
     return df
 
 
@@ -409,20 +568,68 @@ def diagnose() -> None:
         print(f"  {str(v)[:80]!r}")
 
 
-def build() -> None:
-    df = load_consolidated()
+def diagnose_clusters(threshold: int = 90) -> None:
+    df = add_clusters(load_consolidated(), threshold=threshold)
+    parsed = df[df["parse_ok"]]
+    n_norm = parsed["issuer_norm"].nunique()
+    n_clust = parsed["issuer_cluster"].nunique()
+    print(f"clustering @ WRatio>={threshold}")
+    print(f"  distinct issuer_norm: {n_norm:,}  ->  clusters: {n_clust:,} "
+          f"(merged {n_norm - n_clust:,})\n")
+
+    # cross-fund overlap AFTER clustering (compare to the pre-cluster numbers)
+    g = parsed.groupby(["issuer_cluster", "reporting_date"])["cik"].nunique()
+    print("CROSS-FUND OVERLAP (clustered)")
+    print(f"  (cluster, date) pairs held by >=2 funds: {(g>=2).sum():,}")
+    print(f"  ... >=3: {(g>=3).sum():,}   >=5: {(g>=5).sum():,}   >=10: {(g>=10).sum():,}\n")
+
+    print("NAMED-ANCHOR CHECK (norms folded into each anchor's cluster)")
+    for a in _ANCHORS:
+        hit = parsed[parsed["issuer_norm"].fillna("").str.contains(a, na=False)]
+        if hit.empty:
+            print(f"  {a:12} not found"); continue
+        # the cluster that most of the anchor's rows map to
+        cl = hit["issuer_cluster"].mode().iat[0]
+        members = sorted(parsed.loc[parsed["issuer_cluster"] == cl, "issuer_norm"].unique(),
+                         key=len)
+        funds = parsed.loc[parsed["issuer_cluster"] == cl]\
+            .groupby("reporting_date")["cik"].nunique().max()
+        print(f"  {a:12} -> '{cl}'  ({len(members)} norms, max {funds} funds)")
+        print(f"               folds: {members[:6]}{' ...' if len(members) > 6 else ''}")
+
+    print("\nLARGEST CLUSTERS (by #distinct norms folded — eyeball for over-merge)")
+    sizes = parsed.groupby("issuer_cluster")["issuer_norm"].nunique().sort_values(ascending=False)
+    for cl, k in sizes.head(12).items():
+        sample = sorted(parsed.loc[parsed["issuer_cluster"] == cl, "issuer_norm"].unique(),
+                        key=len)[:4]
+        print(f"  [{k:3} norms] {cl[:34]:34}  e.g. {sample}")
+
+    print("\nSAMPLE MULTI-NORM MERGES (random clusters with 2-5 norms — eyeball for correctness)")
+    multi = sizes[(sizes >= 2) & (sizes <= 5)].index
+    import pandas as _pd  # local alias to avoid confusion
+    for cl in _pd.Series(list(multi)).sample(min(10, len(multi)), random_state=5):
+        members = sorted(parsed.loc[parsed["issuer_cluster"] == cl, "issuer_norm"].unique(), key=len)
+        print(f"  {cl[:30]:30} <- {members}")
+
+
+def build(threshold: int = 90) -> None:
+    df = add_clusters(load_consolidated(), threshold=threshold)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     out = OUT_DIR / "holdings_consolidated.csv"
     df.to_csv(out, index=False, encoding="utf-8")
-    print(f"wrote {len(df):,} rows -> {out}")
+    print(f"wrote {len(df):,} rows ({df['issuer_cluster'].nunique():,} clusters) -> {out}")
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--diagnose", action="store_true", help="report parse coverage + anchors")
+    ap.add_argument("--cluster", action="store_true", help="report Phase-2 issuer clustering")
     ap.add_argument("--build", action="store_true", help="write consolidated cleaned CSV")
+    ap.add_argument("--threshold", type=int, default=90, help="WRatio merge threshold (Phase 2)")
     args = ap.parse_args()
     if args.build:
-        build()
+        build(threshold=args.threshold)
+    elif args.cluster:
+        diagnose_clusters(threshold=args.threshold)
     else:
         diagnose()
