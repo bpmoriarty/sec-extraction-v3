@@ -503,9 +503,12 @@ def load_consolidated() -> pd.DataFrame:
     fv, par, cost = df["fair_value"], df["principal"], df["cost"]
     p_par = (fv / par).where((par > 0) & fv.notna())
     p_cost = (fv / cost).where((cost > 0) & fv.notna())
-    # COMMITMENT OVERHANG: principal much larger than amortized cost => `principal` is the full
-    # commitment, only part drawn; FV/principal would read as a deep (false) markdown. Use FV/cost.
-    overhang = (par > 0) & (cost > 0) & (par > cost * 1.5)
+    # COMMITMENT OVERHANG: principal MUCH larger than amortized cost (>=2.5x) => `principal` is the
+    # full commitment with only part drawn; FV/principal would read as a deep (false) markdown, so
+    # use FV/cost. The 2.5x bar is deliberately high: a distressed loan bought at a DISCOUNT also
+    # has cost < par (e.g. 1.2-1.6x), and must NOT be rerouted — its true mark IS FV/par. Only a
+    # genuine undrawn commitment pushes par/cost past ~2.5x.
+    overhang = (par > 0) & (cost > 0) & (par > cost * 2.5)
     price = pd.Series(float("nan"), index=df.index, dtype="float64")
     basis = pd.Series(pd.NA, index=df.index, dtype="object")
     # 1) clean par: plausible and not a commitment overhang
@@ -590,10 +593,11 @@ def match_issues(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     d["spread_bps"] = d["spread"].apply(_spread_bps)
     d["mat_year"] = d["maturity"].apply(_mat_year)
     d["sen"] = d["seniority"].where(d["seniority"].notna(), None)
-    # price that may enter a comparison: funded debt, in the plausible loan band (0.3-1.15;
-    # equity already excluded via hold_class, partial-funding artifacts fixed in load_consolidated)
+    # price that may enter a comparison: funded debt, in the plausible loan band (0.3-1.10; a mark
+    # above ~110 usually means accrued interest landed in fair value, not a real premium. Equity is
+    # already excluded via hold_class; partial-funding artifacts fixed in load_consolidated.)
     d["cmp_price"] = d["price"].where((d["hold_class"] == "debt")
-                                      & d["price"].between(0.3, 1.15))
+                                      & d["price"].between(0.3, 1.10))
     d["issue_id"] = None
 
     issues: list[dict] = []
@@ -619,10 +623,13 @@ def match_issues(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
             iid = f"{cl}|{sen}|{bps}|{dt}"
             d.loc[idxs, "issue_id"] = iid
             holders = sub["cik"].nunique()
-            prices = sub["cmp_price"].dropna()
-            # Robust dispersion: trim prices >25pts from the median as artifacts (a lone holder
-            # 68pts below the pack on a 1st-lien loan is partial-funding/unit noise, not a real
-            # mark). Genuine disagreement keeps multiple holders within the band, so it survives.
+            # ONE mark per holder: collapse a fund's multiple lots (funded TL + partially-funded
+            # piece, etc.) to that fund's median price, so within-fund lot spread is NOT mistaken
+            # for cross-holder disagreement. Dispersion is then measured across HOLDERS.
+            prices = sub.dropna(subset=["cmp_price"]).groupby("cik")["cmp_price"].median()
+            # Robust dispersion: trim holder marks >25pts from the median as artifacts (a lone
+            # holder 68pts below the pack on a 1st-lien loan is partial-funding/unit noise, not a
+            # real mark). Genuine disagreement keeps multiple holders within the band, so it stays.
             med_all = prices.median() if len(prices) else None
             clean = prices[(prices - med_all).abs() <= 0.25] if med_all is not None else prices
             n_out = int(len(prices) - len(clean))
@@ -803,6 +810,209 @@ def diagnose_issues(threshold: int = 90) -> None:
                   f"med={med:>6}  range={rng:>7}  [{r['confidence']}]")
 
 
+# ---------------------------------------------------------------------------
+# Phase 4 — cross-holder mark-comparison workbook
+# ---------------------------------------------------------------------------
+
+WORKBOOK = OUT_DIR / "holdings_marks_comparison.xlsx"
+
+
+def _spread_label(bps) -> str:
+    return f"S+{int(bps)}" if pd.notna(bps) else "—"
+
+
+def fund_marks(holdings: pd.DataFrame, issues: pd.DataFrame) -> pd.DataFrame:
+    """Per-fund mark for each matched issue (a fund's lots collapsed to their median price), with
+    deviation from the issue's consensus median. The actionable 'who marks where' table."""
+    h = holdings[(holdings["hold_class"] == "debt") & holdings["cmp_price"].notna()
+                 & holdings["issue_id"].notna()]
+    fm = (h.groupby(["issue_id", "cik", "fund_name"])["cmp_price"].median().reset_index())
+    meta = issues[["issue_id", "issuer_cluster", "reporting_date", "seniority", "spread_bps",
+                   "price_median", "n_holders", "price_range_pts", "confidence"]]
+    fm = fm.merge(meta, on="issue_id", how="left")
+    fm["dev_pts"] = (fm["cmp_price"] - fm["price_median"]) * 100
+    fm["stance"] = pd.cut(fm["dev_pts"], [-999, -1, 1, 999],
+                          labels=["Cheap (marks low)", "In line", "Rich (marks high)"])
+    return fm
+
+
+def _style_sheet(ws, n_cols: int, pct_cols: list[int] | None = None,
+                 widths: dict[int, int] | None = None) -> None:
+    """Bold/filled header, freeze header row, autofilter, 1-dp number format on mark columns."""
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+    hdr_fill = PatternFill("solid", fgColor="1F4E78")
+    hdr_font = Font(bold=True, color="FFFFFF")
+    for c in range(1, n_cols + 1):
+        cell = ws.cell(row=1, column=c)
+        cell.fill = hdr_fill
+        cell.font = hdr_font
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws.freeze_panes = "A2"
+    ws.auto_filter.ref = f"A1:{get_column_letter(n_cols)}{ws.max_row}"
+    for col, w in (widths or {}).items():
+        ws.column_dimensions[get_column_letter(col)].width = w
+    for col in (pct_cols or []):
+        for row in range(2, ws.max_row + 1):
+            ws.cell(row=row, column=col).number_format = "0.0"
+
+
+def build_workbook(threshold: int = 92) -> None:
+    """Phase-4 deliverable: a cross-holder mark-comparison workbook (data/dataset/
+    holdings_marks_comparison.xlsx). Marks are expressed in POINTS of par (price x 100)."""
+    df = add_clusters(load_consolidated(), threshold=threshold)
+    holdings, issues = match_issues(df)
+    fm = fund_marks(holdings, issues)
+
+    # points-of-par views
+    iss = issues.copy()
+    for col in ("price_median", "price_min", "price_max"):
+        iss[col + "_pts"] = (iss[col] * 100).round(1)
+    iss["spread"] = iss["spread_bps"].apply(_spread_label)
+    base_cols = {
+        "issuer_cluster": "Issuer", "reporting_date": "Date", "seniority": "Seniority",
+        "spread": "Spread", "maturity_years": "Maturity", "n_holders": "Holders",
+        "n_outliers": "Outliers", "price_median_pts": "Median", "price_min_pts": "Min",
+        "price_max_pts": "Max", "price_range_pts": "Range(pts)", "price_stdev_pts": "Stdev(pts)",
+        "confidence": "Confidence", "issue_id": "issue_id",
+    }
+    hi = iss[iss["confidence"].isin(["High", "Medium"])]
+
+    # --- tab data ---
+    dispersion = (hi[(hi["n_holders"] >= 3) & (hi["n_clean"] >= 3)]
+                  .sort_values("price_range_pts", ascending=False))[list(base_cols)]
+    consensus = (hi[(hi["n_holders"] >= 5) & (hi["price_range_pts"] <= 2)]
+                 .sort_values("n_holders", ascending=False))[list(base_cols)]
+
+    # holder detail for the meaningfully-dispersed issues (range >= 3 pts)
+    disp_ids = set(hi[(hi["n_holders"] >= 3) & (hi["price_range_pts"] >= 3)]["issue_id"])
+    hd = fm[fm["issue_id"].isin(disp_ids)].copy()
+    hd["spread"] = hd["spread_bps"].apply(_spread_label)
+    hd["fund_mark_pts"] = (hd["cmp_price"] * 100).round(1)
+    hd["issue_median_pts"] = (hd["price_median"] * 100).round(1)
+    hd["dev_pts"] = hd["dev_pts"].round(1)
+    hd = hd.sort_values(["issuer_cluster", "reporting_date", "issue_id", "dev_pts"])
+    hd_cols = {"issuer_cluster": "Issuer", "reporting_date": "Date", "seniority": "Seniority",
+               "spread": "Spread", "fund_name": "Fund", "fund_mark_pts": "Fund mark",
+               "issue_median_pts": "Issue median", "dev_pts": "Deviation(pts)", "stance": "Stance",
+               "confidence": "Confidence", "issue_id": "issue_id"}
+
+    # issuer-grain rollup (both grains, per the plan)
+    pr = issues[issues["price_median"].notna()].copy()
+    isum = (pr.groupby(["issuer_cluster", "reporting_date"])
+            .agg(max_holders=("n_holders", "max"), priced_tranches=("issue_id", "nunique"),
+                 issuer_median=("price_median", "median"),
+                 widest_range=("price_range_pts", "max")).reset_index())
+    isum = isum[isum["max_holders"] >= 2].sort_values("max_holders", ascending=False)
+    isum["issuer_median_pts"] = (isum["issuer_median"] * 100).round(1)
+    isum["widest_range_pts"] = isum["widest_range"].round(1)
+    isum["dispersed?"] = (isum["widest_range"] >= 5).map({True: "yes", False: ""})
+    isum_cols = {"issuer_cluster": "Issuer", "reporting_date": "Date",
+                 "max_holders": "Max holders", "priced_tranches": "Priced tranches",
+                 "issuer_median_pts": "Issuer median", "widest_range_pts": "Widest tranche range",
+                 "dispersed?": "Dispersed(>=5pts)?"}
+
+    # anchors validation
+    anchor_rows = []
+    for a in _ANCHOR_CLUSTERS + ["finastra", "icefall parent", "zendesk"]:
+        sub = iss[iss["issuer_cluster"] == a]
+        if sub.empty:
+            continue
+        dt = sub.loc[sub["n_holders"].idxmax(), "reporting_date"]
+        for _, r in sub[sub["reporting_date"] == dt].sort_values("n_holders", ascending=False).iterrows():
+            anchor_rows.append({"Issuer": a, "Date": dt, "Seniority": r["seniority"],
+                                "Spread": r["spread"], "Holders": r["n_holders"],
+                                "Median": r["price_median_pts"], "Range(pts)": r["price_range_pts"],
+                                "Confidence": r["confidence"]})
+    anchors = pd.DataFrame(anchor_rows)
+
+    # summary stats for the overview
+    debt = holdings[holdings["hold_class"] == "debt"]
+    matched_hi = holdings[holdings["issue_id"].isin(set(hi["issue_id"]))]
+    stats = {
+        "Funds (CIKs)": int(holdings["cik"].nunique()),
+        "Reporting dates": int(holdings["reporting_date"].nunique()),
+        "Issuer clusters": int(holdings["issuer_cluster"].nunique()),
+        "Debt holdings": int(len(debt)),
+        "Matched issues (all)": int(len(issues)),
+        "  High confidence": int((issues["confidence"] == "High").sum()),
+        "  Medium": int((issues["confidence"] == "Medium").sum()),
+        "  Low": int((issues["confidence"] == "Low").sum()),
+        "  Single holder": int((issues["confidence"] == "Single").sum()),
+        "Comparable issues (>=2 holders, High/Med)": int((hi["n_holders"] >= 2).sum()),
+        "Dispersed issues (>=3 holders, range>=5pts)":
+            int(len(hi[(hi["n_holders"] >= 3) & (hi["price_range_pts"] >= 5)])),
+    }
+
+    _write_workbook(dispersion, base_cols, consensus, hd, hd_cols, isum, isum_cols,
+                    anchors, stats)
+    print(f"wrote {WORKBOOK}")
+
+
+def _write_workbook(dispersion, base_cols, consensus, hd, hd_cols, isum, isum_cols,
+                    anchors, stats) -> None:
+    import openpyxl
+    from openpyxl.styles import Font
+
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    CAVEATS = [
+        "Cross-BDC mark comparison — how differently BDCs value the SAME credit at the SAME date.",
+        "Marks are in POINTS OF PAR (100 = par). price = fair value / par, with a cost-based",
+        "fallback when only part of a commitment is drawn (commitment-overhang fix).",
+        "",
+        "Read the tabs:",
+        "  Dispersion    — matched issues where holders DISAGREE most (the analytical payoff).",
+        "  Consensus     — broadly-held issues with tight agreement (the 'market mark').",
+        "  HolderDetail  — per-fund mark vs the issue median for dispersed issues (who's rich/cheap).",
+        "  IssuerSummary — issuer-grain rollup across all tranches.",
+        "  Anchors       — known broadly-held credits, for validation.",
+        "",
+        "Confidence: High = seniority+spread matched, no maturity conflict, 2-15 holders.",
+        "            Medium = spread matched but ambiguous; Low = seniority only; Single = 1 holder.",
+        "Caveats: marks are manager estimates on illiquid Level-3 loans; different fiscal quarter-",
+        "ends are aligned only within the same reporting date; a lone holder >25pts off the median",
+        "is trimmed as a unit/partial-funding artifact (counted in 'Outliers'). Best-effort match,",
+        "not exact reconciliation — investigate wide spreads before relying on them.",
+    ]
+    with pd.ExcelWriter(WORKBOOK, engine="openpyxl") as xl:
+        pd.DataFrame({"": []}).to_excel(xl, sheet_name="Overview", index=False)
+        dispersion.rename(columns=base_cols).to_excel(xl, sheet_name="Dispersion", index=False)
+        consensus.rename(columns=base_cols).to_excel(xl, sheet_name="Consensus", index=False)
+        hd[list(hd_cols)].rename(columns=hd_cols).to_excel(xl, sheet_name="HolderDetail", index=False)
+        isum[list(isum_cols)].rename(columns=isum_cols).to_excel(
+            xl, sheet_name="IssuerSummary", index=False)
+        if not anchors.empty:
+            anchors.to_excel(xl, sheet_name="Anchors", index=False)
+
+        wb = xl.book
+        ov = wb["Overview"]
+        ov["A1"] = "BDC Holdings — Cross-Holder Mark Comparison"
+        ov["A1"].font = Font(bold=True, size=14)
+        r = 3
+        for line in CAVEATS:
+            ov.cell(row=r, column=1, value=line); r += 1
+        r += 1
+        ov.cell(row=r, column=1, value="SUMMARY").font = Font(bold=True); r += 1
+        for k, v in stats.items():
+            ov.cell(row=r, column=1, value=k)
+            ov.cell(row=r, column=2, value=v); r += 1
+        ov.column_dimensions["A"].width = 70
+        ov.column_dimensions["B"].width = 14
+
+        # mark columns (1-dp) per sheet
+        _style_sheet(wb["Dispersion"], len(base_cols), pct_cols=[8, 9, 10, 11, 12],
+                     widths={1: 30, 2: 12, 3: 12, 4: 9, 5: 12, 14: 34})
+        _style_sheet(wb["Consensus"], len(base_cols), pct_cols=[8, 9, 10, 11, 12],
+                     widths={1: 30, 2: 12, 3: 12, 4: 9, 5: 12, 14: 34})
+        _style_sheet(wb["HolderDetail"], len(hd_cols), pct_cols=[6, 7, 8],
+                     widths={1: 28, 2: 12, 3: 12, 4: 9, 5: 30, 9: 18, 11: 34})
+        _style_sheet(wb["IssuerSummary"], len(isum_cols), pct_cols=[5, 6],
+                     widths={1: 30, 2: 12, 3: 12, 4: 14, 5: 14, 6: 18, 7: 16})
+        if not anchors.empty:
+            _style_sheet(wb["Anchors"], anchors.shape[1], pct_cols=[6, 7],
+                         widths={1: 22, 2: 12, 3: 12, 4: 9})
+
+
 def build(threshold: int = 90) -> None:
     df = add_clusters(load_consolidated(), threshold=threshold)
     holdings, issues = match_issues(df)
@@ -820,9 +1030,12 @@ if __name__ == "__main__":
     ap.add_argument("--cluster", action="store_true", help="report Phase-2 issuer clustering")
     ap.add_argument("--issues", action="store_true", help="report Phase-3 issue matching")
     ap.add_argument("--build", action="store_true", help="write consolidated + matched + issues CSVs")
+    ap.add_argument("--workbook", action="store_true", help="write Phase-4 mark-comparison .xlsx")
     ap.add_argument("--threshold", type=int, default=92, help="fuzzy merge threshold (Phase 2)")
     args = ap.parse_args()
-    if args.build:
+    if args.workbook:
+        build_workbook(threshold=args.threshold)
+    elif args.build:
         build(threshold=args.threshold)
     elif args.cluster:
         diagnose_clusters(threshold=args.threshold)
