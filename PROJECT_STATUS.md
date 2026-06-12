@@ -219,9 +219,17 @@ re-run (Brian) → 4-phase matcher.
   par with sub-1pt ranges, PetVet shows its real ~10pt markdown; the dispersion tab surfaces verifiable
   cross-manager divergences — Pluralsight (Ares 73.5 vs Blue Owl 97.7, a known pre-restructuring case)
   and YA Intermediate (Blackstone 59 vs T. Rowe 99).
+• **Phase 5 — coverage / review / trend (`c16516c`).** Three more workbook tabs: **Coverage**
+  (match rate = 40.7% of priced debt lands in a ≥2-holder High/Med issue; issuer/issue counts;
+  dispersion-band distribution; exact-date matching caveat), **ReviewSample** (stratified hand-check
+  sample, confidence × dispersion band, per-holder marks inline + blank Verdict), **Trend** (per-issuer
+  consensus mark pivoted by reporting date, issuers with ≥3 quarters & ≥3pt move, sorted by net change
+  — surfaces quarter-by-quarter deterioration: First Brands −54.6, Naviga 100→63.8, ASP Conair, Medallia).
 CLI: `holdings_compare.py --diagnose | --cluster | --issues | --build | --workbook` (`--threshold`).
-Phases 1–4 done + validated; Phase 5 (match-rate stats, manual-review sample, period-over-period mark
-trend) is the open follow-on.
+**Phases 1–5 all done + validated.** Deliverable: `data/dataset/holdings_marks_comparison.xlsx`
+(9 tabs). Possible future extensions: cross-fiscal-date alignment (currently exact-date only),
+gold-sample hand-verification of the ReviewSample tab, and folding the matcher output into the main
+spreadsheet.
 **Last Session: 2026-06-12 (session 12)**
 
 ### What's Working
@@ -773,9 +781,9 @@ Re-add C6 ONLY if an authoritative tagged roll-forward SUBTOTAL surfaces to anch
   `docs/HOLDINGS_COMPARISON_PLAN.md`, module `src/analysis/holdings_compare.py`). Consolidate+clean+
   parse → fuzzy issuer clustering → issue/tranche matching → mark-comparison workbook
   (`data/dataset/holdings_marks_comparison.xlsx`). Surfaces real cross-manager mark divergence
-  (Pluralsight, YA Intermediate) and tight consensus club deals; anchors validated. **Open: Phase 5**
-  — match-rate/coverage stats, a stratified manual-review sample tab, and period-over-period mark
-  trend for a credit (the data spans quarters).
+  (Pluralsight, YA Intermediate) and tight consensus club deals; anchors validated. **Phase 5 done**
+  too — Coverage / ReviewSample / Trend tabs (the Trend view caught First Brands & Naviga's
+  quarter-by-quarter markdown). All 5 phases complete; workbook has 9 tabs.
 - **Interval/tender-offer extraction** — LLM-over-clean-text (edgartools `filing.text()`/
   `get_section()`/`chunk_text()`) into the existing spine; financials NOT in XBRL (session-10 scope).
 

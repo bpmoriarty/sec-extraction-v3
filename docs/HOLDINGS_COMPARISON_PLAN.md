@@ -1,13 +1,15 @@
 # Cross-BDC Holdings & Mark Comparison — Plan
 
-Scoped 2026-06-11; **Phases 1–4 BUILT + VALIDATED 2026-06-12 (session 12)** in
+Scoped 2026-06-11; **Phases 1–5 BUILT + VALIDATED 2026-06-12 (session 12)** in
 `src/analysis/holdings_compare.py`. Grounded in a reconnaissance of the 375k-row consolidated
 holdings dataset. (Supersedes the sketch in `LISTED_BDC_PLAN.md` §9.)
 
-**STATUS:** Phases 1–4 done (consolidate+clean+parse → fuzzy clustering → issue matching →
-mark-comparison workbook `data/dataset/holdings_marks_comparison.xlsx`). Phase 5 (match-rate +
-manual-review-sample + period-over-period trend) is the open follow-on. CLI:
+**STATUS:** All phases done — consolidate+clean+parse → fuzzy clustering → issue matching →
+mark-comparison workbook + coverage/review/trend tabs. Deliverable:
+`data/dataset/holdings_marks_comparison.xlsx` (9 tabs). CLI:
 `uv run python src/analysis/holdings_compare.py --diagnose|--cluster|--issues|--build|--workbook`.
+Future extensions: cross-fiscal-date alignment (matching is exact-date today), gold-sample
+hand-verification of the ReviewSample tab, and folding the output into the main spreadsheet.
 
 ---
 
@@ -107,11 +109,12 @@ Each phase is a checkpoint; prototype on a clean subset before scaling.
 4. **Mark comparison** — DONE (`match_issues` stats + `build_workbook`). Per-HOLDER prices (a fund's
    lots collapsed first), median, clean dispersion (range/stdev), outlier trim + count. Periods
    aligned by exact reporting date (the date is part of the issue_id).
-5. **Output + validation** — workbook DONE (`build_workbook` → holdings_marks_comparison.xlsx:
-   Overview/Dispersion/Consensus/HolderDetail/IssuerSummary/Anchors). Anchor validation passes
-   (par, sub-1pt ranges). **OPEN (Phase 5):** formal match-rate + confidence-distribution stats tab,
-   a stratified manual-review sample tab, and the day-gap/period-alignment surfacing + period-over-
-   period mark trend.
+5. **Output + validation** — DONE (`build_workbook` → holdings_marks_comparison.xlsx, 9 tabs:
+   Overview/Dispersion/Consensus/HolderDetail/IssuerSummary/Anchors/**Coverage/ReviewSample/Trend**).
+   Anchor validation passes (par, sub-1pt ranges); Coverage gives match-rate (40.7% of priced debt) +
+   confidence/dispersion-band distribution; ReviewSample is a stratified hand-check sample with a
+   Verdict column; Trend pivots each issuer's consensus mark by reporting date (caught First Brands,
+   Naviga). Remaining future work: cross-fiscal-date alignment (matching is exact-date today).
 
 ---
 
