@@ -944,13 +944,85 @@ def build_workbook(threshold: int = 92) -> None:
             int(len(hi[(hi["n_holders"] >= 3) & (hi["price_range_pts"] >= 5)])),
     }
 
+    # ---- Phase 5: coverage stats, stratified review sample, period-over-period trend ----
+    debt_priced = debt[debt["cmp_price"].notna()]
+    in_hi = debt_priced["issue_id"].isin(set(hi[hi["n_holders"] >= 2]["issue_id"]))
+    g_cd = debt.groupby(["issuer_cluster", "reporting_date"])["cik"].nunique()
+    rng = hi[hi["n_holders"] >= 3]["price_range_pts"].dropna()
+    coverage = {
+        "MATCH RATE": "",
+        "Debt holdings (rows)": int(len(debt)),
+        "  with a comparable price": int(len(debt_priced)),
+        "  matched into a >=2-holder High/Med issue": int(in_hi.sum()),
+        "  match rate (% of priced debt)":
+            (round(100 * in_hi.sum() / len(debt_priced), 1) if len(debt_priced) else 0),
+        "ISSUERS / ISSUES": "",
+        "Issuer clusters (parsed)": int(holdings["issuer_cluster"].nunique()),
+        "  held by >=2 funds on a date": int(g_cd[g_cd >= 2].index.get_level_values(0).nunique()),
+        "(cluster, date) pairs >=2 funds": int((g_cd >= 2).sum()),
+        "High/Med comparable issues (>=2 holders)": int((hi["n_holders"] >= 2).sum()),
+        "DISPERSION BANDS (High/Med, >=3 holders)": "",
+        "  tight (<2 pts)": int((rng < 2).sum()),
+        "  moderate (2-5 pts)": int(((rng >= 2) & (rng < 5)).sum()),
+        "  wide (5-10 pts)": int(((rng >= 5) & (rng < 10)).sum()),
+        "  very wide (10-25 pts)": int(((rng >= 10) & (rng < 25)).sum()),
+        "  extreme (>=25 pts — review)": int((rng >= 25).sum()),
+        "NOTE": "Matching is EXACT reporting-date; funds with different fiscal quarter-ends "
+                "do not co-match (a coverage limit, not an error).",
+    }
+
+    # stratified review sample (confidence x dispersion band), with each issue's holder marks inline
+    fm_ok = fm.dropna(subset=["cmp_price"]).copy()
+    fm_ok["lab"] = (fm_ok["fund_name"].astype(str).str[:16] + ":"
+                    + (fm_ok["cmp_price"] * 100).round(0).astype(int).astype(str))
+    marks_by_issue = (fm_ok.sort_values("cmp_price").groupby("issue_id")["lab"]
+                      .apply(lambda s: "  ".join(s.head(10))))
+    band = pd.cut(iss["price_range_pts"], [-1, 2, 10, 9999],
+                  labels=["tight", "moderate", "wide"])
+    samp_src = iss.assign(band=band)
+    samp_rows = []
+    for conf in ("High", "Medium", "Low"):
+        for bnd in ("tight", "moderate", "wide"):
+            pool = samp_src[(samp_src["confidence"] == conf) & (samp_src["band"] == bnd)
+                            & (samp_src["n_holders"] >= 2)]
+            take = pool.sample(min(6, len(pool)), random_state=11) if len(pool) else pool
+            for _, r in take.iterrows():
+                samp_rows.append({
+                    "Confidence": conf, "Band": bnd, "Issuer": r["issuer_cluster"],
+                    "Date": r["reporting_date"], "Seniority": r["seniority"],
+                    "Spread": r["spread"], "Holders": r["n_holders"],
+                    "Median": r["price_median_pts"], "Range(pts)": r["price_range_pts"],
+                    "Holder marks (fund:pts)": marks_by_issue.get(r["issue_id"], ""),
+                    "Verdict (Y/N)": "", "Notes": "",
+                })
+    review_sample = pd.DataFrame(samp_rows)
+
+    # period-over-period consensus mark per issuer (>=3 funds that date), to spot drift
+    idate = (fm_ok.groupby(["issuer_cluster", "reporting_date"])
+             .agg(mark=("cmp_price", "median"), funds=("cik", "nunique")).reset_index())
+    idate = idate[idate["funds"] >= 3]
+    piv = idate.pivot(index="issuer_cluster", columns="reporting_date", values="mark").mul(100).round(1)
+    piv = piv[sorted(piv.columns)]
+    piv = piv[piv.notna().sum(axis=1) >= 3]          # need a few quarters of history
+
+    def _net(row):
+        s = row.dropna()
+        return round(s.iloc[-1] - s.iloc[0], 1) if len(s) >= 2 else None
+    net = piv.apply(_net, axis=1)
+    rng_t = (piv.max(axis=1) - piv.min(axis=1)).round(1)
+    trend = piv.copy()
+    trend.insert(0, "Range over time", rng_t)
+    trend.insert(0, "Net change (first->last)", net)
+    trend = trend[trend["Range over time"] >= 3].sort_values("Net change (first->last)")
+    trend = trend.reset_index().rename(columns={"issuer_cluster": "Issuer"})
+
     _write_workbook(dispersion, base_cols, consensus, hd, hd_cols, isum, isum_cols,
-                    anchors, stats)
+                    anchors, stats, coverage, review_sample, trend)
     print(f"wrote {WORKBOOK}")
 
 
 def _write_workbook(dispersion, base_cols, consensus, hd, hd_cols, isum, isum_cols,
-                    anchors, stats) -> None:
+                    anchors, stats, coverage, review_sample, trend) -> None:
     import openpyxl
     from openpyxl.styles import Font
 
@@ -966,6 +1038,9 @@ def _write_workbook(dispersion, base_cols, consensus, hd, hd_cols, isum, isum_co
         "  HolderDetail  — per-fund mark vs the issue median for dispersed issues (who's rich/cheap).",
         "  IssuerSummary — issuer-grain rollup across all tranches.",
         "  Anchors       — known broadly-held credits, for validation.",
+        "  Coverage      — match-rate, confidence + dispersion-band stats.",
+        "  ReviewSample  — stratified hand-check sample (fill the Verdict column).",
+        "  Trend         — consensus mark per issuer over time (spot deterioration).",
         "",
         "Confidence: High = seniority+spread matched, no maturity conflict, 2-15 holders.",
         "            Medium = spread matched but ambiguous; Low = seniority only; Single = 1 holder.",
@@ -983,6 +1058,11 @@ def _write_workbook(dispersion, base_cols, consensus, hd, hd_cols, isum, isum_co
             xl, sheet_name="IssuerSummary", index=False)
         if not anchors.empty:
             anchors.to_excel(xl, sheet_name="Anchors", index=False)
+        pd.DataFrame({"": []}).to_excel(xl, sheet_name="Coverage", index=False)
+        if not review_sample.empty:
+            review_sample.to_excel(xl, sheet_name="ReviewSample", index=False)
+        if not trend.empty:
+            trend.to_excel(xl, sheet_name="Trend", index=False)
 
         wb = xl.book
         ov = wb["Overview"]
@@ -1011,6 +1091,29 @@ def _write_workbook(dispersion, base_cols, consensus, hd, hd_cols, isum, isum_co
         if not anchors.empty:
             _style_sheet(wb["Anchors"], anchors.shape[1], pct_cols=[6, 7],
                          widths={1: 22, 2: 12, 3: 12, 4: 9})
+
+        # Coverage tab (key/value, section headers bold)
+        cv = wb["Coverage"]
+        cv["A1"] = "Coverage & match-rate"
+        cv["A1"].font = Font(bold=True, size=13)
+        rr = 3
+        for k, v in coverage.items():
+            cell = cv.cell(row=rr, column=1, value=k)
+            if v == "":           # a section header
+                cell.font = Font(bold=True)
+            else:
+                cv.cell(row=rr, column=2, value=v)
+            rr += 1
+        cv.column_dimensions["A"].width = 48
+        cv.column_dimensions["B"].width = 60
+
+        if not review_sample.empty:
+            _style_sheet(wb["ReviewSample"], review_sample.shape[1], pct_cols=[8, 9],
+                         widths={1: 9, 2: 9, 3: 26, 4: 12, 5: 12, 6: 8, 10: 60, 11: 11, 12: 26})
+        if not trend.empty:
+            # cols: Issuer, Net change, Range, then one col per date — all numeric except Issuer
+            _style_sheet(wb["Trend"], trend.shape[1],
+                         pct_cols=list(range(2, trend.shape[1] + 1)), widths={1: 30})
 
 
 def build(threshold: int = 90) -> None:
