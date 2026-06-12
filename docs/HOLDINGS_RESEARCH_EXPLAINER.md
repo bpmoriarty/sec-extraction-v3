@@ -138,7 +138,7 @@ value).
 | **Anchors** | Well-known widely-held loans, shown for **validation** — proof the method groups and prices them correctly. | Use to build trust in the numbers. |
 | **Coverage** | The **stats**: how much of the data we could match, how confident, and how the disagreements are distributed. | For methodology questions ("how complete is this?"). |
 | **ReviewSample** | A **spot-check sample** across confidence levels, with a blank "Verdict" column. | Hand-verify a sample to confirm quality. |
-| **Trend** | Each loan's typical value **quarter by quarter** — sorted to put the biggest declines on top. | The **early-warning** view; this is where First Brands / Naviga surfaced. |
+| **Trend** | Each company's **median mark** (the middle value across the funds holding it, shown only when **≥3 funds** hold it) **quarter by quarter** — sorted to put the biggest declines on top. We use the median, not the average, so one bad data point can't fake a decline. | The **early-warning** view; this is where First Brands / Naviga surfaced. |
 
 ---
 

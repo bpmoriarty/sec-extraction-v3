@@ -223,7 +223,7 @@ re-run (Brian) → 4-phase matcher.
   (match rate = 40.7% of priced debt lands in a ≥2-holder High/Med issue; issuer/issue counts;
   dispersion-band distribution; exact-date matching caveat), **ReviewSample** (stratified hand-check
   sample, confidence × dispersion band, per-holder marks inline + blank Verdict), **Trend** (per-issuer
-  consensus mark pivoted by reporting date, issuers with ≥3 quarters & ≥3pt move, sorted by net change
+  MEDIAN mark (≥3 holders) pivoted by reporting date, issuers with ≥3 quarters & ≥3pt move, sorted by net change
   — surfaces quarter-by-quarter deterioration: First Brands −54.6, Naviga 100→63.8, ASP Conair, Medallia).
 CLI: `holdings_compare.py --diagnose | --cluster | --issues | --build | --workbook` (`--threshold`).
 **Phases 1–5 all done + validated.** Deliverable: `data/dataset/holdings_marks_comparison.xlsx`

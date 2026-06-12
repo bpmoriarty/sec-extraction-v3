@@ -997,7 +997,7 @@ def build_workbook(threshold: int = 92) -> None:
                 })
     review_sample = pd.DataFrame(samp_rows)
 
-    # period-over-period consensus mark per issuer (>=3 funds that date), to spot drift
+    # period-over-period MEDIAN mark per issuer (>=3 funds that date), to spot drift
     idate = (fm_ok.groupby(["issuer_cluster", "reporting_date"])
              .agg(mark=("cmp_price", "median"), funds=("cik", "nunique")).reset_index())
     idate = idate[idate["funds"] >= 3]
@@ -1040,7 +1040,7 @@ def _write_workbook(dispersion, base_cols, consensus, hd, hd_cols, isum, isum_co
         "  Anchors       — known broadly-held credits, for validation.",
         "  Coverage      — match-rate, confidence + dispersion-band stats.",
         "  ReviewSample  — stratified hand-check sample (fill the Verdict column).",
-        "  Trend         — consensus mark per issuer over time (spot deterioration).",
+        "  Trend         — median mark (>=3 holders) per issuer over time (spot deterioration).",
         "",
         "Confidence: High = seniority+spread matched, no maturity conflict, 2-15 holders.",
         "            Medium = spread matched but ambiguous; Low = seniority only; Single = 1 holder.",

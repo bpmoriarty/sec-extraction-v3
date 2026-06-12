@@ -113,7 +113,7 @@ Each phase is a checkpoint; prototype on a clean subset before scaling.
    Overview/Dispersion/Consensus/HolderDetail/IssuerSummary/Anchors/**Coverage/ReviewSample/Trend**).
    Anchor validation passes (par, sub-1pt ranges); Coverage gives match-rate (40.7% of priced debt) +
    confidence/dispersion-band distribution; ReviewSample is a stratified hand-check sample with a
-   Verdict column; Trend pivots each issuer's consensus mark by reporting date (caught First Brands,
+   Verdict column; Trend pivots each issuer's MEDIAN mark (>=3 holders) by reporting date (caught First Brands,
    Naviga). Remaining future work: cross-fiscal-date alignment (matching is exact-date today).
 
 ---
