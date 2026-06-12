@@ -184,7 +184,45 @@ legitimate (micro-cap NAVs Princeton $0.27 / Firsthand $0.18; $0.01 rounding on 
   limitation for the listed-BDC segment. Core financials/NAV/cash flow/tax/fees extract fine for all
   36; only §9 holdings-derived metrics are nulled. Raw holdings CSVs + recon column still flag it.
 Spreadsheet rebuilt: **1,088 filings, one mixed workbook**, vehicle_type column populated.
-**Last Session: 2026-06-11 (session 11)**
+**Session 12 (2026-06-12) — MATURITY CAPTURE + CROSS-BDC HOLDINGS & MARK COMPARISON (Phases 1–4).**
+Plan: `docs/HOLDINGS_COMPARISON_PLAN.md`. New analysis module `src/analysis/holdings_compare.py`
+(independent of the extractor; reads `data/holdings/`). Order: extractor enhancement → full clean
+re-run (Brian) → 4-phase matcher.
+• **Extractor enhancement (`af1d88f`, prior to this session) + full clean re-run (Brian).** Added
+  string-valued holding fields `maturity` / `reference_rate` (normalized SOFR/LIBOR/PRIME/…) /
+  `acquisition_date` (`HOLDING_STR_CONCEPTS` + string-fact handling in `holdings()`; 3 new CSV cols).
+  Re-run wrote 1,045 filings; holdings CSVs now carry maturity (~22% of rows, bimodal — ~half the
+  funds tag it richly) + reference rate (~11%).
+• **Phase 1 — consolidate + clean + parse (`305ef4d`).** One normalized table from all 793 holdings
+  CSVs (375,530 rows / 74 funds). Parses the raw InvestmentIdentifierAxis member (3 observed formats:
+  comma-delimited, em-dash, denormalized category PATH — detected per row) into issuer_name /
+  instrument_text; strips category/geo/GICS-sector boilerplate token-by-token (generic vocab, not
+  per-filer) + structured-attribute tails; derives seniority/instrument_type; computes price = FV/par.
+  **96.9% parse_ok**; all 7 named anchors surface at 13–16 funds. Degrades honestly (unparseable rows
+  excluded + counted, never force-matched).
+• **Phase 2 — fuzzy issuer clustering (`361af1c`).** Collapses each name to a CORE KEY of distinctive
+  tokens (drops boilerplate + sector remnants), merges exact-core matches, then fuzzy-merges only
+  typo/spacing variants (rapidfuzz token_sort_ratio ≥ 92, blocked). Boilerplate can't bridge unrelated
+  issuers (killed a naive-WRatio 14k-name mega-cluster). **26,759 norms → 15,149 clusters**; over-merge
+  purity 2,371/2,372; all anchors clean with zero foreign members; 25k (cluster,date) pairs ≥2 funds.
+• **Phase 3 — issue (tranche) matching (`e66039b`).** Within (cluster, date): classify debt/equity/
+  unfunded, group debt by seniority + spread (stable contractual keys), attach no-spread rows via
+  co-occurrence, maturity as corroborator, confidence tiers (High/Medium/Low/Single), per-issue mark
+  stats. **123,961 issues; 22,555 High-confidence.** Two general data-quality fixes surfaced here:
+  commitment-overhang (principal ≫ cost ⇒ partial draw ⇒ use FV/cost, not a false markdown) and
+  outlier-robust dispersion (trim a lone holder >25pts off the median, count in n_outliers).
+• **Phase 4 — mark-comparison workbook (`9baa78e`).** `data/dataset/holdings_marks_comparison.xlsx`
+  (marks in points of par): Overview / Dispersion / Consensus / HolderDetail / IssuerSummary / Anchors.
+  Two more fixes via inspection: per-HOLDER dispersion (collapse a fund's lots first, so within-fund
+  lot spread ≠ cross-holder disagreement) and overhang threshold 1.5×→2.5× (a discounted loan ≠ an
+  undrawn commitment) + upper mark band →1.10 (accrued interest ≠ premium). **Validated**: anchors at
+  par with sub-1pt ranges, PetVet shows its real ~10pt markdown; the dispersion tab surfaces verifiable
+  cross-manager divergences — Pluralsight (Ares 73.5 vs Blue Owl 97.7, a known pre-restructuring case)
+  and YA Intermediate (Blackstone 59 vs T. Rowe 99).
+CLI: `holdings_compare.py --diagnose | --cluster | --issues | --build | --workbook` (`--threshold`).
+Phases 1–4 done + validated; Phase 5 (match-rate stats, manual-review sample, period-over-period mark
+trend) is the open follow-on.
+**Last Session: 2026-06-12 (session 12)**
 
 ### What's Working
 - Virtual environment set up (`uv venv` inside `sec-extraction-v3/`)
@@ -731,9 +769,13 @@ Re-add C6 ONLY if an authoritative tagged roll-forward SUBTOTAL surfaces to anch
 - **Incorporate listed BDCs** into the pipeline (plan: `docs/LISTED_BDC_PLAN.md`). Existing
   extractor generalizes — 9/10 tested clean; deltas are a generic single-class NAV fallback +
   `amendments=False`. Awaiting Brian's listed-BDC list (CIK/ticker/name).
-- **Cross-BDC holdings & mark comparison** (`docs/LISTED_BDC_PLAN.md` §9) — match the same credit
-  across BDCs, compare each holder's mark (price = fair_value/principal) to surface valuation
-  dispersion. Prototypable on the unlisted holdings (~130k rows) today; scales to the full universe.
+- ~~**Cross-BDC holdings & mark comparison**~~ — DONE (session 12, Phases 1–4; plan
+  `docs/HOLDINGS_COMPARISON_PLAN.md`, module `src/analysis/holdings_compare.py`). Consolidate+clean+
+  parse → fuzzy issuer clustering → issue/tranche matching → mark-comparison workbook
+  (`data/dataset/holdings_marks_comparison.xlsx`). Surfaces real cross-manager mark divergence
+  (Pluralsight, YA Intermediate) and tight consensus club deals; anchors validated. **Open: Phase 5**
+  — match-rate/coverage stats, a stratified manual-review sample tab, and period-over-period mark
+  trend for a credit (the data spans quarters).
 - **Interval/tender-offer extraction** — LLM-over-clean-text (edgartools `filing.text()`/
   `get_section()`/`chunk_text()`) into the existing spine; financials NOT in XBRL (session-10 scope).
 
@@ -743,6 +785,7 @@ Re-add C6 ONLY if an authoritative tagged roll-forward SUBTOTAL surfaces to anch
 
 | Date | What Happened |
 |------|---------------|
+| 2026-06-12 (session 12 — cross-BDC holdings & mark comparison, Phases 1–4) | Built `src/analysis/holdings_compare.py` per `docs/HOLDINGS_COMPARISON_PLAN.md` (independent of the extractor; reads `data/holdings/`). First: maturity/reference_rate/acquisition_date capture (`af1d88f`) + Brian's full clean re-run (1,045 filings; maturity now on ~22% of holding rows, bimodal). **Phase 1 (`305ef4d`)** consolidate+clean+parse — one 375,530-row table; parses the 3 member formats (comma / em-dash / denormalized PATH) into issuer_name+instrument_text, strips category/geo/GICS-sector boilerplate token-by-token + structured-attribute tails, derives seniority/type, price=FV/par; 96.9% parse_ok, all 7 anchors at 13–16 funds, honest degradation. **Phase 2 (`361af1c`)** fuzzy issuer clustering via a distinctive-token CORE KEY (exact-core merge + rapidfuzz token_sort_ratio ≥92 on cores, blocked) — boilerplate can't bridge unrelated issuers (killed a naive-WRatio 14k mega-cluster); 26,759 norms → 15,149 clusters, purity 2371/2372, anchors clean. **Phase 3 (`e66039b`)** issue/tranche matching by seniority+spread (+maturity corroborator, co-occurrence attach), confidence tiers, per-issue mark stats — 123,961 issues / 22,555 High; fixed commitment-overhang (principal≫cost ⇒ FV/cost) + outlier-robust dispersion (trim >25pts, count outliers). **Phase 4 (`9baa78e`)** mark-comparison workbook `data/dataset/holdings_marks_comparison.xlsx` (Overview/Dispersion/Consensus/HolderDetail/IssuerSummary/Anchors, marks in points of par); fixed per-HOLDER dispersion (collapse a fund's lots first), overhang threshold 1.5×→2.5× (discount ≠ undrawn commitment), upper band →1.10. **Validated**: anchors at par sub-1pt, PetVet real ~10pt markdown; surfaces verifiable cross-manager divergence (Pluralsight Ares 73.5 vs Blue Owl 97.7; YA Intermediate Blackstone 59 vs T. Rowe 99). All four commits pushed. Open: Phase 5 (match-rate stats, manual-review sample, period-over-period trend). |
 | 2026-06-11 (session 11 — listed BDCs incorporated) | Executed `docs/LISTED_BDC_PLAN.md` against Brian's `Listed BDCs Mstar.xlsx`. **Universe (`0f19a90`):** +55 net-new listed BDCs (vehicle_type="Listed BDC"), 547→602, pure append; bdc_funds() now 81. **Extractor (`1b74487`):** ONE extractor (no fork) + generic single-class NAV fallback (synthesize a "common" class from undimensioned NAV/share+shares+net assets when the share-class axis is empty AND a per-share signal exists; positive-share guard keeps LLCs empty) + runner amendments=False. **vehicle_type wiring (`00de0ce`):** was blank on all extractions; now normalized + set + revalidate-backfilled → one mixed workbook. **Timeout fix (`e328735`):** first full run crashed on an uncaught ReadTimeout (period_of_report fetch was outside the per-filing try); moved inside + 3-attempt backoff; resumed cleanly. **Full run: 1,088 filings / 642 pass / 446 review / 1 error.** Listed 395/393 (same C5/C4/C7 flag-and-keep families as unlisted); unlisted 247/53 (1 benign flip on First Eagle). Single-class NAV verified (ARCC $19.94 etc.). **Step 4 — holdings dedup investigated, NO SAFE GENERIC FIX:** recon gate suppresses §9 metrics for 36/55 listed BDCs (leaf sums over-count balance-sheet investments 1.28×–5.6×); tested+rejected ifv-understatement, value-dedup, pipe/non-pipe family, within-member double-summing — root cause is subtotal/aggregate-row contamination (Kennedy-Lewis class, milder, heterogeneous) needing fragile heuristics → accept the gate (honest nulls), documented known-limitation; core financials unaffected. Spreadsheet rebuilt (1,088 rows, vehicle_type discriminator). |
 | 2026-06-09 (session 10 — FV-weighted PIK + N-CSR scoping) | **(1) FV-weighted PIK metric (`aa42e50`):** added `pct_holdings_with_pik_fv_weighted` (Σ fair value of PIK-bearing holdings / total FV) alongside the existing count-basis `pct_holdings_with_pik` — the count one was the only portfolio-share metric not FV-weighted (its siblings pct_floating_rate / pct_affiliated already are). Computed in `apply_holdings_summary` after the Layer-2 recon gate so it's auto-suppressed for contaminated SOIs. Schema + extractor + spreadsheet. Clean re-run: 248/52 unchanged, populated 202/300 (matches count sibling). Diverges meaningfully (Blackstone 6.5%→13.4%) — PIK loans run larger than average. **(2) N-CSR/N-CSRS XBRL scoping (no code):** tested Brian's hypothesis that interval/tender-offer N-CSRs might be XBRL-tagged. Probed 10 funds across every vintage (CIK 67590→2044490), latest N-CSR+N-CSRS each + concept dumps + parser tests. **Financials are NOT XBRL-tagged** (`xbrl.statements.balance_sheet()` → None). Tagging present is cover-page only: most funds have NONE (`obj()` → None); closed-end/interval = thin `cef:` text-blocks + occasional NAV/share; open-end TSR = richer `oef:` (expense ratio/fees/holdings count) but those are mutual/MMF funds, not our targets. `FundShareholderReport` (`filing.obj()`) richness tracks the tagging (thin for closed-end, None for untagged). Only 1 interval/tender fund files 10-K/10-Q (Fidelity Private Credit). edgartools AI integration (`to_llm_context`/`to_agent_tools`/MCP) is LLM plumbing over PARSED data, not an auto-extractor; the real lever for interval funds is `filing.text()`/`get_section()`/`chunk_text()` → LLM-over-clean-text + the same C-rules. Revised interval/tender scope = LLM-over-clean-text into the existing spine, with the thin `cef:`/`oef:` tags as cross-check anchors. Next: scope listed BDCs. |
 | 2026-06-09 (session 9 — XBRL theme expansion) | Confirmed SC TO-I filings carry only fee/cover-page XBRL (not a financial source), probed the full 10-K/10-Q tag set for gaps, and scoped a 6-theme expansion in Brian's priority order (plan → `docs/XBRL_EXPANSION_PLAN.md`, `5de2165`; **derivatives + L3 roll-forward tabled**). Built all 6 as independently-revertable commits: **T1 credit-facility capacity** (`FactSet.undrawn_capacity()` — undimensioned remaining-capacity first, else largest axis-signature group's distinct-member sum to dodge the MaxBorrowingCapacity cross-tab double-count; a coverage probe quantified fragility → took the clean A-path + 1-heuristic B-path, SKIPPED the 4-heuristic C-path; 13/24 covered; derived `liquidity_coverage`), **T2 cash flow** (`CashFlowStatement`, 8 fields), **T3 capital share activity** (5 changes fields, `duration_class_scalar`), **T4 balance-sheet detail** (+10 fields), **T5 expense breakdown** (6 fields), **T6 tax basis** (`TaxBasis` 6 fields + `return_of_capital_distribution` / `return_of_capital_pct` — ROC now captured). Added 5 checks: C1b/C8/C9/C10/C11 (C6 stays dropped). **Brian ran the clean full re-run: 300 written / 4 skipped / 126 no_xbrl / 0 errors**; first pass review 49→62. Diagnosed all 14 new-check flags and tuned two (`341e913`, via `--revalidate`): **C11** → magnitude compare `|apprec−deprec| vs |net|` (the prior min((ap−dp),(ap+dp)) didn't handle the opposite-sign net convention), clearing 5 sign-flip/rounding false positives, keeping Blue Owl Tech (genuine mis-map: net = gross apprec); **C10** → re-anchored from net-total-expenses to fund size (flag only when components > 50% of NAV), clearing all 6 ramp-stage waiver funds. C9 kept as-is (Brian — Crescent's 2 flags correctly catch an uncaptured ~0.6% investing line). **Final: 248 pass / 52 review.** Net +3 vs 251/49 = all legitimate (C9 ×2 Crescent, C11 ×1 Blue Owl Tech); 0 regressions. Spreadsheet rebuilt (300 / 52 / 15 gold). All pushed. |

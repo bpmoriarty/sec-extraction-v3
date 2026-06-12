@@ -1,8 +1,13 @@
 # Cross-BDC Holdings & Mark Comparison — Plan
 
-Scoped 2026-06-11 (session 12). Grounded in a reconnaissance of the 375k-row consolidated
-holdings dataset. **No analysis code written yet** — this is the plan of record. (Supersedes the
-sketch in `LISTED_BDC_PLAN.md` §9.)
+Scoped 2026-06-11; **Phases 1–4 BUILT + VALIDATED 2026-06-12 (session 12)** in
+`src/analysis/holdings_compare.py`. Grounded in a reconnaissance of the 375k-row consolidated
+holdings dataset. (Supersedes the sketch in `LISTED_BDC_PLAN.md` §9.)
+
+**STATUS:** Phases 1–4 done (consolidate+clean+parse → fuzzy clustering → issue matching →
+mark-comparison workbook `data/dataset/holdings_marks_comparison.xlsx`). Phase 5 (match-rate +
+manual-review-sample + period-over-period trend) is the open follow-on. CLI:
+`uv run python src/analysis/holdings_compare.py --diagnose|--cluster|--issues|--build|--workbook`.
 
 ---
 
@@ -89,19 +94,24 @@ only).
 
 Each phase is a checkpoint; prototype on a clean subset before scaling.
 
-1. **Consolidate + clean** — one normalized holdings table from all CSVs. Parse the issuer field
-   into {issuer_name, instrument_text}; derive seniority/type; compute price (FV/par). Strip category/
-   subtotal junk rows ("Non-controlled/Non-Affiliated Investments…", "Portfolio Company Debt
-   Securities-…"). Dedup exact-duplicate rows within a fund-period.
-2. **Issuer normalization + clustering** — strip legal suffixes / aliases (d/b/a, FKA); fuzzy-cluster
-   with rapidfuzz; assign an issuer-cluster id. Validate against the 23k overlap + named anchors.
-3. **Issue matching** — within each cluster, group into instruments by (seniority, spread, [maturity,
-   floor, ref-rate]); assign a confidence tier + co-occurrence count.
-4. **Mark comparison** — per (matched issue, period): collect holders + prices, compute median,
-   dispersion (range, stdev), and flag outliers (e.g. >N points off the median). Align periods by
-   reporting date; flag when holders' dates differ by > ~45 days.
-5. **Output + validation** — a cross-holder marks workbook/tab; validate via named anchors, match
-   rate, confidence distribution, and a manual-review sample.
+1. **Consolidate + clean** — DONE (`load_consolidated`). One 375,530-row table; parses the issuer
+   field (3 member formats detected per row) into {issuer_name, instrument_text}; strips category/
+   geo/GICS-sector boilerplate token-by-token + structured-attribute tails; derives seniority/type;
+   computes price (FV/par, with FV/cost fallback + commitment-overhang handling). 96.9% parse_ok.
+2. **Issuer normalization + clustering** — DONE (`add_clusters`/`cluster_issuers`). CORE-KEY of
+   distinctive tokens → exact-core merge + rapidfuzz token_sort_ratio ≥92 fuzzy-merge (blocked).
+   26,759 norms → 15,149 clusters; anchors clean, purity 2371/2372.
+3. **Issue matching** — DONE (`match_issues`). Groups debt by (seniority, spread) within a cluster;
+   maturity corroborator (mat_conflict flag); no-spread rows attached via co-occurrence; confidence
+   tiers (High/Medium/Low/Single). 123,961 issues / 22,555 High.
+4. **Mark comparison** — DONE (`match_issues` stats + `build_workbook`). Per-HOLDER prices (a fund's
+   lots collapsed first), median, clean dispersion (range/stdev), outlier trim + count. Periods
+   aligned by exact reporting date (the date is part of the issue_id).
+5. **Output + validation** — workbook DONE (`build_workbook` → holdings_marks_comparison.xlsx:
+   Overview/Dispersion/Consensus/HolderDetail/IssuerSummary/Anchors). Anchor validation passes
+   (par, sub-1pt ranges). **OPEN (Phase 5):** formal match-rate + confidence-distribution stats tab,
+   a stratified manual-review sample tab, and the day-gap/period-alignment surfacing + period-over-
+   period mark trend.
 
 ---
 
