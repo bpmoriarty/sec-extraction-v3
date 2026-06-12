@@ -22,3 +22,6 @@ data/_run_*.log
 # Per-machine download progress (last_checked per fund). Local, NOT shared across
 # machines on purpose — see src/downloader/download_state.py for why.
 data/download_state.csv
+
+# Claude Code persistent memory (local only)
+memory/
