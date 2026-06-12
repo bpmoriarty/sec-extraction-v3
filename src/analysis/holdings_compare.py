@@ -491,15 +491,35 @@ def load_consolidated() -> pd.DataFrame:
     df["seniority"] = src.apply(derive_seniority)
     df["instrument_type"] = src.apply(derive_instrument_type)
 
-    # price = FV / principal (cents on the dollar); fallback FV/cost flagged lower-fidelity
+    # price = fair value as a fraction of par (cents on the dollar), comparable across holders.
+    # Two candidate bases: FV/principal (true %-of-par) and FV/cost (mark vs carrying cost).
+    #   - Normally use FV/principal.
+    #   - PARTIAL-FUNDING FIX: some filers put the full COMMITMENT in `principal` while only part is
+    #     drawn (FV ~= cost << principal), which makes FV/principal read like a deep markdown when
+    #     the funded slice is actually near par. When FV/principal is implausibly low (<0.5) but
+    #     FV/cost is normal (0.6-1.15), the position is partially funded -> use FV/cost. Genuine
+    #     deep marks (FV << cost too) are preserved as par-distressed.
+    #   - When principal is missing entirely, fall back to FV/cost.
     fv, par, cost = df["fair_value"], df["principal"], df["cost"]
-    df["price"] = (fv / par).where((par > 0) & fv.notna())
-    df["price_basis"] = df["price"].notna().map({True: "par", False: None})
-    fallback = df["price"].isna() & (cost > 0) & fv.notna()
-    df.loc[fallback, "price"] = (fv / cost)[fallback]
-    df.loc[fallback, "price_basis"] = "cost"
-    # guard against absurd prices from scale mismatches / bad par
-    df.loc[(df["price"] < 0) | (df["price"] > 5), "price"] = pd.NA
+    p_par = (fv / par).where((par > 0) & fv.notna())
+    p_cost = (fv / cost).where((cost > 0) & fv.notna())
+    # COMMITMENT OVERHANG: principal much larger than amortized cost => `principal` is the full
+    # commitment, only part drawn; FV/principal would read as a deep (false) markdown. Use FV/cost.
+    overhang = (par > 0) & (cost > 0) & (par > cost * 1.5)
+    price = pd.Series(float("nan"), index=df.index, dtype="float64")
+    basis = pd.Series(pd.NA, index=df.index, dtype="object")
+    # 1) clean par: plausible and not a commitment overhang
+    m = p_par.between(0.5, 1.15) & ~overhang
+    price[m] = p_par[m]; basis[m] = "par"
+    # 2) cost: overhang, or par missing/implausible (covers partial funding + genuine distress)
+    m = price.isna() & p_cost.between(0.4, 1.2)
+    price[m] = p_cost[m]; basis[m] = "cost"
+    # 3) leftover plausible par with no cost to confirm
+    m = price.isna() & p_par.between(0.5, 1.15)
+    price[m] = p_par[m]; basis[m] = "par"
+    df["price"] = price
+    df["price_basis"] = basis
+    df.loc[(df["price"] <= 0) | (df["price"] > 1.6), "price"] = pd.NA
     return df
 
 
@@ -510,6 +530,131 @@ def add_clusters(df: pd.DataFrame, threshold: int = 90) -> pd.DataFrame:
     canon = cluster_issuers(freq, threshold=threshold)
     df["issuer_cluster"] = df["issuer_norm"].map(canon)
     return df
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 — issue (tranche) matching within an issuer cluster
+# ---------------------------------------------------------------------------
+
+_EQUITY_TYPES = {"Equity", "Preferred", "Common Equity", "Warrant"}
+_UNFUNDED_TYPES = {"Revolver", "Delayed Draw Term Loan"}
+_YEAR_RE = re.compile(r"(19|20)\d{2}")
+
+
+def _mat_year(m) -> int | None:
+    if m is None or (isinstance(m, float) and pd.isna(m)):
+        return None
+    hit = _YEAR_RE.search(str(m))
+    return int(hit.group()) if hit else None
+
+
+def _spread_bps(s) -> int | None:
+    """Spread in basis points, rounded to the nearest 5bps to absorb tagging noise while keeping
+    genuinely different tranches apart (S+500 vs S+575)."""
+    if s is None or pd.isna(s):
+        return None
+    return int(round(float(s) * 10000 / 5.0)) * 5
+
+
+def _classify(it, price, fair_value) -> str:
+    """debt | equity | unfunded — only 'debt' rows with a usable price feed the mark comparison."""
+    if it in _EQUITY_TYPES:
+        return "equity"
+    if (price is None or pd.isna(price)) and it in _UNFUNDED_TYPES:
+        return "unfunded"
+    return "debt"
+
+
+def match_issues(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Within each (issuer_cluster, reporting_date), group debt holdings into specific issues
+    (tranches) and score match confidence. Returns (holdings_with_issue_cols, issues_summary).
+
+    Grain: the strong, contractual keys are SENIORITY + SPREAD (survive rate resets). Rows with a
+    spread are grouped by (seniority, spread_bps). Debt rows WITHOUT a spread are attached to the
+    sole spread-issue of their seniority when there's exactly one (co-occurrence inference); else
+    they form a seniority-only group. MATURITY is a corroborator: when holders disagree on maturity
+    year within an issue, we flag it (mat_conflict) and cap confidence — a likely mis-merge of two
+    tranches. Equity/preferred/warrant and unfunded revolver/DDTL rows are tagged and excluded from
+    the priced comparison (kept for issuer-level context).
+
+    Confidence (only High/Medium are apples-to-apples price comparisons):
+      Single — one holder (well-identified but nothing to compare against).
+      High   — spread + seniority known, no maturity conflict, 2-15 holders (club-deal band).
+      Medium — spread known but (single-tranche ambiguity: >15 holders, maturity conflict, or
+               unknown seniority), or no-spread rows inferred into a spread-issue.
+      Low    — matched on seniority only (no spread) / unmatched.
+    """
+    d = df[df["parse_ok"] & df["issuer_cluster"].notna()].copy()
+    d["hold_class"] = [_classify(it, pr, fv) for it, pr, fv in
+                       zip(d["instrument_type"], d["price"], d["fair_value"])]
+    d["spread_bps"] = d["spread"].apply(_spread_bps)
+    d["mat_year"] = d["maturity"].apply(_mat_year)
+    d["sen"] = d["seniority"].where(d["seniority"].notna(), None)
+    # price that may enter a comparison: funded debt, in the plausible loan band (0.3-1.15;
+    # equity already excluded via hold_class, partial-funding artifacts fixed in load_consolidated)
+    d["cmp_price"] = d["price"].where((d["hold_class"] == "debt")
+                                      & d["price"].between(0.3, 1.15))
+    d["issue_id"] = None
+
+    issues: list[dict] = []
+    for (cl, dt), g in d.groupby(["issuer_cluster", "reporting_date"], sort=False):
+        debt = g[g["hold_class"] == "debt"]
+        if debt.empty:
+            continue
+        groups: dict[tuple, list] = {}
+        for idx, row in debt[debt["spread_bps"].notna()].iterrows():
+            groups.setdefault((row["sen"], int(row["spread_bps"])), []).append(idx)
+        sen_keys: dict = defaultdict(list)
+        for key in groups:
+            sen_keys[key[0]].append(key)
+        for idx, row in debt[debt["spread_bps"].isna()].iterrows():
+            keys = sen_keys.get(row["sen"])
+            if keys and len(keys) == 1:
+                groups[keys[0]].append(idx)            # co-occurrence attach
+            else:
+                groups.setdefault((row["sen"], "nospread"), []).append(idx)
+
+        for (sen, bps), idxs in groups.items():
+            sub = d.loc[idxs]
+            iid = f"{cl}|{sen}|{bps}|{dt}"
+            d.loc[idxs, "issue_id"] = iid
+            holders = sub["cik"].nunique()
+            prices = sub["cmp_price"].dropna()
+            # Robust dispersion: trim prices >25pts from the median as artifacts (a lone holder
+            # 68pts below the pack on a 1st-lien loan is partial-funding/unit noise, not a real
+            # mark). Genuine disagreement keeps multiple holders within the band, so it survives.
+            med_all = prices.median() if len(prices) else None
+            clean = prices[(prices - med_all).abs() <= 0.25] if med_all is not None else prices
+            n_out = int(len(prices) - len(clean))
+            myrs = sorted(sub["mat_year"].dropna().unique().tolist())
+            mat_conflict = len(myrs) > 1
+            spread_known = bps != "nospread"
+            if holders < 2:
+                conf = "Single"
+            elif spread_known and sen and not mat_conflict and 2 <= holders <= 15:
+                conf = "High"
+            elif spread_known:
+                conf = "Medium"
+            else:
+                conf = "Low"
+            issues.append({
+                "issuer_cluster": cl, "reporting_date": dt, "issue_id": iid,
+                "seniority": sen, "spread_bps": (bps if spread_known else None),
+                "maturity_years": ";".join(map(str, myrs)) if myrs else None,
+                "mat_conflict": mat_conflict, "n_holders": holders,
+                "n_prices": int(len(prices)), "n_clean": int(len(clean)), "n_outliers": n_out,
+                "price_median": (round(med_all, 4) if med_all is not None else None),
+                "price_min": (round(clean.min(), 4) if len(clean) else None),
+                "price_max": (round(clean.max(), 4) if len(clean) else None),
+                "price_range_pts": (round((clean.max() - clean.min()) * 100, 2)
+                                    if len(clean) >= 2 else None),
+                "price_stdev_pts": (round(clean.std() * 100, 2) if len(clean) >= 2 else None),
+                "raw_min": (round(prices.min(), 4) if len(prices) else None),
+                "raw_max": (round(prices.max(), 4) if len(prices) else None),
+                "confidence": conf,
+            })
+    issues_df = pd.DataFrame(issues)
+    return d, issues_df
 
 
 # ---------------------------------------------------------------------------
@@ -612,24 +757,76 @@ def diagnose_clusters(threshold: int = 90) -> None:
         print(f"  {cl[:30]:30} <- {members}")
 
 
+_ANCHOR_CLUSTERS = ["anaplan", "flexera", "avalara", "petvet care centers", "integrity marketing"]
+
+
+def diagnose_issues(threshold: int = 90) -> None:
+    df = add_clusters(load_consolidated(), threshold=threshold)
+    holdings, issues = match_issues(df)
+
+    print(f"issues identified: {len(issues):,}")
+    by_conf = issues["confidence"].value_counts()
+    print("\nBY CONFIDENCE")
+    for c in ("High", "Medium", "Low", "Single"):
+        sub = issues[issues["confidence"] == c]
+        comparable = sub[sub["n_prices"] >= 2]
+        print(f"  {c:7} {len(sub):6,}   (with >=2 prices to compare: {len(comparable):,})")
+
+    hi = issues[(issues["confidence"].isin(["High", "Medium"]))
+                & (issues["n_holders"] >= 3) & (issues["n_clean"] >= 3)]
+    print(f"\nMARK-DISPERSION PAYOFF — High/Medium issues, >=3 CLEAN holders, widest CLEAN spread:")
+    print("(outlier prices >25pts from median trimmed as partial-funding/unit artifacts -> n_out)")
+    cols = ["issuer_cluster", "reporting_date", "seniority", "spread_bps", "n_holders",
+            "n_outliers", "price_median", "price_min", "price_max", "price_range_pts", "confidence"]
+    top = hi.sort_values("price_range_pts", ascending=False).head(15)
+    with pd.option_context("display.width", 230, "display.max_colwidth", 26):
+        print(top[cols].to_string(index=False))
+
+    print("\nTIGHTEST broad club deals (>=6 holders, smallest dispersion — healthy/agreed):")
+    tight = hi[hi["n_holders"] >= 6].sort_values("price_range_pts").head(8)
+    with pd.option_context("display.width", 230, "display.max_colwidth", 26):
+        print(tight[cols].to_string(index=False))
+
+    print("\nANCHOR ISSUE BREAKDOWN (how each anchor splits into tranches, latest common date):")
+    for a in _ANCHOR_CLUSTERS:
+        sub = issues[issues["issuer_cluster"] == a]
+        if sub.empty:
+            continue
+        dt = sub.loc[sub["n_holders"].idxmax(), "reporting_date"]
+        sub = sub[sub["reporting_date"] == dt]
+        print(f"\n  {a}  ({dt}):")
+        for _, r in sub.sort_values("n_holders", ascending=False).iterrows():
+            sp = f"S+{r['spread_bps']}" if pd.notna(r["spread_bps"]) else "no-spread"
+            med = f"{r['price_median']*100:.1f}" if pd.notna(r["price_median"]) else "  -"
+            rng = f"{r['price_range_pts']:.1f}pt" if pd.notna(r["price_range_pts"]) else "  -"
+            print(f"     {str(r['seniority']):14} {sp:9} {r['n_holders']:2}h  "
+                  f"med={med:>6}  range={rng:>7}  [{r['confidence']}]")
+
+
 def build(threshold: int = 90) -> None:
     df = add_clusters(load_consolidated(), threshold=threshold)
+    holdings, issues = match_issues(df)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    out = OUT_DIR / "holdings_consolidated.csv"
-    df.to_csv(out, index=False, encoding="utf-8")
-    print(f"wrote {len(df):,} rows ({df['issuer_cluster'].nunique():,} clusters) -> {out}")
+    df.to_csv(OUT_DIR / "holdings_consolidated.csv", index=False, encoding="utf-8")
+    holdings.to_csv(OUT_DIR / "holdings_matched.csv", index=False, encoding="utf-8")
+    issues.to_csv(OUT_DIR / "issues.csv", index=False, encoding="utf-8")
+    print(f"wrote {len(df):,} holdings ({df['issuer_cluster'].nunique():,} clusters), "
+          f"{len(issues):,} issues -> {OUT_DIR}")
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--diagnose", action="store_true", help="report parse coverage + anchors")
     ap.add_argument("--cluster", action="store_true", help="report Phase-2 issuer clustering")
-    ap.add_argument("--build", action="store_true", help="write consolidated cleaned CSV")
-    ap.add_argument("--threshold", type=int, default=90, help="WRatio merge threshold (Phase 2)")
+    ap.add_argument("--issues", action="store_true", help="report Phase-3 issue matching")
+    ap.add_argument("--build", action="store_true", help="write consolidated + matched + issues CSVs")
+    ap.add_argument("--threshold", type=int, default=92, help="fuzzy merge threshold (Phase 2)")
     args = ap.parse_args()
     if args.build:
         build(threshold=args.threshold)
     elif args.cluster:
         diagnose_clusters(threshold=args.threshold)
+    elif args.issues:
+        diagnose_issues(threshold=args.threshold)
     else:
         diagnose()
