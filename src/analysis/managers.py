@@ -65,7 +65,7 @@ MANAGER_BY_CIK: dict[str, str] = {
     "0001280784": "Hercules",                 # Hercules Capital
     "0001487428": "Horizon Technology",       # Horizon Technology Finance Corp
     "0001578348": "Investcorp",               # Investcorp Credit Management BDC
-    "0001987221": "John Hancock / Comvest",   # John Hancock Comvest (Manulife + Comvest)  *** VERIFY ***
+    "0001987221": "John Hancock",             # John Hancock Comvest (Manulife + Comvest) — Brian: "John Hancock"
     "0001747172": "Kayne Anderson",           # Kayne Anderson BDC
     "0001911321": "Kennedy Lewis",            # Kennedy Lewis Capital Co
     "0001535778": "Main Street Capital",      # MSC Income Fund (advised by Main Street)  *** VERIFY ***
@@ -94,21 +94,17 @@ MANAGER_BY_CIK: dict[str, str] = {
     "0001508655": "Sixth Street",             # Sixth Street Specialty Lending
     "0001551901": "Stellus",                  # Stellus Capital Investment Corp
     "0001901164": "T. Rowe Price / OHA",      # T. Rowe Price OHA Select (Oak Hill Advisors)
-    "0001913724": "TPG (Twin Brook)",         # TPG Twin Brook Capital Income Fund  *** VERIFY ***
+    "0001913724": "TPG Twin Brook",           # TPG Twin Brook Capital Income Fund — Brian: "TPG Twin Brook"
     "0001786108": "Trinity Capital",          # Trinity Capital Inc
     "0001580345": "TriplePoint",              # TriplePoint Venture Growth BDC
     "0001552198": "WhiteHorse (H.I.G.)",      # WhiteHorse Finance (H.I.G. Capital)
 }
 
-# CIKs where the "parent manager" is debatable (advised-by / JV / platform) — please confirm.
-VERIFY = {
-    "0001372807": "BCP Investment Corp — manager guessed BC Partners; not certain.",
-    "0001987221": "John Hancock Comvest — JV of Manulife/John Hancock + Comvest; pick the label you want.",
-    "0001535778": "MSC Income Fund — advised by Main Street Capital; rolled into Main Street.",
-    "0001278752": "MidCap Financial Investment — advised by Apollo (ex-Apollo Investment Corp); "
-                  "rolled into Apollo. Could be kept as its own 'MidCap Financial' platform.",
-    "0001913724": "TPG Twin Brook — TPG (incl. Angelo Gordon) Twin Brook platform; label as you prefer.",
-}
+# The five originally-debatable cases were confirmed by Brian (2026-06-13):
+#   BCP Investment Corp -> BC Partners; MidCap Financial -> keep Apollo; MSC Income -> Main Street;
+#   John Hancock Comvest -> "John Hancock"; TPG Twin Brook -> "TPG Twin Brook".
+# No outstanding verifications.
+VERIFY: dict[str, str] = {}
 
 
 def manager_of(cik: str) -> str:
