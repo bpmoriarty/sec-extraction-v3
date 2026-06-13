@@ -249,8 +249,16 @@ per-date over time; co-lending network graph included.
   / Charts). Validated: same-manager sister funds top the list (Blue Owl II/I 0.78 J, lift 30×;
   MSC/Main Street directional 0.99/0.69), cross-manager club deals surface with lift 3–8× (Blackstone/
   HPS share 121 actual loans). New deps installed: scipy, matplotlib, networkx (`--link-mode=copy`).
-• **Marking bias — STILL TO BUILD.** `docs/MARKING_BIAS_PLAN.md` is the plan; needs `statsmodels`
-  installed and a ~3-min run. Next session.
+• **Manager marking bias (`src/analysis/marking_bias.py`) — BUILT + VALIDATED.** Brian confirmed the
+  5 manager-map VERIFY cases (John Hancock Comvest→"John Hancock"; TPG Twin Brook→"TPG Twin Brook";
+  BCP→BC Partners; MidCap→Apollo; MSC→Main Street). Unit = a manager's within-issue leave-one-out
+  deviation (points); vehicles collapsed to one mark per loan; issues with ≥3 managers, High/Med only.
+  Descriptive (median dev, % rich/cheap, ex-distressed) + cluster bootstrap CI + sign test; formal OLS
+  of deviation on manager dummies with issue-clustered SEs + BH-FDR; by-date drift; caterpillar +
+  box-plot charts. Output `data/dataset/marking_bias.xlsx`. Validated: 39 managers / 8,721
+  manager-issue obs, grand-mean bias ≈0 (sanity). Richer: Prospect +2.9, CION +2.8, Sixth Street +2.3
+  (FDR<0.001); cheaper: Barings −1.3, Goldman −1.2, Oaktree −0.6, Blue Owl −0.3 (FDR<0.001, n=1,019).
+  Installed `statsmodels`. **Both follow-on research workflows now complete.**
 **Last Session: 2026-06-13 (session 12 cont.)**
 
 ### What's Working
@@ -805,12 +813,13 @@ Re-add C6 ONLY if an authoritative tagged roll-forward SUBTOTAL surfaces to anch
   (Pluralsight, YA Intermediate) and tight consensus club deals; anchors validated. **Phase 5 done**
   too — Coverage / ReviewSample / Trend tabs (the Trend view caught First Brands & Naviga's
   quarter-by-quarter markdown). All 5 phases complete; workbook has 9 tabs.
-- **Holdings follow-on research (session 12 cont.)** — two standalone workflows reusing the same data:
-  (1) ~~**Portfolio overlap**~~ DONE (`src/analysis/portfolio_overlap.py` → `portfolio_overlap.xlsx`) —
-  pairwise fund overlap, issuer + issue grain, directional + Jaccard + lift + $-overlap, per-date
-  trend, co-lending network. (2) **Manager marking-bias** TO BUILD (`docs/MARKING_BIAS_PLAN.md`;
-  needs `statsmodels`) — which managers mark rich/cheap vs peers; fund→manager map ready
-  (`src/analysis/managers.py`, 5 VERIFY cases for Brian to confirm).
+- ~~**Holdings follow-on research (session 12 cont.)**~~ — DONE. Two standalone workflows reusing the
+  same data: (1) **Portfolio overlap** (`src/analysis/portfolio_overlap.py` → `portfolio_overlap.xlsx`)
+  — pairwise fund overlap, issuer + issue grain, directional + Jaccard + lift + $-overlap, per-date
+  trend, co-lending network. (2) **Manager marking-bias** (`src/analysis/marking_bias.py` →
+  `marking_bias.xlsx`) — which managers mark rich/cheap vs peers; within-issue leave-one-out
+  deviations, bootstrap CIs + issue-clustered OLS + FDR, charts; fund→manager map confirmed
+  (`src/analysis/managers.py`). Both validated.
 - **Interval/tender-offer extraction** — LLM-over-clean-text (edgartools `filing.text()`/
   `get_section()`/`chunk_text()`) into the existing spine; financials NOT in XBRL (session-10 scope).
 
