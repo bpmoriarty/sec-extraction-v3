@@ -74,15 +74,24 @@ collapsed). All marks in points of par.
      "low-confidence — too few overlaps," never ranked as if reliable.
 
 7. **Formal model (the "fixed-effects" layer):**
-   - Fit `mark_{m,j} = α_manager_m + γ_issue_j + ε` on the (manager, issue) table. The **issue fixed
-     effect γ_j** absorbs each loan's consensus level; the **manager coefficient α_m** is that
-     manager's average rich/cheapness *after* controlling for which loans it holds — the cleanest
-     single-number bias estimate.
-   - Implemented as **issue-demeaning + manager dummies in statsmodels OLS with cluster-robust
+   - The dependent variable is the **leave-one-out deviation** already computed in step 3 — that is,
+     each manager's mark minus the median of the *other* managers on that same issue. Because the
+     issue-level consensus is already differenced out (excluding self), regressing this on manager
+     dummies recovers each manager's average bias after controlling for which loans it holds.
+   - **Do NOT use an include-self issue fixed effect** (`mark_{m,j} = α_manager_m + γ_issue_j`).
+     That formulation reintroduces the self-inclusion attenuation that steps 2–3 deliberately remove:
+     the issue FE absorbs part of each manager's own mark, biasing every coefficient toward zero by
+     the factor `k/(k−1)` (where k is the holder count). This is worst on thin loans (k=3 → 33%
+     understatement). Synthetic-ground-truth testing confirmed that the leave-one-out regression
+     recovers a known +2.0-pt bias accurately (2.10 at k=3, 1.93 at k=8), while the include-self
+     formulation attenuates to 1.40 and 1.69 respectively. The ranking is robust across both
+     (Spearman ρ = 0.990), but magnitudes are materially understated by include-self.
+     (See `_verification/STATISTICAL_VERIFICATION_REPORT.md` §3-B for the synthetic calibration.)
+   - Implemented as **OLS of the leave-one-out deviation on manager dummies with cluster-robust
      standard errors clustered on issue** (corrects for the fact that marks on the same loan are
-     correlated). Report each manager's coefficient, SE, and 95% CI.
-   - **Multiple-comparisons control:** Benjamini–Hochberg FDR across managers, since we test many at
-     once.
+     correlated across managers). Report each manager's coefficient, SE, and 95% CI.
+   - **Multiple-comparisons control:** Benjamini–Hochberg FDR, computed over the ≥20-loan managers
+     only (inference is mis-calibrated below that floor — see §6 confounder table).
 
 8. **Time trend:** per manager, the median deviation **by reporting date**, to see whether a manager
    is drifting richer or more conservative over time (parallels the overlap study's time view).

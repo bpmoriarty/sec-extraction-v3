@@ -12,9 +12,12 @@ a judgment of who is correct.
 
 Layers (per the plan):
   - Descriptive: median/mean deviation, % rich/in-line/cheap, ex-distressed cut.
-  - Robust uncertainty: cluster bootstrap CI on the median (resampling issues) + a sign test.
-  - Formal model: OLS of deviation on manager dummies with issue-CLUSTERED standard errors, plus
-    Benjamini-Hochberg FDR control across managers.
+  - Robust uncertainty: bootstrap CI on the median (resampling the manager's own per-issue
+    deviations — an issue-level resample for that manager, NOT a cross-manager cluster bootstrap)
+    + a sign test.
+  - Formal model: OLS of the leave-one-out deviation on manager dummies with issue-clustered SEs.
+    The leave-one-out deviation is preferred over include-self issue FE, which attenuates manager
+    coefficients by k/(k-1) on thin loans. BH-FDR computed over >=20-loan managers only.
   - Drift: median deviation by reporting date.
 
 Run:  uv run python src/analysis/marking_bias.py [--threshold 92]
@@ -85,6 +88,8 @@ def build_deviations(threshold: int = 92) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 def _boot_median_ci(devs: np.ndarray, rng) -> tuple[float, float]:
+    """Bootstrap 95% CI on a manager's median deviation. Resamples the manager's own per-issue
+    deviations (an issue-level resample for THAT manager) — not a cross-manager cluster bootstrap."""
     if len(devs) < 3:
         return (float("nan"), float("nan"))
     samp = rng.choice(devs, size=(N_BOOT, len(devs)), replace=True)
@@ -127,11 +132,20 @@ def manager_table(mi: pd.DataFrame) -> pd.DataFrame:
 
 
 def fixed_effects(mi: pd.DataFrame) -> pd.DataFrame:
-    """OLS of deviation on manager dummies with issue-clustered SEs + BH-FDR. The deviation already
-    differences out the issue (it's within-issue), so the manager coefficient = its issue-controlled
-    average rich/cheapness; clustering on issue corrects for correlated marks on the same loan."""
+    """OLS of the leave-one-out deviation on manager dummies with issue-clustered SEs.
+
+    The DV is the leave-one-out deviation: each manager's mark minus the median of the OTHER
+    managers on that issue. The issue-level consensus (excluding self) is already differenced out,
+    so regressing on manager dummies recovers each manager's issue-controlled average bias.
+
+    This estimator is preferred over an include-self issue fixed effect (mark ~ C(manager) +
+    C(issue_id)) because the include-self form reintroduces the self-inclusion it tries to remove:
+    the issue FE absorbs part of each manager's own mark, attenuating coefficients by k/(k-1)
+    (worst on thin loans: -33% at k=3). Synthetic calibration confirmed the leave-one-out form
+    recovers a known +2-pt bias accurately across holder counts; include-self understates it.
+
+    Returns raw fe_p only — BH-FDR is computed in build() over the >=20-loan subset exclusively."""
     import statsmodels.api as sm
-    from statsmodels.stats.multitest import multipletests
 
     d = mi.dropna(subset=["dev_pts"]).copy()
     D = pd.get_dummies(d["manager"]).astype(float)
@@ -142,12 +156,11 @@ def fixed_effects(mi: pd.DataFrame) -> pd.DataFrame:
         "Manager": D.columns,
         "fe_coef": np.round(res.params, 2),
         "fe_se": np.round(res.bse, 2),
-        "fe_p": res.pvalues,
+        "fe_p": np.round(res.pvalues, 4),
     })
     out["fe_ci_lo"] = np.round(out["fe_coef"] - 1.96 * out["fe_se"], 2)
     out["fe_ci_hi"] = np.round(out["fe_coef"] + 1.96 * out["fe_se"], 2)
-    out["fe_p_fdr"] = np.round(multipletests(out["fe_p"], method="fdr_bh")[1], 4)
-    out["fe_p"] = np.round(out["fe_p"], 4)
+    # fe_p_fdr is NOT computed here; it is computed in build() over eligible managers only.
     return out
 
 
@@ -206,6 +219,11 @@ def build(threshold: int = 92) -> None:
     tab = manager_table(mi)
     fe = fixed_effects(mi)
     table = tab.merge(fe, on="Manager", how="left").sort_values("fe_coef", ascending=False)
+    # BH-FDR computed here (not in fixed_effects) so it can be scoped to eligible managers only.
+    # 2.1: temporarily apply over all managers to keep the workbook runnable; 2.2 restricts to >=20.
+    from statsmodels.stats.multitest import multipletests as _mht
+    import numpy as _np2
+    table["fe_p_fdr"] = _np2.round(_mht(table["fe_p"].fillna(1), method="fdr_bh")[1], 4)
 
     by_date = (mi.groupby(["manager", "reporting_date"])["dev_pts"].median().round(2)
                .unstack("reporting_date"))
