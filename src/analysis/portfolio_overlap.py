@@ -100,11 +100,19 @@ def _pairs_for_date(sub: pd.DataFrame, key: str) -> list[dict]:
 
 
 def compute_overlap(threshold: int = 92):
-    """Returns (pairs_panel, fund_names) — pairs_panel has one row per (date, grain, fund-pair)."""
+    """Returns (pairs_panel, fund_names) — pairs_panel has one row per (date, grain, fund-pair).
+
+    Issuer grain uses all parsed holdings (issuer_cluster).
+    Issue grain uses ONLY High/Medium-confidence issues — seniority-only (Low/Single) matches are
+    excluded so the issue grain reflects genuinely-matched tranches, not coincidentally shared IDs."""
     df = add_clusters(load_consolidated(), threshold=threshold)
-    holdings, _ = match_issues(df)
+    holdings, issues = match_issues(df)
     h = holdings[holdings["parse_ok"] & holdings["issuer_cluster"].notna()].copy()
     h["fair_value"] = pd.to_numeric(h["fair_value"], errors="coerce")
+    # Blank issue_id for Low/Single confidence so the issue-grain pass only sees genuine matches.
+    # Issuer grain keys on issuer_cluster and is unaffected.
+    himed = set(issues.loc[issues["confidence"].isin(["High", "Medium"]), "issue_id"])
+    h["issue_id"] = h["issue_id"].where(h["issue_id"].isin(himed))
     fund_names = h.drop_duplicates("cik").set_index("cik")["fund_name"].to_dict()
 
     panel = []
@@ -325,6 +333,10 @@ def _write(latest, latest_cols, fund_summary, trend_wide, pairs, best_date, n_fu
         "Tabs: PairsLatest (best date), FundSummary (each fund's nearest neighbour + differentiation),",
         "Trend (top cross-manager pairs over time), PairsByDate (full panel), Charts (heatmap, network,",
         "trend). Heatmap/network are issuer-grain at the best snapshot date.",
+        "",
+        "Grains: issuer-grain uses all parsed holdings (any matched issuer_cluster). Issue-grain",
+        "uses ONLY High/Medium-confidence matched issues — Low/Single (seniority-only) matches are",
+        "excluded so the issue grain counts only genuinely-matched tranches.",
         "",
         "Caveats: overlap is on matched, priced holdings (equity/unmatched excluded); funds with",
         "different fiscal quarter-ends only co-appear on shared dates; issue-grain overlap inherits",
