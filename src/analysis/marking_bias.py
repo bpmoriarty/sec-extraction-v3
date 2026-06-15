@@ -219,11 +219,35 @@ def build(threshold: int = 92) -> None:
     tab = manager_table(mi)
     fe = fixed_effects(mi)
     table = tab.merge(fe, on="Manager", how="left").sort_values("fe_coef", ascending=False)
-    # BH-FDR computed here (not in fixed_effects) so it can be scoped to eligible managers only.
-    # 2.1: temporarily apply over all managers to keep the workbook runnable; 2.2 restricts to >=20.
-    from statsmodels.stats.multitest import multipletests as _mht
-    import numpy as _np2
-    table["fe_p_fdr"] = _np2.round(_mht(table["fe_p"].fillna(1), method="fdr_bh")[1], 4)
+    # ── Thin-manager significance guard ──────────────────────────────────────────────────────────
+    # The cluster-robust SE can collapse to a false p≈0 when a manager has very few comparable loans
+    # (e.g. Fidus n=2: fe_se=0.19, raw p=0.000 — an artefact, not a finding). Calibration simulations
+    # show CI coverage is only 74% at n=2-4 and 84% at 4-6; it reaches ~92% at n≥20 (MIN_ISSUES_RANK).
+    # Resolution: blank the FE inference below the floor and restrict FDR to the eligible family only.
+    from statsmodels.stats.multitest import multipletests
+    eligible = table["n_issues"] >= MIN_ISSUES_RANK
+
+    # Option 1: blank FE regression inference below the floor. KEEP the point estimate (Bias, pts)
+    # as an indicative direction; KEEP bootstrap CI + sign test (those degrade honestly by WIDENING,
+    # not collapsing, so they remain a useful visible uncertainty signal for thin managers).
+    table.loc[~eligible, ["fe_p", "fe_p_fdr", "fe_se", "fe_ci_lo", "fe_ci_hi"]] = np.nan
+
+    # Option 2: recompute BH-FDR over the eligible family only so thin managers don't contaminate it.
+    table["fe_p_fdr"] = np.nan
+    table.loc[eligible, "fe_p_fdr"] = np.round(
+        multipletests(table.loc[eligible, "fe_p"], method="fdr_bh")[1], 4)
+
+    # Significant (robust): requires >=20 loans AND FE model significant after FDR AND bootstrap
+    # median CI excludes 0 in the same direction as the FE coefficient. A small p alone is never
+    # sufficient — both tests must agree, in the same direction, on sufficient data.
+    table["significant_robust"] = (
+        eligible
+        & (table["fe_p_fdr"] < 0.05)
+        & table["boot_lo"].notna() & table["boot_hi"].notna()
+        & (np.sign(table["boot_lo"]) == np.sign(table["boot_hi"]))
+        & (np.sign(table["boot_lo"]) == np.sign(table["fe_coef"]))
+    )
+    # ─────────────────────────────────────────────────────────────────────────────────────────────
 
     by_date = (mi.groupby(["manager", "reporting_date"])["dev_pts"].median().round(2)
                .unstack("reporting_date"))
@@ -263,7 +287,8 @@ def _write(table, by_date, issue_sample, fmap, mi, cat, box) -> None:
     disp = {
         "Manager": "Manager", "n_issues": "n issues", "n_dates": "n dates",
         "fe_coef": "Bias (pts)", "fe_ci_lo": "CI low", "fe_ci_hi": "CI high",
-        "fe_p_fdr": "p (FDR)", "median_dev": "Median dev", "boot_lo": "Median CI low",
+        "fe_p_fdr": "p (FDR)", "significant_robust": "Significant (robust)",
+        "median_dev": "Median dev", "boot_lo": "Median CI low",
         "boot_hi": "Median CI high", "sign_p": "Sign-test p", "pct_rich": "% rich",
         "pct_inline": "% in-line", "pct_cheap": "% cheap",
         "median_dev_exdistressed": "Median dev (ex-distressed)", "low_confidence": "Low-confidence",
@@ -276,10 +301,20 @@ def _write(table, by_date, issue_sample, fmap, mi, cat, box) -> None:
         "POSITIVE = marks ABOVE peers (richer / more optimistic); NEGATIVE = below (more conservative).",
         "It is DESCRIPTIVE — a relative tendency among overlapping loans, not a judgment of who is right.",
         "",
+        "Reading the ManagerBias tab:",
+        "  'n issues' is the manager's effective cluster count for the regression.",
+        "  Significance (p (FDR), CI, Significant (robust)) is intentionally BLANK for managers with",
+        "  fewer than 20 comparable loans — the cluster-robust SE is unreliable below that floor and",
+        "  can produce false p~0 (e.g. a manager with 2 loans may show a precise-looking p=0.000 that",
+        "  is a statistical artefact). 'Bias (pts)' is still shown as an indicative direction.",
+        "  'Significant (robust)' = True only when ALL of: (a) >=20 comparable loans, (b) FE model",
+        "  significant after BH-FDR (computed over the >=20-loan managers only), (c) bootstrap median",
+        "  CI excludes 0 in the same direction as the FE coefficient. A small p (FDR) alone is not",
+        "  sufficient — both tests must agree. See docs/MARKING_BIAS_PLAN.md §7 for full methodology.",
+        "",
         "Tabs:",
-        "  ManagerBias   — per manager: issue-controlled Bias (OLS coef) + 95% issue-clustered CI +",
-        "                  FDR-adjusted p; plus median deviation, bootstrap CI, sign test, % rich/cheap,",
-        "                  and an ex-distressed cut. 'Low-confidence' = fewer than 20 comparable loans.",
+        "  ManagerBias   — per manager: Bias (pts) + CI + p (FDR) + Significant (robust) +",
+        "                  median deviation, bootstrap CI, sign test, % rich/cheap, ex-distressed cut.",
         "  ManagerBiasByDate — median deviation by reporting date (drift over time).",
         "  IssueSample   — sampled loans with each manager's mark vs the consensus (spot-check; Verdict).",
         "  FundManagerMap — the fund->manager rollup used.",
@@ -293,7 +328,8 @@ def _write(table, by_date, issue_sample, fmap, mi, cat, box) -> None:
     with pd.ExcelWriter(WORKBOOK, engine="openpyxl") as xl:
         pd.DataFrame({"": []}).to_excel(xl, sheet_name="Overview", index=False)
         cols = ["Manager", "n_issues", "n_dates", "fe_coef", "fe_ci_lo", "fe_ci_hi", "fe_p_fdr",
-                "median_dev", "boot_lo", "boot_hi", "sign_p", "pct_rich", "pct_inline", "pct_cheap",
+                "significant_robust", "median_dev", "boot_lo", "boot_hi", "sign_p",
+                "pct_rich", "pct_inline", "pct_cheap",
                 "median_dev_exdistressed", "low_confidence"]
         table[cols].rename(columns=disp).to_excel(xl, sheet_name="ManagerBias", index=False)
         by_date.to_excel(xl, sheet_name="ManagerBiasByDate", index=False)
