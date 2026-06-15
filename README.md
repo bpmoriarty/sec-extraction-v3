@@ -76,13 +76,18 @@ uv venv
 ### 2. Install dependencies
 
 ```bash
-uv pip install edgartools pandas openpyxl rapidfuzz --link-mode=copy
+uv pip install edgartools pandas openpyxl rapidfuzz scipy statsmodels matplotlib networkx --link-mode=copy
 ```
 
 > **Note on `--link-mode=copy`:** This flag is required if this folder is inside
 > OneDrive, iCloud, or any cloud-synced directory (these block the hardlinks that
 > `uv` uses by default). If the project is on a regular local drive, you can omit
-> `--link-mode=copy` and just run `uv pip install edgartools pandas openpyxl rapidfuzz`.
+> `--link-mode=copy` and just run `uv pip install edgartools pandas openpyxl rapidfuzz scipy statsmodels matplotlib networkx`.
+
+> **Note on analysis dependencies:** `scipy`, `statsmodels`, `matplotlib`, and `networkx`
+> are required only by the Workflow-1 analysis scripts (`src/analysis/marking_bias.py`,
+> `src/analysis/portfolio_overlap.py`). The extraction pipeline (`run_extraction.py`) and
+> spreadsheet builder do not need them.
 
 ### 3. Corporate networks (SSL inspection)
 
