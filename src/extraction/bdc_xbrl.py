@@ -158,6 +158,15 @@ HOLDING_YIELD_COVERAGE_MIN = 0.60
 # metrics (leave them null) rather than publish corrupted numbers. 1.25 sits well above the
 # observed legit-noise band (most filings reconcile within 1.05-1.2x; the broken ones are >=2x).
 HOLDINGS_RECON_GATE = 1.25
+# Layer-2 UNDER-coverage gate: if the leaf holdings sum to LESS than this fraction of the
+# balance-sheet investments total, the SOI axis was only partially tagged — the §9 metrics
+# (top_10_concentration, FV-weighted means, num_holdings) are computed on a fraction of the
+# book and are misleading (e.g. top_10 → ~100% when only a few names are tagged). Suppress
+# them rather than publish unrepresentative numbers. Most filings reconcile at ~1.0-1.2x, so
+# a sum under 0.70x means real under-tagging, not noise. 0.70 suppresses the confirmed worst
+# case (Goldman Sachs BDC 10-Q 2023-06-30: tagged holdings = 4% of balance-sheet investments,
+# yet top_10_concentration was published as 1.00) while leaving borderline ~0.8x filings alone.
+HOLDINGS_COVERAGE_MIN = 0.70
 # Layer-1 scale-reconciliation tolerance: dropping a minority decimals-scale group only counts
 # as "the fix" if the remaining leaves land within this fraction of the balance-sheet total.
 HOLDINGS_SCALE_TOL = 0.05
@@ -1084,6 +1093,8 @@ def apply_holdings_summary(e: FilingExtraction, holdings: list[dict]) -> None:
     ifv = e.balance_sheet.investments_at_fair_value.value
     if ifv and total_fv and total_fv / ifv >= HOLDINGS_RECON_GATE:
         return
+    if ifv and total_fv and total_fv / ifv < HOLDINGS_COVERAGE_MIN:
+        return  # SOI only partially tagged -> §9 metrics unrepresentative; suppress (raw rows kept)
     if n_fv:
         ps.num_holdings = mk(float(n_fv))
         ps.pct_holdings_with_pik = mk(sum(1 for h in holdings if h.get("pik_rate")) / n_fv)
