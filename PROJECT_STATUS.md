@@ -259,7 +259,39 @@ per-date over time; co-lending network graph included.
   manager-issue obs, grand-mean bias ≈0 (sanity). Richer: Prospect +2.9, CION +2.8, Sixth Street +2.3
   (FDR<0.001); cheaper: Barings −1.3, Goldman −1.2, Oaktree −0.6, Blue Owl −0.3 (FDR<0.001, n=1,019).
   Installed `statsmodels`. **Both follow-on research workflows now complete.**
-**Last Session: 2026-06-13 (session 12 cont.)**
+**Session 12 (cont., 2026-06-15) — ADVERSARIAL VERIFICATION PASS + SIX DEFECT FIXES.**
+Brian ran three verification passes (pipeline, statistical, data-integrity) against a copy of the
+project. Results consolidated in `FIX_INSTRUCTIONS.md` (dropped in project root). All 6 defects
+fixed in order (1→2→4→6→3), one commit each, all pushed (`3e53c5f`→`c1807f1`):
+• **Defect 1 (`3e53c5f`)** README missing analysis deps. Added `scipy statsmodels matplotlib
+  networkx` to both install variants; added a note they're analysis-only.
+• **Defect 2.1 (`dd2502f`)** Docs mismatch on the estimator. `MARKING_BIAS_PLAN.md` §7 corrected:
+  the shipped leave-one-out form is unbiased; the original include-self issue-FE formula written in
+  §7 attenuates by k/(k−1) and was wrong. Three docstrings updated. No numeric change.
+• **Defect 2.2 (`e7709c5`)** Thin-manager false significance. Cluster-robust SE collapses to
+  false p≈0 on <20 loans (Fidus n=2 → p=0.000 was an artefact). FE inference blanked below the
+  20-loan floor; FDR recomputed over eligible family only; new `significant_robust` column requires
+  both FE and bootstrap CI to agree in the same direction on ≥20 loans. Verified: Fidus now blank;
+  9 robust managers all have CI excluding 0. Barings correctly flips to non-significant after FDR
+  restriction (p=0.051).
+• **Defect 4a (`9a70ec9`)** Issue-grain overlap was including Low/Single confidence matches (19.5%
+  of shared issue_ids were seniority-only). Fixed in `portfolio_overlap.py::compute_overlap`.
+• **Defect 4b (`625e07e`)** Boilerplate fragments forming mega-clusters. Added prepositions
+  ("in","of","to","at","on","for","by","as","or") and affiliation stopwords ("unaffiliated",
+  "nonaffiliate") to `_GENERIC_TOKENS`; `parse_issuer` now rejects names with an empty core_key.
+  "in controlled" (11,496 rows) and "unaffiliated issuer" no longer appear. parse_ok 96.9%→91.0%
+  (expected); all 7 anchors intact; ≥10-fund overlap improved 406→518.
+• **Defect 6 (`b217bd4`)** Missing disclosures. Added "Universe & coverage caveats" block to both
+  workbook Overviews: (1) survivor-only universe, (2) overlap-only comparison (~18 managers absent
+  — venture/specialty lenders + BlackRock/AllianceBernstein), (3) exact-date matching only.
+• **Defect 3 (`c1807f1`)** Under-coverage gate. Added `HOLDINGS_COVERAGE_MIN = 0.70` to
+  `bdc_xbrl.py`; symmetric lower-bound return in `apply_holdings_summary`. Pre-check confirmed
+  gate fires on Goldman Sachs BDC 10-Q 2023-06-30 (ratio=0.036, was publishing top_10=1.00) and
+  does NOT fire on Stellus (ratio=0.798, legitimate 183-holding result). ⚠️ **Code committed but
+  `data/extracted/*.json` are stale — a full clean re-run is needed to apply the gate** (see below).
+**Defect 5 (survivorship, owner-scoped):** Path B disclosure landed via Defect 6. Path A (adding
+~77 dead-BDC CIKs) is a separate workstream — see Active Roadmap below.
+**Last Session: 2026-06-15 (session 12 cont.)**
 
 ### What's Working
 - Virtual environment set up (`uv venv` inside `sec-extraction-v3/`)
@@ -820,6 +852,26 @@ Re-add C6 ONLY if an authoritative tagged roll-forward SUBTOTAL surfaces to anch
   `marking_bias.xlsx`) — which managers mark rich/cheap vs peers; within-issue leave-one-out
   deviations, bootstrap CIs + issue-clustered OLS + FDR, charts; fund→manager map confirmed
   (`src/analysis/managers.py`). Both validated.
+- **⚠️ Defect 3 full re-run (PENDING — needs network, ~3–4 hrs).** The under-coverage gate
+  (`HOLDINGS_COVERAGE_MIN = 0.70`) is committed in `bdc_xbrl.py` but `data/extracted/*.json` are
+  stale — the gate only takes effect after a clean re-extraction. When ready:
+  ```
+  Remove-Item data\extracted -Recurse -Force
+  Remove-Item data\holdings  -Recurse -Force
+  Remove-Item data\review_queue\index.txt -Force
+  uv run python src/extraction/run_extraction.py
+  ```
+  Then rebuild spreadsheet + holdings CSVs + all three analysis workbooks. Worst-case affected
+  filing confirmed: Goldman Sachs BDC 10-Q 2023-06-30 (top_10_concentration was 1.00 on 4% coverage;
+  will be suppressed to null after re-run).
+- **⚠️ Defect 5 Path A — survivorship (OWNER-SCOPED, separate workstream).** The current universe
+  is survivor-only: ~77 BDCs that deregistered during the XBRL window (2016+) are absent — many are
+  the distressed failures (American Capital, Medallion, Sierra Income/Medley, Garrison, Logan Ridge,
+  Alcentra, OHA, Newtek). These are documented in `_verification/di_survivorship_gap.csv` (in the
+  verification copy). Path A: add those CIKs to `fund_universe.csv`, run the standard extraction
+  over them, rebuild holdings → analyses, and document the full-vs-survivor headline comparison.
+  Disclosure of this limitation is already in both analysis workbooks (Defect 6). Do not proceed
+  without scoping this as its own project.
 - **Interval/tender-offer extraction** — LLM-over-clean-text (edgartools `filing.text()`/
   `get_section()`/`chunk_text()`) into the existing spine; financials NOT in XBRL (session-10 scope).
 
@@ -829,6 +881,7 @@ Re-add C6 ONLY if an authoritative tagged roll-forward SUBTOTAL surfaces to anch
 
 | Date | What Happened |
 |------|---------------|
+| 2026-06-15 (session 12 cont. — adversarial verification + 6 defect fixes) | Brian ran three verification passes (pipeline, statistical, data-integrity) against a project copy; results in `FIX_INSTRUCTIONS.md`. Fixed all 6 defects in order, one commit each. **D1 (`3e53c5f`)**: README missing analysis deps (scipy/statsmodels/matplotlib/networkx). **D2.1 (`dd2502f`)**: docs mismatch on the leave-one-out estimator — §7 plan corrected (include-self FE attenuates by k/(k−1); code was already correct), 3 docstrings updated, no numeric change. **D2.2 (`e7709c5`)**: thin-manager false significance — FE inference blanked below 20-loan floor, FDR over eligible family only, `significant_robust` column added (requires both FE + bootstrap CI to agree in same direction on ≥20 loans); Fidus n=2 now shows blank p; Barings correctly flips to non-significant (p=0.051 after FDR restriction). **D4a (`9a70ec9`)**: issue-grain overlap was including Low/Single confidence matches (19.5%); fixed by filtering to High/Med only before the grain loop. **D4b (`625e07e`)**: boilerplate mega-clusters ("in controlled" 11,496 rows, "unaffiliated issuer") fixed by adding prepositions + affiliation stopwords to `_GENERIC_TOKENS` and requiring a non-empty `core_key` in `parse_issuer`; parse_ok 96.9%→91.0%, all 7 anchors intact, ≥10-fund overlap improved 406→518. **D6 (`b217bd4`)**: survivor-only/overlap-only/exact-date caveats added to both workbook Overviews. **D3 (`c1807f1`)**: `HOLDINGS_COVERAGE_MIN=0.70` gate added to extractor (Goldman BDC 2023-Q2 pre-check: ratio=0.036, gate fires; Stellus ratio=0.798, gate correctly silent) — ⚠️ code committed, full re-run pending. D5 Path A (survivorship) owner-scoped, Path B disclosure done via D6. Both flagged in Active Roadmap. |
 | 2026-06-13 (session 12 cont. — holdings follow-on research) | Two standalone analyses reusing `holdings_compare.py`, separate outputs. Wrote both plans (`93a762b`): `docs/MARKING_BIAS_PLAN.md` (manager-level rich/cheap vs peers; within-issue leave-one-out deviations; descriptive + bootstrap CIs AND issue-fixed-effects regression w/ cluster-robust SEs + FDR; charts) and `docs/PORTFOLIO_OVERLAP_PLAN.md`. Built **fund→manager map** (`src/analysis/managers.py`, `93a762b`): curated CIK→manager, 74 funds → 57 managers (14 multi-fund), emits `fund_manager_map.csv`; 5 VERIFY cases flagged (BCP→BC Partners?, MidCap→Apollo, MSC→Main Street, John Hancock/Comvest, TPG Twin Brook). Built + validated **portfolio overlap** (`src/analysis/portfolio_overlap.py`, `141042d`): pairwise fund overlap at issuer + issue grain — common count, directional A→B/B→A, Jaccard, overlap coef, $-weighted overlap, hypergeometric lift, same-manager flag; per-date panel + trend; clustered heatmap + co-lending network (networkx) + trend charts → `portfolio_overlap.xlsx` (1,061 latest pairs / 17,507 panel / FundSummary / Trend / Charts). Validation: same-manager sister funds top (Blue Owl II/I 0.78 Jaccard, lift 30×; MSC inside Main Street 0.99 directional), cross-manager club deals at lift 3–8× (Blackstone/HPS share 121 actual loans). First full run was interrupted by a manual restart, then Brian re-ran it by hand successfully. Installed scipy + matplotlib + networkx (`--link-mode=copy`). All pushed. **Next: marking-bias build (needs statsmodels); confirm the 5 manager-map VERIFY cases first.** |
 | 2026-06-12 (session 12 — cross-BDC holdings & mark comparison, Phases 1–4) | Built `src/analysis/holdings_compare.py` per `docs/HOLDINGS_COMPARISON_PLAN.md` (independent of the extractor; reads `data/holdings/`). First: maturity/reference_rate/acquisition_date capture (`af1d88f`) + Brian's full clean re-run (1,045 filings; maturity now on ~22% of holding rows, bimodal). **Phase 1 (`305ef4d`)** consolidate+clean+parse — one 375,530-row table; parses the 3 member formats (comma / em-dash / denormalized PATH) into issuer_name+instrument_text, strips category/geo/GICS-sector boilerplate token-by-token + structured-attribute tails, derives seniority/type, price=FV/par; 96.9% parse_ok, all 7 anchors at 13–16 funds, honest degradation. **Phase 2 (`361af1c`)** fuzzy issuer clustering via a distinctive-token CORE KEY (exact-core merge + rapidfuzz token_sort_ratio ≥92 on cores, blocked) — boilerplate can't bridge unrelated issuers (killed a naive-WRatio 14k mega-cluster); 26,759 norms → 15,149 clusters, purity 2371/2372, anchors clean. **Phase 3 (`e66039b`)** issue/tranche matching by seniority+spread (+maturity corroborator, co-occurrence attach), confidence tiers, per-issue mark stats — 123,961 issues / 22,555 High; fixed commitment-overhang (principal≫cost ⇒ FV/cost) + outlier-robust dispersion (trim >25pts, count outliers). **Phase 4 (`9baa78e`)** mark-comparison workbook `data/dataset/holdings_marks_comparison.xlsx` (Overview/Dispersion/Consensus/HolderDetail/IssuerSummary/Anchors, marks in points of par); fixed per-HOLDER dispersion (collapse a fund's lots first), overhang threshold 1.5×→2.5× (discount ≠ undrawn commitment), upper band →1.10. **Validated**: anchors at par sub-1pt, PetVet real ~10pt markdown; surfaces verifiable cross-manager divergence (Pluralsight Ares 73.5 vs Blue Owl 97.7; YA Intermediate Blackstone 59 vs T. Rowe 99). All four commits pushed. Open: Phase 5 (match-rate stats, manual-review sample, period-over-period trend). |
 | 2026-06-11 (session 11 — listed BDCs incorporated) | Executed `docs/LISTED_BDC_PLAN.md` against Brian's `Listed BDCs Mstar.xlsx`. **Universe (`0f19a90`):** +55 net-new listed BDCs (vehicle_type="Listed BDC"), 547→602, pure append; bdc_funds() now 81. **Extractor (`1b74487`):** ONE extractor (no fork) + generic single-class NAV fallback (synthesize a "common" class from undimensioned NAV/share+shares+net assets when the share-class axis is empty AND a per-share signal exists; positive-share guard keeps LLCs empty) + runner amendments=False. **vehicle_type wiring (`00de0ce`):** was blank on all extractions; now normalized + set + revalidate-backfilled → one mixed workbook. **Timeout fix (`e328735`):** first full run crashed on an uncaught ReadTimeout (period_of_report fetch was outside the per-filing try); moved inside + 3-attempt backoff; resumed cleanly. **Full run: 1,088 filings / 642 pass / 446 review / 1 error.** Listed 395/393 (same C5/C4/C7 flag-and-keep families as unlisted); unlisted 247/53 (1 benign flip on First Eagle). Single-class NAV verified (ARCC $19.94 etc.). **Step 4 — holdings dedup investigated, NO SAFE GENERIC FIX:** recon gate suppresses §9 metrics for 36/55 listed BDCs (leaf sums over-count balance-sheet investments 1.28×–5.6×); tested+rejected ifv-understatement, value-dedup, pipe/non-pipe family, within-member double-summing — root cause is subtotal/aggregate-row contamination (Kennedy-Lewis class, milder, heterogeneous) needing fragile heuristics → accept the gate (honest nulls), documented known-limitation; core financials unaffected. Spreadsheet rebuilt (1,088 rows, vehicle_type discriminator). |
