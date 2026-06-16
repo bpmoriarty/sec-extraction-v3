@@ -286,6 +286,12 @@ def parse_issuer(raw: str) -> dict:
         instrument_text = (instrument_text + " " + struct_tail) if instrument_text else struct_tail
     ok = bool(issuer_name) and issuer_name.lower() not in _JUNK_EXACT \
         and not _SUBTOTAL_RE.search(issuer_name) and len(issuer_name) > 1
+    # Reject names whose core_key (distinctive tokens only) is empty — these are all-boilerplate
+    # strings like "in Securities" (core="") or "unaffiliated issuer" (core="") that parse_ok=True
+    # but would otherwise form a mega-cluster under a single preposition or boilerplate token.
+    # This keeps the "degrade honestly" design: they're counted as unparsed, not force-matched.
+    if ok:
+        ok = bool(core_key(normalize_issuer(issuer_name) or ""))
     return {"issuer_name": issuer_name, "instrument_text": instrument_text, "parse_ok": ok}
 
 
@@ -359,6 +365,12 @@ _GENERIC_TOKENS = {
     "issuer", "name", "maturity", "original", "purchase", "date", "variable", "index", "benchmark",
     "floor", "initial", "type", "cash", "all", "corporate", "pik", "index", "reference", "loc",
     "securities", "uk", "warrants", "warrant",
+    # prepositions and connectives — too generic to distinguish any issuer; a name whose only
+    # remaining tokens are these (e.g. "in securities" after "securities" is already generic)
+    # would otherwise create a mega-cluster on the single token "in".
+    "in", "of", "to", "at", "on", "for", "by", "as", "or",
+    # affiliation-bucket words that escape stripping in some member formats
+    "unaffiliated", "nonaffiliate",
     # single-word GICS sector remnants
     "software", "healthcare", "industrials", "materials", "energy", "utilities", "financials",
     "media", "entertainment", "insurance", "banks", "chemicals", "machinery", "transportation",
