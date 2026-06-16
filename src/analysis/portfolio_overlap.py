@@ -341,6 +341,21 @@ def _write(latest, latest_cols, fund_summary, trend_wide, pairs, best_date, n_fu
         "Caveats: overlap is on matched, priced holdings (equity/unmatched excluded); funds with",
         "different fiscal quarter-ends only co-appear on shared dates; issue-grain overlap inherits",
         "the matcher's confidence.",
+        "",
+        "Universe & coverage caveats (see _verification/DATA_INTEGRITY_REPORT.md for detail):",
+        "1. SURVIVOR-ONLY UNIVERSE. The fund universe was seeded from current Morningstar lists and",
+        "   contains only BDCs that still exist. An estimated 77 BDCs that deregistered during the",
+        "   XBRL window (2016+) are absent — many are the distressed failures (American Capital,",
+        "   Medallion, Sierra Income/Medley, Garrison, Logan Ridge, Alcentra, OHA, Newtek). Overlap",
+        "   counts and the co-lending network reflect the surviving, performing subset only.",
+        "2. OVERLAP-ONLY COMPARISON. Approximately 18 of ~57 managers appear in zero cross-fund",
+        "   pairs — every venture/specialty lender (Hercules, Horizon Technology, Runway Growth,",
+        "   Trinity Capital, TriplePoint, Firsthand, Advanced Flower Capital, Chicago Atlantic,",
+        "   Gladstone, Princeton, Rand, Saratoga, PGIM, Fidelity, PennantPark, SLR) plus 2 lost to",
+        "   SOI parse format (BlackRock, AllianceBernstein). The overlap analysis describes the",
+        "   club-deal / broadly-syndicated direct-lending core.",
+        "3. EXACT-DATE MATCHING. Only funds reporting on the same fiscal period-end co-appear on a",
+        "   date. Funds with different quarter-ends are not compared across dates.",
     ]
     with pd.ExcelWriter(WORKBOOK, engine="openpyxl") as xl:
         pd.DataFrame({"": []}).to_excel(xl, sheet_name="Overview", index=False)

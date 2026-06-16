@@ -324,6 +324,23 @@ def _write(table, by_date, issue_sample, fmap, mi, cat, box) -> None:
         "Caveats: marks are quarterly manager estimates of illiquid loans; only loans matched on shared",
         "dates count; managers with thin overlap get wide CIs (flagged). A non-zero grand mean would",
         "signal a bug — by construction deviations roughly center at zero across managers.",
+        "",
+        "Universe & coverage caveats (see _verification/DATA_INTEGRITY_REPORT.md for detail):",
+        "1. SURVIVOR-ONLY UNIVERSE. The fund universe was seeded from current Morningstar lists and",
+        "   contains only BDCs that still exist. An estimated 77 BDCs that deregistered during the",
+        "   XBRL window (2016+) are absent — many are the distressed failures (American Capital,",
+        "   Medallion, Sierra Income/Medley, Garrison, Logan Ridge, Alcentra, OHA, Newtek). The",
+        "   bias rankings are therefore built on the surviving, performing subset and may understate",
+        "   cross-manager dispersion. Do NOT present these rankings as universe-complete.",
+        "2. OVERLAP-ONLY COMPARISON. Only managers whose books overlap with others can be compared.",
+        "   Approximately 18 of ~57 managers contribute zero comparable observations and are absent",
+        "   from the rankings — every venture/specialty lender (Hercules, Horizon Technology, Runway",
+        "   Growth, Trinity Capital, TriplePoint, Firsthand, Advanced Flower Capital, Chicago",
+        "   Atlantic, Gladstone, Princeton, Rand, Saratoga, PGIM, Fidelity, PennantPark, SLR) plus",
+        "   2 lost to SOI parse format (BlackRock, AllianceBernstein). Findings describe the",
+        "   club-deal / broadly-syndicated direct-lending core, not venture-debt or specialty lenders.",
+        "3. EXACT-DATE MATCHING. Only managers reporting on the same fiscal period-end are ever",
+        "   compared. Funds with different quarter-ends do not co-appear on shared dates.",
     ]
     with pd.ExcelWriter(WORKBOOK, engine="openpyxl") as xl:
         pd.DataFrame({"": []}).to_excel(xl, sheet_name="Overview", index=False)
