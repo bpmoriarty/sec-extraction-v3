@@ -852,26 +852,52 @@ Re-add C6 ONLY if an authoritative tagged roll-forward SUBTOTAL surfaces to anch
   `marking_bias.xlsx`) — which managers mark rich/cheap vs peers; within-issue leave-one-out
   deviations, bootstrap CIs + issue-clustered OLS + FDR, charts; fund→manager map confirmed
   (`src/analysis/managers.py`). Both validated.
-- **⚠️ Defect 3 full re-run (PENDING — needs network, ~3–4 hrs).** The under-coverage gate
-  (`HOLDINGS_COVERAGE_MIN = 0.70`) is committed in `bdc_xbrl.py` but `data/extracted/*.json` are
-  stale — the gate only takes effect after a clean re-extraction. When ready:
-  ```
-  Remove-Item data\extracted -Recurse -Force
-  Remove-Item data\holdings  -Recurse -Force
-  Remove-Item data\review_queue\index.txt -Force
-  uv run python src/extraction/run_extraction.py
-  ```
-  Then rebuild spreadsheet + holdings CSVs + all three analysis workbooks. Worst-case affected
-  filing confirmed: Goldman Sachs BDC 10-Q 2023-06-30 (top_10_concentration was 1.00 on 4% coverage;
-  will be suppressed to null after re-run).
+- ~~**Defect 3 full re-run**~~ — DONE (session 13, 2026-06-19). Clean re-extraction on the home
+  machine applied the `HOLDINGS_COVERAGE_MIN = 0.70` gate. 1,088 filings / 642 pass / 446 review /
+  1 benign error / 793 holdings CSVs — reproduces the session-11 baseline exactly. Gate verified:
+  Goldman Sachs BDC 10-Q 2023-06-30 (ratio 0.036) now nulls its holdings metrics (was top_10=1.00);
+  fires on thin AND contaminated coverage, keeps clean ~1.00×. Old 300-JSON set backed up at
+  `data/extracted_backup_20260619_172955/`. Downstream workbooks (spreadsheet + 3 analysis) still
+  need a rebuild from the fresh data.
 - **⚠️ Defect 5 Path A — survivorship (OWNER-SCOPED, separate workstream).** The current universe
-  is survivor-only: ~77 BDCs that deregistered during the XBRL window (2016+) are absent — many are
-  the distressed failures (American Capital, Medallion, Sierra Income/Medley, Garrison, Logan Ridge,
-  Alcentra, OHA, Newtek). These are documented in `_verification/di_survivorship_gap.csv` (in the
-  verification copy). Path A: add those CIKs to `fund_universe.csv`, run the standard extraction
-  over them, rebuild holdings → analyses, and document the full-vs-survivor headline comparison.
-  Disclosure of this limitation is already in both analysis workbooks (Defect 6). Do not proceed
-  without scoping this as its own project.
+  is survivor-only: BDCs that deregistered during the XBRL window are absent. **Gap list
+  RECONSTRUCTED from EDGAR (session 13, `0656cd7`)** — the verification-copy CSV was never committed
+  here, so sourced fresh from N-54C filings (withdrawal of BDC election) since 2016, diffed against
+  the universe: **76 candidates** (`data/survivorship_gap_candidates.csv`), enriched with inline-XBRL
+  availability (`data/survivorship_gap_enriched.csv`, script `src/analysis/survivorship_enrich.py`).
+  **Split: 30 extractable (≥1 inline-XBRL 10-K/10-Q, 278 filings) / 46 not.** KEY FINDING — the split
+  is temporal: BDC inline-XBRL began ~2020–2022, so the marquee pre-2020 distressed failures
+  (American Capital, Sierra/Medley, Garrison, Alcentra, OHA, MVC, Harvest, FS KKR II) are in the
+  NON-extractable 46 → an XBRL-only Path A recovers mostly recent exits and misses the big blowups
+  (those need the LLM-over-HTML path). **CORRECTION (Brian, session 13):** do NOT treat "merged away"
+  as benign — merging a weak fund into a stronger sibling is a primary survivorship-bias *mechanism*
+  (the weak NAV/track-record gets absorbed and disappears), exactly as poorly-performing mutual
+  funds/ETFs are buried. Merger vs liquidation is a churn DIMENSION to measure, not a filter to
+  exclude on; the earlier "double-counting risk" framing was wrong — pre-merger the target and
+  survivor are distinct entities filing separate portfolios at separate dates, so no temporal double
+  count (their pre-merger holdings overlap is real co-investment, which `portfolio_overlap` is meant
+  to capture). Path A: add CIKs → extract → rebuild → document full-vs-survivor headline. Scope as
+  its own project. Ties directly into the churn project below.
+- **BDC churn & survival analysis (FUTURE RESEARCH — Brian, session 13).** Quantify the full
+  life-cycle of the BDC universe (listed + unlisted), survivorship-bias-corrected. Data spine is
+  cheap and needs NO financial extraction: **N-54A filings = births** (election to be a BDC),
+  **N-54C = deaths** (withdrawal), `fund_universe` = current survivors — all from the EDGAR filing
+  index. Dimensions to cover: (1) births/deaths/active-count time series + annual churn rate;
+  (2) overall **survival rate** (% of ever-launched BDCs still alive) and per-launch-cohort survival;
+  (3) Kaplan–Meier survival curve / hazard by fund age, median lifespan; (4) **death mechanism split**
+  — liquidation vs merger, and intra-manager rollup vs third-party acquisition (merger ≠ benign,
+  see above); (5) **timing** — was attrition an early wave (2016–2020 non-traded-BDC mortality:
+  Sierra/Medley/FSIC era) or a recent consolidation wave (2023–2026); (6) **listed vs unlisted**
+  survival (non-traded BDCs historically far higher mortality); (7) manager-level churn (serial
+  launchers vs durable single-fund shops); (8) survivorship-bias quantification (how much mark/return
+  averages shift when the dead are added back — the Defect 5 motivation). Mirror **Morningstar fund-
+  survival methodology**: a fund "doesn't survive" if liquidated OR merged; report e.g. a 10-year BDC
+  survival rate; a performance-conditioned "success rate" (survived AND positive total NAV return)
+  needs returns → hits the same pre-2020 extraction gap for the dead. Likely a standalone
+  `src/analysis/` module + a churn workbook. Births/deaths/cohort/mechanism/timing are fully doable
+  now from the index; the performance-conditioned success rate is gated on the survivorship extraction.
+- **Interval/tender-offer extraction** — LLM-over-clean-text (edgartools `filing.text()`/
+  `get_section()`/`chunk_text()`) into the existing spine; financials NOT in XBRL (session-10 scope).
 - **Interval/tender-offer extraction** — LLM-over-clean-text (edgartools `filing.text()`/
   `get_section()`/`chunk_text()`) into the existing spine; financials NOT in XBRL (session-10 scope).
 

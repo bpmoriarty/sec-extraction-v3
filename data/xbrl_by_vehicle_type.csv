@@ -1,0 +1,258 @@
+vehicle_type,cik,fund_name,n_filings,n_inline,any_inline,forms_with_inline,latest_inline_date
+Tender Offer Fund,0001899996,Fidelity Private Credit Co LLC,87,36,True,10-K|10-Q|8-K|SC TO-I|SC TO-I/A,2026-05-08
+Interval Fund,0001748680,1WS Credit Income Fund,157,4,True,486BPOS,2026-02-27
+Interval Fund,0002012326,AB CarVal Credit Opportunities Fund,57,6,True,424B3|486BPOS|N-2|N-2/A|POS AMI,2025-10-27
+Interval Fund,0001467631,ACAP Strategic Fund,282,6,True,486BPOS|N-CSR|N-CSRS,2026-06-05
+Interval Fund,0001843499,AFA ASSET BASED LENDING FUND,113,7,True,424B3|486BPOS,2025-08-28
+Interval Fund,0001995940,AMG Pantheon Credit Solutions Fund,93,9,True,424B3|486BPOS|N-2/A,2026-04-01
+Interval Fund,0002046200,AMG Pantheon Infrastructure Fund LLC,59,4,True,424B3|N-2/A,2026-04-01
+Interval Fund,0001897540,AOG Institutional Fund,164,8,True,486BPOS|SC TO-I/A,2026-01-27
+Interval Fund,0001905088,ARK Venture Fund,100,13,True,424B3|486BPOS|N-CSR|N-CSRS,2026-04-09
+Interval Fund,0001783964,Accordant ODCE Index Fund,145,10,True,424B3|486BPOS|N-2/A,2026-01-16
+Interval Fund,0001777529,Alpha Alternative Assets Fund,185,6,True,424B3|486BPOS|N-CSRS,2026-06-04
+Interval Fund,0001628040,Alternative Credit Income Fund,382,5,True,424B3|486BPOS,2026-01-28
+Interval Fund,0001496254,Alternative Strategies Income Fund,309,3,True,486BPOS,2025-10-27
+Interval Fund,0001716885,Angel Oak Strategic Credit Fund,223,11,True,424B3|486BPOS|N-CSR|N-CSRS,2026-05-29
+Interval Fund,0001676197,Apollo Diversified Credit Fund,251,7,True,424B3|486BPOS|POS EX,2026-04-29
+Interval Fund,0001597634,Apollo Diversified Real Estate Fund,293,9,True,424B3|486BPOS|486BXT,2026-06-01
+Interval Fund,0001758583,Arca US Treasury Fund,186,4,True,486BPOS,2026-04-30
+Interval Fund,0001754927,Axonic Alternative Income Fund,175,6,True,424B3|486BPOS,2026-03-02
+Interval Fund,0002003867,Axxes Opportunistic Credit Fund,47,4,True,424B3|486BPOS|N-2/A,2025-06-11
+Interval Fund,0002004413,Beacon Pointe Multi-Alternative Fund,47,5,True,424B3|486BPOS|N-2/A,2025-08-01
+Interval Fund,0001752019,BlackRock HPS Credit Strategies Fund,249,11,True,424B3|486APOS|486BPOS,2026-04-29
+Interval Fund,0001232860,BlackRock Municipal Credit Alpha Portfolio Inc,512,9,True,424B3|486BPOS|8-K|SC TO-I|SC TO-I/A,2025-11-26
+Interval Fund,0002032432,Blackstone Private Multi-Asset Credit Income Fund,61,6,True,424B3|486BPOS|N-2/A|N-CSR|N-CSRS,2026-04-28
+Interval Fund,0002059436,Blue Owl Alternative Credit Fund,51,5,True,424B3|486BPOS|N-2|N-2/A|POS AMI,2026-04-30
+Interval Fund,0001722837,BlueBay Destra International Event-Driven Credit Fund,189,8,True,424B3|486BPOS,2026-01-28
+Interval Fund,0001892443,Bluerock High Income Institutional Credit Fund,151,8,True,424B3|486BPOS,2026-01-27
+Interval Fund,0002023164,Booster Income Opportunities Fund,44,3,True,424B3|486BPOS,2026-01-09
+Interval Fund,0001810256,Bow River Capital Evergreen Fund,146,6,True,486BPOS|SC TO-I|SC TO-I/A,2026-05-08
+Interval Fund,0001902944,CANTOR FITZGERALD INFRASTRUCTURE FUND,108,9,True,424B3|486APOS|486BPOS,2025-07-29
+Interval Fund,0002079872,CAZ GP Stakes Fund,32,5,True,424B3|486APOS|N-2/A,2026-05-29
+Tender Offer Fund,0001984165,CAZ Strategic Opportunities Fund,93,12,True,424B3|486APOS|486BPOS|N-2/A|SC TO-I|SC TO-I/A,2025-11-20
+Interval Fund,0001767074,CIM Real Assets Credit Fund,162,7,True,486BPOS|N-CSR|N-CSRS,2026-06-05
+Interval Fund,0001678124,CION Ares Diversified Credit Fund,346,16,True,424B3|486BPOS|8-K|N-2,2026-05-27
+Interval Fund,0001997906,CION Grosvenor Infrastructure Fund,58,8,True,424B3|486BPOS|N-2/A|N-CSR|N-CSRS|POS EX,2026-06-05
+Interval Fund,0002001586,"CION Grosvenor Infrastructure Master Fund, LLC",41,5,True,N-2|N-CSR|N-CSRS|POS AMI,2026-06-05
+Interval Fund,0001937073,Calamos Aksia Alternative Credit Income Fund,142,7,True,424B3|486BPOS|N-2/A,2025-10-14
+Interval Fund,0002063706,Calamos Aksia Hedged Strategies Fund,55,4,True,424B3|N-2/A,2025-09-29
+Interval Fund,0002047442,Calamos Aksia Private Equity Alternatives Fund,68,4,True,424B3|N-2/A,2025-10-21
+Interval Fund,0002029168,Callodine Specialty Income Fund,33,5,True,424B3|486BPOS|N-2/A,2026-04-30
+Interval Fund,0002040315,Capital Group KKR Core Plus plus,69,5,True,424B3|486BPOS|N-2/A,2026-03-10
+Interval Fund,0002040318,Capital Group KKR Multi-Sector plus,71,5,True,424B3|486BPOS|N-2/A,2026-03-10
+Interval Fund,0001725472,Carlyle Tactical Private Credit Fund,373,13,True,40-17G|486BPOS|8-K|N-CSR|N-CSRS,2026-04-28
+Interval Fund,0001864609,Cascade Private Capital Fund,155,13,True,424B3|486BPOS|N-2|N-CSR|N-CSRS,2026-06-08
+Interval Fund,0001868950,Cashmere Fund,87,11,True,424B3|486BPOS|N-CSR|N-CSRS|POS EX,2025-12-11
+Interval Fund,0002007649,CatalystPerini Strategic Income Fund,48,5,True,424B3|486BPOS|497,2026-02-06
+Interval Fund,0001690996,City National Rochdale Select Strategies Fund,182,6,True,486BPOS|N-2|N-2/A,2026-05-29
+Interval Fund,0001737936,City National Rochdale Strategic Credit Fund,166,4,True,424B3|486BPOS,2025-09-26
+Interval Fund,0001762562,Clarion Partners Real Estate Income Fund Inc,352,10,True,486BPOS|N-2|N-CSR|SC TO-I|SC TO-I/A,2026-04-28
+Interval Fund,0001735964,Cliffwater Corporate Lending Fund,277,14,True,424B3|486BPOS|N-CSR|N-CSRS|N-CSRS/A,2026-06-08
+Interval Fund,0001842754,Cliffwater Enhanced Lending Fund,125,14,True,424B3|486BPOS|N-CSR|N-CSRS,2026-06-08
+Interval Fund,0002041900,Columbia Credit Income Opportunities Fund,76,4,True,486BPOS|N-2/A|N-CSR|N-CSRS,2026-04-06
+Interval Fund,0001996211,Connetic Venture Capital Access Fund,47,2,True,486BPOS|N-2/A,2025-07-29
+Interval Fund,0002000182,Denali Structured Return Strategy Fund,61,6,True,424B3|486BPOS|N-2/A|N-CSR,2026-06-05
+Interval Fund,0002022290,Diamond Hill Securitized Credit Fund,72,5,True,424B3|486BPOS|N-2/A,2026-02-25
+Interval Fund,0001751156,ELLINGTON INCOME OPPORTUNITIES FUND,161,11,True,486BPOS|N-CSR|N-CSR/A|N-CSRS,2026-04-30
+Interval Fund,0001992148,Eagle Point Enhanced Income Trust,80,6,True,424B3|486BPOS|N-2/A,2026-02-02
+Interval Fund,0001582138,Equalize Community Development Fund,256,3,True,486BPOS,2025-10-24
+Interval Fund,0001681717,FIRST TRUST ALTERNATIVE OPPORTUNITIES FUND,242,5,True,424B3|486BPOS,2025-09-26
+Interval Fund,0001688897,FS Credit Income Fund,261,18,True,424B3|486BPOS|8-K,2026-02-27
+Interval Fund,0001949594,Fidelity Multi-Strategy Credit Fund,124,8,True,424B3|486BPOS|N-2/A,2025-10-24
+Interval Fund,0001818416,First Eagle Credit Opportunities Fund,228,8,True,424B3|486BPOS|POS 8C,2026-05-20
+Interval Fund,0002006189,First Eagle Real Estate Debt Fund,71,4,True,424B3|486BPOS|N-2/A|POS 8C,2026-05-19
+Interval Fund,0002050541,First Eagle Tactical Municipal Opportunities Fund,52,4,True,424B3|486BPOS|N-2/A|POS 8C,2026-05-18
+Interval Fund,0002021979,First Trust Enhanced Private Credit Fund,59,11,True,424B3|N-2/A|POS AMI|SC TO-I|SC TO-I/A,2026-05-05
+Interval Fund,0001970466,First Trust Hedged Strategies Fund,79,5,True,424B3|486BPOS|N-2/A,2025-07-29
+Interval Fund,0001912963,First Trust Private Credit Fund,113,3,True,486BPOS,2025-07-29
+Interval Fund,0001898303,First Trust Real Assets Fund,105,3,True,486BPOS,2025-07-29
+Interval Fund,0001814390,Flat Rock Core Income Fund,154,16,True,424B3|486BPOS|N-CSR|N-CSRS|POS EX,2026-04-30
+Interval Fund,0001925779,Flat Rock Enhanced Income Fund,95,12,True,424B3|486BPOS|N-CSR|N-CSRS,2026-04-28
+Interval Fund,0001732078,Flat Rock Opportunity Fund,209,16,True,424B3|486BPOS|N-CSR|N-CSRS|POS EX,2026-04-29
+Interval Fund,0001857314,Forum Real Estate Income Fund,154,15,True,424B3|486BPOS|N-CSR|N-CSRS,2026-04-24
+Interval Fund,0002063946,Franklin BSP Lending Fund,61,4,True,424B3|486BPOS|N-2/A|N-CSR,2026-04-30
+Interval Fund,0001794041,Franklin BSP Private Credit Fund,141,7,True,424B3|486BPOS,2026-04-30
+Interval Fund,0001885551,Fundrise Income Real Estate Fund LLC,376,5,True,424B3|486BPOS,2026-04-30
+Interval Fund,0001777677,Fundrise Real Estate Interval Fund LLC,608,5,True,424B3|486BPOS,2026-04-30
+Interval Fund,0002012980,Gemcorp Commodities Alternative Products Fund,53,7,True,N-CSR|N-CSRS|POS AMI,2026-03-09
+Interval Fund,0002026098,Gladstone Alternative Income Fund,78,6,True,424B3|486BPOS|N-2/A|N-CSR|N-CSRS,2026-06-03
+Interval Fund,0002052250,GoldenTree Opportunistic Credit Fund,59,3,True,424B3|486BPOS|N-2/A,2026-04-30
+Interval Fund,0001796242,Goldman Sachs Real Estate Diversified Income Fund,193,3,True,486BPOS,2026-01-27
+Interval Fund,0002020510,Hamilton Lane Private Infrastructure Fund,66,14,True,424B3|486BPOS|N-2/A|N-CSR|N-CSRS|SC TO-I|SC TO-I/A,2026-06-09
+Interval Fund,0001812286,Harrison Street Infrastructure Income Fund,89,6,True,424B3|486BPOS|N-2/A,2025-07-29
+Interval Fund,0001687898,Harrison Street Real Assets Fund LLC,236,5,True,424B3|486BPOS,2025-12-19
+Interval Fund,0001515001,Harrison Street Real Estate Fund LLC,338,4,True,486BPOS,2025-07-29
+Interval Fund,0001976685,Institutional Investment Strategy Fund,121,11,True,486BPOS|497|N-CSR|N-CSR/A|N-CSRS,2026-06-05
+Interval Fund,0001860151,Invesco Dynamic Credit Opportunity Fund,204,12,True,424B3|486BPOS|N-CSR|N-CSRS,2026-05-07
+Interval Fund,0000853180,Invesco Senior Loan Fund,949,11,True,486BPOS|N-CSR|N-CSRS|N-Q,2026-05-07
+Interval Fund,0001982467,Jackson Credit Opportunities Fund,100,3,True,424B3|486BPOS,2025-07-18
+Interval Fund,0002003497,Jackson Real Assets Fund,77,4,True,424B3|486BPOS,2025-07-18
+Interval Fund,0002035632,John Hancock CQS Asset Backed Securities Fund,65,6,True,424B3|486BPOS|N-2/A,2026-02-26
+Interval Fund,0002008638,John Hancock CQS Multi Asset Credit Fund,83,6,True,424B3|486BPOS|N-2/A,2026-02-26
+Interval Fund,0001885778,John Hancock Marathon Asset-Based Lending Fund,188,19,True,424B3|486BPOS|N-2|SC TO-I|SC TO-I/A,2026-05-07
+Interval Fund,0001787621,KKR Asset-Based Finance Fund,223,8,True,424B3|486BPOS,2026-06-10
+Tender Offer Fund,0001966776,KKR Asset-Based Income Fund,82,6,True,N-2|POS AMI,2026-04-30
+Interval Fund,0002054992,Lincoln Bain Capital Total Credit Fund,59,2,True,424B3|N-2/A,2025-09-15
+Interval Fund,0001869040,Lind Capital Partners Municipal Credit Income Fund,86,4,True,486BPOS,2026-05-29
+Interval Fund,0001855299,Lord Abbett Corporate Opportunities Fund,162,6,True,424B3|486BPOS,2026-04-29
+Interval Fund,0001753712,Lord Abbett Credit Opportunities Fund,250,5,True,424B3|486BPOS,2026-04-29
+Interval Fund,0002005563,Lord Abbett Flexible Income Fund,72,4,True,424B3|486BPOS|N-2/A,2025-10-27
+Interval Fund,0002029852,Lord Abbett Municipal Opportunities Fund,71,3,True,424B3|486BPOS,2026-01-30
+Interval Fund,0002015849,MA Specialty Credit Income Fund,91,6,True,424B3|486BPOS|N-2/A,2026-04-29
+Interval Fund,0001988752,Meketa Infrastructure Fund,88,5,True,424B3|486BPOS|N-2/A,2026-05-15
+Interval Fund,0001867714,Monachil Credit Income Fund,110,6,True,424B3|486BPOS,2026-04-29
+Interval Fund,0001663712,NEXPOINT REAL ESTATE STRATEGIES FUND,248,6,True,486BPOS|N-CSR|N-CSRS,2026-04-30
+Interval Fund,0001995668,NYLI MacKay Muni Income Opportunities Fund,85,5,True,424B3|486BPOS|N-2/A,2026-05-01
+Interval Fund,0002041175,Neuberger Asset-Based Credit Fund,56,7,True,424B3|486BPOS|N-2/A,2026-04-30
+Interval Fund,0001990685,Niagara Income Opportunities Fund,59,7,True,424B3|486BPOS|N-2/A|N-CSR,2026-06-05
+Interval Fund,0001944664,Nomura Alternative Income Fund,105,7,True,424B3|486BPOS|N-2/A,2026-03-02
+Interval Fund,0002035726,Nuveen Enhanced CLO Income Fund,57,2,True,486BPOS|N-2/A,2025-12-19
+Interval Fund,0001777482,Nuveen Enhanced High Yield Municipal Bond Fund,164,3,True,486BPOS,2025-07-29
+Interval Fund,0002051511,Oaktree Asset-Backed Income Fund Inc.,47,9,True,424B3|486BPOS|N-2/A|N-CSR|N-CSRS|POS EX,2026-04-30
+Interval Fund,0001870714,Oaktree Diversified Income Fund Inc,156,15,True,424B3|486BPOS|N-CSR|N-CSRS,2026-04-30
+Interval Fund,0002000645,Octagon XAI CLO Income Fund,104,15,True,424B2|424B3|486BPOS|N-2|N-2/A|N-CSR|N-CSR/A|N-CSRS|POS EX,2026-06-05
+Interval Fund,0002020928,OneAscent Capital Opportunities Fund,69,3,True,486BPOS|N-2/A,2025-07-29
+Interval Fund,0001907437,Opportunistic Credit Interval Fund,93,4,True,486BPOS|POS EX,2026-01-28
+Interval Fund,0001989582,PGIM Credit Income Fund,84,5,True,424B3|486BPOS,2026-04-27
+Interval Fund,0001911795,PIMCO California Flexible Municipal Income Fund,162,5,True,424B3|486BPOS,2026-04-28
+Interval Fund,0001688554,PIMCO Flexible Credit Income Fund,348,5,True,424B3|486BPOS,2025-10-24
+Interval Fund,0001851077,PIMCO Flexible Emerging Markets Income Fund,179,4,True,424B3|486BPOS,2026-01-06
+Interval Fund,0001723701,PIMCO Flexible Municipal Income Fund,311,5,True,424B3|486BPOS,2026-04-28
+Interval Fund,0001896329,PIMCO Flexible Real Estate Income Fund,240,8,True,424B3|486BPOS,2026-04-30
+Interval Fund,0001608016,Palmer Square Opportunistic Income Fund,215,12,True,486BPOS|N-CSR|N-CSR/A|N-CSRS,2026-03-31
+Interval Fund,0001929777,Pender Real Estate Credit Fund,77,7,True,424B3|486BPOS|N-2/A,2026-04-30
+Interval Fund,0002078146,PennantPark Enhanced Income Fund,24,4,True,424B3|N-2/A|N-CSRS,2026-05-29
+Interval Fund,0001616037,Pioneer ILS Interval Fund,280,12,True,40-17G/A|486BPOS|N-CSR|N-CSRS|N-CSRS/A,2026-06-10
+Interval Fund,0001965985,Polen Credit Opportunities Fund,99,7,True,424B3|486BPOS|N-2/A,2025-08-28
+Interval Fund,0002071525,Pre-IPO & Growth Fund,14,4,True,424B3|486BPOS|N-2/A|N-CSR,2026-06-09
+Interval Fund,0001815609,Primark Meketa Private Equity Investments Fund,154,5,True,424B3|486BPOS,2026-04-21
+Interval Fund,0002016900,Principal Private Credit Fund,83,4,True,424B3|486BPOS|N-2/A,2026-02-09
+Interval Fund,0001756404,Principal Real Asset Fund,275,8,True,424B3|486BPOS,2026-02-17
+Interval Fund,0002017577,Privacore PCAAM Alternative Growth Fund,72,16,True,424B3|486BPOS|N-2/A|N-CSR|N-CSRS|POS AMI|SC TO-I|SC TO-I/A,2026-06-08
+Interval Fund,0002017579,Privacore PCAAM Alternative Income Fund,61,7,True,N-CSR|N-CSRS|POS AMI,2026-06-08
+Interval Fund,0002066579,Privacore VPC Asset Backed Credit Fund,47,5,True,424B3|N-2/A|N-CSR|N-CSRS,2026-06-08
+Interval Fund,0001557265,Private Shares Fund,282,5,True,424B3|486BPOS,2026-04-28
+Interval Fund,0002027076,Prospect Enhanced Yield Fund,38,6,True,424B3|N-2/A|N-CSRS,2026-03-09
+Interval Fund,0002055004,Pursuit Asset-Based Income Fund,27,3,True,424B3|N-2/A,2026-02-19
+Interval Fund,0001959172,Redwood Private Real Estate Debt Fund,74,8,True,424B3|486BPOS|N-2/A,2026-04-29
+Interval Fund,0001644771,"RiverNorth Capital & Income Fund, Inc.",300,28,True,424B2|424B3|424B5|8-K|N-2/A|N-CSR|N-CSR/A|N-CSRS|POS 8C|POS EX,2026-03-06
+Interval Fund,0002033164,Rockefeller Municipal Opportunities Fund,57,7,True,424B3|486BPOS|N-2/A|N-CSR|N-CSRS,2026-06-05
+Interval Fund,0001968178,SEI Alternative Income Fund,69,4,True,424B3|486BPOS|N-2/A,2025-12-22
+Interval Fund,0002021225,Sardis Credit Opportunities Fund,32,4,True,424B3|486APOS|N-2/A|N-CSRS,2026-03-05
+Interval Fund,0002006100,StepStone Private Credit Income Fund,83,10,True,424B3|486BPOS|N-CSR|N-CSRS,2026-04-30
+Interval Fund,0002066799,StepStone Private Equity Strategies Fund,47,4,True,424B3|N-2/A|N-CSR,2026-06-09
+Interval Fund,0001957892,StepStone Private Infrastructure Fund,104,16,True,424B3|486BPOS|N-2/A|N-CSR|N-CSRS,2026-06-09
+Interval Fund,0001581005,Stone Ridge Trust II,224,4,True,486BPOS,2026-02-25
+Interval Fund,0001658645,Stone Ridge Trust V,323,6,True,424B3|486BPOS|N-Q,2025-06-27
+Interval Fund,0001939052,Stone Ridge Trust VIII,57,8,True,424B3|486BPOS|N-2/A|N-CSRS,2026-04-02
+Interval Fund,0002028436,T Rowe Price OHA Flexible Credit Income Fund,58,11,True,424B3|N-2/A|N-CSR|N-CSR/A|N-CSRS|POS AMI,2026-04-23
+Interval Fund,0002070546,TCG Strategic Income Fund,42,3,True,424B3|N-2/A,2026-03-31
+Interval Fund,0002036272,TCW Private Asset Income Fund,66,8,True,424B3|486BPOS|N-2/A|N-CSR|N-CSRS,2026-06-01
+Interval Fund,0001854370,Thirdline Real Estate Income Fund,123,4,True,424B3|486BPOS,2025-07-31
+Interval Fund,0001691570,USQ Core Real Estate Fund,263,4,True,424B3|486BPOS,2025-07-24
+Interval Fund,0001124959,VOYA CREDIT INCOME FUND,821,8,True,424B3|486APOS|486BPOS|N-Q,2026-04-06
+Interval Fund,0001736510,Variant Alternative Income Fund,182,7,True,424B3|486BPOS|N-CSR|N-CSRS,2026-04-29
+Tender Offer Fund,0002022674,Variant Alternative Lending Fund,54,11,True,424B3|486BPOS|N-2/A|N-CSR|N-CSRS|SC TO-I|SC TO-I/A,2026-04-29
+Interval Fund,0001881739,Variant Impact Fund,101,7,True,424B3|486BPOS|N-CSR|N-CSRS,2026-04-29
+Interval Fund,0002026275,Wellington Global Multi-Strategy Fund,64,5,True,424B3|486BPOS|N-2/A|N-CSR,2026-02-27
+Interval Fund,0001586009,Wildermuth Fund,301,2,True,N-CSR|N-CSRS,2025-03-03
+Interval Fund,0001807334,Wilshire Private Assets Fund,150,8,True,424B3|486BPOS,2025-11-13
+Interval Fund,0001807333,Wilshire Private Assets Master Fund,94,0,False,,
+Interval Fund,0002042256,iDirect Private Credit Fund,40,2,True,424B3|N-2/A,2025-07-10
+Tender Offer Fund,0002036029,83 Investment Group Income Fund,55,11,True,424B3|486BPOS|N-2|N-2/A|SC TO-I|SC TO-I/A,2026-03-16
+Tender Offer Fund,0001649363,ABS LongShort Strategies Fund,244,12,True,486BPOS|N-CSR|N-CSRS|SC TO-I|SC TO-I/A,2026-04-30
+Tender Offer Fund,0001169578,AETOS DISTRESSED INVESTMENT STRATEGIES FUND LLC,1180,6,True,486BPOS|N-2|N-2/A,2026-05-22
+Tender Offer Fund,0001169583,AETOS LONGSHORT STRATEGIES FUND LLC,1243,6,True,486BPOS|N-2|N-2/A,2026-05-22
+Tender Offer Fund,0001169580,AETOS MULTI-STRATEGY ARBITRAGE FUND LLC,1197,6,True,486BPOS|N-2|N-2/A,2026-05-22
+Tender Offer Fund,0001709447,AIP Alternative Lending Fund A,255,9,True,424B3|486BPOS|N-2|SC TO-I,2026-04-01
+Tender Offer Fund,0001709406,AIP Alternative Lending Fund P,195,8,True,424B3|486BPOS|N-2|SC TO-I,2026-04-01
+Tender Offer Fund,0001609211,AMG Pantheon Fund LLC,352,12,True,424B3|N-2|SC TO-I|SC TO-I/A,2026-04-21
+Tender Offer Fund,0001186641,AQ LongShort Strategies Fund LLC,508,13,True,424B3|486BPOS|N-2|SC TO-I|SC TO-I/A,2026-06-02
+Tender Offer Fund,0001506707,AQ Multi-Strategy Fund,354,11,True,424B3|486BPOS|N-2|POS 8C|SC TO-I|SC TO-I/A,2026-03-20
+Tender Offer Fund,0001186643,AQ Technology Fund LLC,336,4,True,SC TO-I|SC TO-I/A,2026-03-20
+Tender Offer Fund,0002026675,Align Alternative Access Fund,42,5,True,N-2/A|SC TO-I,2026-06-18
+Tender Offer Fund,0001301483,Alpha Core Strategies Fund,486,8,True,SC TO-I|SC TO-I/A,2026-05-14
+Tender Offer Fund,0001327228,Alternative Investment Partners Absolute Return Fund,518,9,True,424B3|486BPOS|N-2|SC TO-I,2026-05-28
+Tender Offer Fund,0001978024,Apollo S3 Private Markets Fund,69,18,True,424B3|486BPOS|N-2/A|N-CSR|N-CSRS|SC TO-I|SC TO-I/A,2026-06-02
+Tender Offer Fund,0002039471,Ardian Access LLC,44,1,True,N-2/A,2025-04-24
+Tender Offer Fund,0001876006,Ares Private Markets Fund,140,18,True,424B3|486BPOS|N-2|SC TO-I|SC TO-I/A,2026-05-21
+Tender Offer Fund,0001830921,Aspiriant Real Assets Fund,112,11,True,424B3|486BPOS|N-2|SC TO-I|SC TO-I/A,2026-04-28
+Tender Offer Fund,0001811114,BBR ALO Fund LLC,248,7,True,SC TO-I|SC TO-I/A,2026-05-27
+Tender Offer Fund,0001833936,BlackRock Alpha Strategies Fund,148,10,True,424B3|486BPOS|N-2|SC TO-I|SC TO-I/A,2026-05-01
+Tender Offer Fund,0001816389,BlackRock Private Investments Fund,175,20,True,424B3|486APOS|486BPOS|8-K|N-2|SC TO-I|SC TO-I/A,2026-06-12
+Tender Offer Fund,0001955857,Brookfield Infrastructure Income Fund Inc,128,20,True,424B3|486BPOS|N-2|N-2/A|N-CSR|N-CSRS|SC TO-I|SC TO-I/A,2026-05-27
+Tender Offer Fund,0001780338,CPG Vintage Access Fund III LLC,104,0,False,,
+Tender Offer Fund,0001826222,CPG Vintage Access Fund IV LLC,96,0,False,,
+Tender Offer Fund,0001876813,CPG Vintage Access Fund V LLC,72,0,False,,
+Tender Offer Fund,0001953146,CPG Vintage Access Fund VI LLC,63,9,True,N-CSR|N-CSR/A|N-CSRS|N-CSRS/A|POS AMI,2026-06-12
+Tender Offer Fund,0002001323,CPG Vintage Access Fund VII LLC,47,7,True,N-CSR|N-CSRS|POS AMI,2026-06-12
+Tender Offer Fund,0001279392,CYPRESS CREEK PRIVATE STRATEGIES MASTER FUND L P,514,1,True,SC TO-I,2017-08-03
+Tender Offer Fund,0001899610,Carlyle AlpInvest Private Markets Fund,133,17,True,424B3|486BPOS|N-2|SC TO-I|SC TO-I/A,2026-04-29
+Tender Offer Fund,0002044519,Coatue Innovative Strategies Fund,70,14,True,424B3|486BPOS|N-2|N-2/A|POS EX|SC TO-I|SC TO-I/A,2026-05-04
+Tender Offer Fund,0002033620,Coller Private Credit Secondaries,46,5,True,424B3|486BPOS|N-2/A|SC TO-I,2026-05-15
+Tender Offer Fund,0001969180,Coller Secondaries Private Equity Opportunities Fund,91,11,True,424B3|486BPOS|N-2|N-2/A|SC TO-I,2026-05-15
+Tender Offer Fund,0001918767,Constitution Capital Access Fund LLC,121,18,True,424B3|486BPOS|N-2|N-2/A|N-CSR|N-CSRS|SC TO-I|SC TO-I/A,2026-04-17
+Tender Offer Fund,0002045371,Corient Registered Alternatives Fund,36,4,True,N-2|N-CSR|N-CSRS,2026-06-09
+Tender Offer Fund,0001911129,"Crowdstreet Private Equity REIT I, Inc",50,6,True,N-CSR|N-CSR/A|N-CSRS,2026-03-06
+Tender Offer Fund,0001279394,Cypress Creek Private Strategies Registered Fund,436,1,True,SC TO-I,2017-08-03
+Tender Offer Fund,0001320688,Cypress Creek Private Strategies Tei Fund,401,1,True,SC TO-I,2017-08-03
+Tender Offer Fund,0001904800,Destiny Alternative Fund TEI LLC,69,5,True,POS AMI|SC TO-I|SC TO-I/A,2026-03-30
+Tender Offer Fund,0001854919,Dynamic Alternatives Fund,100,11,True,424B3|486BPOS|N-2|SC TO-I|SC TO-I/A,2026-04-14
+Tender Offer Fund,0001896036,Eagle Point Institutional Income Fund,149,17,True,424B1|486BPOS|N-2|N-2/A|POS 8C|SC TO-I|SC TO-I/A,2026-05-28
+Tender Offer Fund,0001856156,FS MVP Private Markets Fund,125,23,True,424B3|486BPOS|N-2|SC TO-I|SC TO-I/A,2026-05-26
+Tender Offer Fund,0002013732,FT Vest Hedged Equity Income Fund Series A2,28,3,True,POS AMI|SC TO-I|SC TO-I/A,2026-05-29
+Tender Offer Fund,0002025933,FT Vest Hedged Equity Income Fund Series A3,25,3,True,N-2|SC TO-I|SC TO-I/A,2025-11-14
+Tender Offer Fund,0002025934,FT Vest Hedged Equity Income Fund Series A4,23,4,True,N-2|POS AMI|SC TO-I|SC TO-I/A,2026-02-17
+Tender Offer Fund,0002052961,FT Vest Hedged Equity Income Fund Series B1,24,5,True,N-2|POS AMI|SC TO-I|SC TO-I/A,2026-05-26
+Tender Offer Fund,0002067009,FT Vest Hedged Equity Income Fund: Series B2,17,3,True,N-2|POS AMI|SC TO-I,2026-06-18
+Tender Offer Fund,0002036648,FT Vest Rising Dividend Achievers Total Return Fund,26,3,True,POS AMI|SC TO-I|SC TO-I/A,2025-12-31
+Tender Offer Fund,0002021966,FT Vest Total Return Income Fund Series A2,29,3,True,N-2|SC TO-I/A,2026-03-10
+Tender Offer Fund,0002031546,FT Vest Total Return Income Fund Series A3,25,3,True,N-2|SC TO-I|SC TO-I/A,2025-12-04
+Tender Offer Fund,0002052411,FT Vest Total Return Income Fund Series B1,22,3,True,N-2|SC TO-I|SC TO-I/A,2026-05-26
+Tender Offer Fund,0002066984,FT Vest Total Return Income Fund: Series B2,17,3,True,N-2|POS AMI|SC TO-I,2026-06-18
+Tender Offer Fund,0001877967,Fairway Private Equity Venture Capital Opportunities Fund,117,10,True,424B3|486BPOS|N-2|SC TO-I|SC TO-I/A,2026-04-30
+Tender Offer Fund,0001677615,Federated Hermes Project Trade Finance Tender Fund,296,20,True,424B3|486BPOS|486BXT|N-2|SC TO-I|SC TO-I/A,2026-05-27
+Tender Offer Fund,0001957121,Felicitas Private Markets Fund,79,15,True,486BPOS|N-2/A|N-CSR|N-CSRS|SC TO-I|SC TO-I/A,2026-05-19
+Tender Offer Fund,0001912938,First Trust Private Assets Fund,100,18,True,424B3|486BPOS|N-2|N-2/A|SC TO-I|SC TO-I/A,2026-05-29
+Tender Offer Fund,0001741739,FlowStone Opportunity Fund,190,8,True,424B3|486BPOS|N-2|SC TO-I|SC TO-I/A,2026-04-02
+Tender Offer Fund,0002008602,Franklin Lexington Private Markets Fund,103,13,True,424B3|N-2|N-2/A|N-CSR|SC TO-I|SC TO-I/A,2026-06-03
+Tender Offer Fund,0001475457,GROSVENOR REGISTERED MULTI-STRATEGY FUND TI 1 LLC,372,6,True,486BPOS|N-2|SC TO-I,2026-03-27
+Tender Offer Fund,0001803491,Hamilton Lane Private Assets Fund,173,18,True,424B3|N-2|N-CSR|N-CSRS|SC TO-I|SC TO-I/A,2026-06-09
+Tender Offer Fund,0002041398,Hamilton Lane Private Secondary Fund,48,10,True,424B3|486BPOS|N-2/A|N-CSR|SC TO-I|SC TO-I/A,2026-06-09
+Tender Offer Fund,0002020407,HarbourVest Private Investments Fund,76,15,True,424B3|N-2|N-2/A|POS EX|SC TO-I|SC TO-I/A,2026-05-15
+Tender Offer Fund,0001903070,Hartford Schroders Private Opportunities Fund,122,11,True,424B3|486BPOS|N-2/A|SC TO-I|SC TO-I/A,2026-04-27
+Tender Offer Fund,0001738008,Hedge Fund Guided Portfolio Solution,201,6,True,486BPOS|N-2|SC TO-I,2026-03-27
+Tender Offer Fund,0001588474,INFINITY CORE ALTERNATIVE FUND,294,10,True,486BPOS|N-2|SC TO-I|SC TO-I/A,2026-05-27
+Interval Fund,0002041672,JETSTREAM VENTURE FUND,14,1,True,N-2/A,2025-09-02
+Tender Offer Fund,0001286410,JP MORGAN ACCESS MULTI-STRATEGY FUND LLC,515,5,True,POS AMI|SC TO-I/A,2025-08-22
+Tender Offer Fund,0001940499,JPMorgan Private Markets Fund,118,17,True,424B3|486BPOS|N-2|N-2/A|SC TO-I|SC TO-I/A,2026-05-28
+Tender Offer Fund,0001742952,John Hancock GA Mortgage Trust,288,0,False,,
+Tender Offer Fund,0001803958,KKR Real Estate Select Trust Inc,314,11,True,486BPOS|N-2|N-CSR|N-CSR/A|SC TO-I,2026-06-17
+Tender Offer Fund,0001987990,KKR US Direct Lending Fund-U Inc,48,5,True,N-2|POS AMI,2026-04-30
+Tender Offer Fund,0001788420,Keystone Private Income Fund,167,18,True,N-2|N-2/A|N-CSR|N-CSRS|POS AMI|SC TO-I|SC TO-I/A,2026-06-18
+Tender Offer Fund,0002054995,Lincoln Partners Group Royalty Fund,58,6,True,424B3|N-2/A|SC TO-I|SC TO-I/A,2026-06-17
+Tender Offer Fund,0001742836,Macquarie Focused Access Fund LLC,195,24,True,N-CSR|N-CSR/A|N-CSRS|POS AMI|SC TO-I|SC TO-I/A,2026-05-01
+Interval Fund,0001988855,Manulife Private Credit Plus Fund,148,14,True,424B3|486BPOS|N-2|N-2/A|SC TO-I|SC TO-I/A,2026-05-18
+Tender Offer Fund,0001818105,NB Private Markets Access Fund LLC,143,15,True,424B3|486BPOS|N-2|SC TO-I|SC TO-I/A,2026-05-29
+Tender Offer Fund,0002029010,North Haven Private Assets Fund,52,9,True,424B3|486BPOS|N-2/A|POS EX|SC TO-I|SC TO-I/A,2026-05-15
+Interval Fund,0002051512,Oaktree Asset-Backed Income Private Fund Inc.,37,7,True,N-2|N-CSRS|POS AMI,2025-10-27
+Tender Offer Fund,0001959353,Oxford Park Income Fund Inc,106,28,True,424B3|486BPOS|N-2|N-2/A|N-CSR|N-CSRS|POS EX|SC TO-I,2026-05-26
+Tender Offer Fund,0000067590,PGIM Core Government Money Market Fund,771,10,True,485BPOS|N-CSR|N-CSRS,2026-03-27
+Interval Fund,0001875084,PGIM Private Real Estate Fund Inc,157,13,True,424B3|486BPOS|N-2|N-CSR|SC TO-I|SC TO-I/A,2026-05-01
+Tender Offer Fund,0001991706,Partners Group Growth LLC,75,5,True,N-2|SC TO-I|SC TO-I/A,2026-05-12
+Tender Offer Fund,0001447247,Partners Group Private Equity Fund LLC,435,16,True,N-2/A|SC TO-I|SC TO-I/A,2026-05-18
+Tender Offer Fund,0001682662,Peachtree Alternative Strategies Fund,264,11,True,486BPOS|N-2|SC TO-I|SC TO-I/A,2026-06-18
+Tender Offer Fund,0001616203,Pomona Investment Fund,283,12,True,424B3|486BPOS|N-2|N-2/A|SC TO-I|SC TO-I/A,2026-03-20
+Tender Offer Fund,0001620515,Princeton Everest Fund,215,10,True,486BPOS|POS AMI|SC TO-I|SC TO-I/A,2026-06-18
+Tender Offer Fund,0001554625,Priority Income Fund Inc,738,35,True,424B3|486BPOS|8-K|N-CSR|N-CSRS|POS EX|SC TO-I,2026-06-18
+Tender Offer Fund,0002043597,Private Debt Income Fund,49,7,True,N-2|N-2/A|SC TO-I|SC TO-I/A,2026-06-18
+Tender Offer Fund,0002044490,SEG Partners LongShort Equity Fund,40,10,True,N-2/A|N-CSR|N-CSRS|SC TO-I|SC TO-I/A,2026-04-15
+Tender Offer Fund,0001407736,SEI Structured Credit Fund LP,307,7,True,SC TO-I,2026-03-24
+Tender Offer Fund,0001181848,SKYBRIDGE OPPORTUNITY FUND,569,12,True,486APOS|486BPOS|DEF 14A|N-2|POS 8C|SC TO-I|SC TO-I/A,2026-05-01
+Tender Offer Fund,0002059105,StepStone Private Credit Co-Investment Fund,28,6,True,N-2|N-CSR|N-CSRS|POS AMI,2026-04-30
+Tender Offer Fund,0001789470,StepStone Private Markets,203,20,True,424B3|486BPOS|N-2|N-CSR|N-CSRS|SC TO-I,2026-06-09
+Tender Offer Fund,0001918642,StepStone Private Venture Growth Fund,119,18,True,424B3|486BPOS|N-2|N-CSR|N-CSRS|SC TO-I,2026-06-09
+Tender Offer Fund,0001762229,Yieldstreet Alternative Income Fund Inc,367,15,True,424B3|486BPOS|N-2/A|SC TO-I|SC TO-I/A,2026-04-09
+Tender Offer Fund,0002023773,iDirect Multi-Strategy Fund LLC,38,7,True,424B3|N-2/A|SC TO-I|SC TO-I/A,2026-04-17
+Tender Offer Fund,0001606789,iDirect Private Markets Fund,343,8,True,424B3|486BPOS|N-2|SC TO-I|SC TO-I/A,2026-05-15
+Interval Fund,0001938365,Axxes Private Markets Fund,54,6,True,424B3|486APOS|486BPOS|N-2/A,2025-06-05
