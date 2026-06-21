@@ -29,6 +29,8 @@ DEATHS = ROOT / "data" / "churn_deaths_raw.csv"
 UNIVERSE = ROOT / "data" / "fund_universe.csv"
 MANAGERS = ROOT / "data" / "dataset" / "fund_manager_map.csv"
 CENSUS_OUT = ROOT / "data" / "dataset" / "bdc_churn_census.csv"
+ENRICHED = ROOT / "data" / "dataset" / "bdc_churn_census_enriched.csv"
+BDC_VEHICLES = {"Unlisted BDC", "Listed BDC"}   # confirmed-real universe tags
 
 TODAY = date(2026, 6, 20)
 WINDOW_START = date(1996, 1, 1)   # EDGAR electronic-filing floor
@@ -156,12 +158,129 @@ def phase1(census: pd.DataFrame) -> None:
           f" | manager known {int((census['manager']!='').sum())}/{n_total}")
 
 
+# ----- Kaplan-Meier survival (dependency-free, handles right-censoring) -----
+
+def _km(rows):
+    """rows = list of (duration_years, event 1/0). Returns the step curve [(t, S), ...]."""
+    times = sorted({d for d, e in rows if e == 1})
+    S, curve = 1.0, []
+    for t in times:
+        at_risk = sum(1 for d, _ in rows if d >= t)
+        d_t = sum(1 for d, e in rows if d == t and e == 1)
+        if at_risk:
+            S *= 1 - d_t / at_risk
+        curve.append((t, S))
+    return curve
+
+
+def _median(curve):
+    for t, S in curve:
+        if S <= 0.5:
+            return t
+    return None
+
+
+def _surv_at(curve, h):
+    s = 1.0
+    for t, S in curve:
+        if t <= h:
+            s = S
+        else:
+            break
+    return s
+
+
+def _dur_event(r):
+    """(duration in years, event) for a census row with a known birth date."""
+    bd = _d(r["birth_date"])
+    if r["status"] == "dead" and r["death_date"]:
+        return (_d(r["death_date"]) - bd).days / 365.25, 1
+    return (TODAY - bd).days / 365.25, 0
+
+
+def phase3(bona: pd.DataFrame) -> None:
+    print("=" * 64)
+    print("PHASE 3 — SURVIVAL ANALYSIS (Kaplan-Meier, time since BDC election)")
+    sub = bona[bona["birth_date"] != ""].copy()
+    print(f"  n={len(sub)} bona-fide BDCs with a known birth date "
+          f"(excluded {len(bona) - len(sub)} left-censored)")
+    curve = _km([_dur_event(r) for _, r in sub.iterrows()])
+    med = _median(curve)
+    print(f"  median survival: {f'{med:.1f} yrs' if med else 'not reached (>50% still alive)'}")
+    print("  " + "  ".join(f"S({h})={_surv_at(curve, h):.0%}" for h in (3, 5, 10, 15, 20)))
+    print("\n  by listing status:")
+    for lv in ("listed", "unlisted"):
+        s = sub[sub["listed"] == lv]
+        if len(s) < 5:
+            continue
+        c = _km([_dur_event(r) for _, r in s.iterrows()])
+        m = _median(c)
+        print(f"    {lv:9s} n={len(s):3d}  median={f'{m:.1f}y' if m else 'n/r':>5s}  "
+              f"S(5)={_surv_at(c, 5):.0%}  S(10)={_surv_at(c, 10):.0%}  S(15)={_surv_at(c, 15):.0%}")
+    print("\n  by launch cohort (birth decade):")
+    sub["decade"] = sub["birth_date"].str[:3] + "0s"
+    for dec in sorted(sub["decade"].unique()):
+        s = sub[sub["decade"] == dec]
+        if len(s) < 5:
+            continue
+        c = _km([_dur_event(r) for _, r in s.iterrows()])
+        m = _median(c)
+        print(f"    {dec:6s} n={len(s):3d}  median={f'{m:.1f}y' if m else 'n/r':>5s}  "
+              f"S(5)={_surv_at(c, 5):.0%}  S(10)={_surv_at(c, 10):.0%}")
+
+
+def phase4(bona: pd.DataFrame) -> None:
+    print("=" * 64)
+    print("PHASE 4 — FAMILY (MANAGER) CHURN")
+    fam = (bona.groupby("manager_family")
+           .apply(lambda d: pd.Series({
+               "launched": len(d),
+               "alive": int((d["status"] == "alive").sum()),
+               "dead": int((d["status"] == "dead").sum()),
+               "mergers": int((d["mechanism"] == "merger").sum()),
+           }), include_groups=False)
+           .reset_index())
+    fam["survival"] = fam["alive"] / fam["launched"]
+    multi = fam[fam["launched"] >= 2].sort_values(["launched", "survival"], ascending=[False, True])
+    print(f"  families: {len(fam)} | multi-fund (>=2): {len(multi)} | "
+          f"single-fund: {int((fam['launched'] == 1).sum())}")
+    print(f"  intra-family mergers (a merger inside a >=2-fund family): "
+          f"{int(multi['mergers'].sum())} — the consolidation/rollup pattern")
+    print("\n  top families by launches (serial launchers):")
+    print(f"    {'family':26s} {'launched':>8s} {'alive':>5s} {'dead':>4s} {'merged':>6s} {'surv':>5s}")
+    for _, r in multi.head(18).iterrows():
+        print(f"    {str(r['manager_family'])[:26]:26s} {int(r.launched):8d} {int(r.alive):5d} "
+              f"{int(r.dead):4d} {int(r.mergers):6d} {r.survival:5.0%}")
+
+
 def main() -> None:
-    census = build_census()
-    CENSUS_OUT.parent.mkdir(parents=True, exist_ok=True)
-    census.to_csv(CENSUS_OUT, index=False)
-    print(f"Wrote census: {CENSUS_OUT}  ({len(census)} BDCs)\n")
-    phase1(census)
+    if not ENRICHED.exists():
+        # bootstrap: raw census + descriptive churn only (run churn_enrich.py for the rest)
+        census = build_census()
+        CENSUS_OUT.parent.mkdir(parents=True, exist_ok=True)
+        census.to_csv(CENSUS_OUT, index=False)
+        print(f"Wrote census: {CENSUS_OUT}  ({len(census)} BDCs)\n")
+        phase1(census)
+        print("\n(enriched census not found — run churn_enrich.py for Phases 2-4)")
+        return
+
+    census = pd.read_csv(ENRICHED, dtype={"cik": str})
+    census["cik"] = census["cik"].str.zfill(10)
+    for c in ("birth_date", "death_date", "vehicle_type", "listed", "manager_family", "mechanism"):
+        census[c] = census[c].fillna("") if c in census else ""
+    census["birth_censored"] = census["birth_censored"].astype(str).isin(["True", "true", "1"])
+    # bona-fide = filed Form N-2 OR a confirmed universe BDC (recovers non-offering affiliates)
+    hn2 = census["has_n2"].astype(str).isin(["True", "true", "1"])
+    census["bona_fide"] = hn2 | census["vehicle_type"].isin(BDC_VEHICLES)
+    census.to_csv(ENRICHED, index=False)   # persist the bona_fide flag
+
+    bona = census[census["bona_fide"]].copy()
+    print(f"Enriched census: {len(census)} BDCs | bona-fide (N-2 or universe BDC): {len(bona)}\n")
+    phase1(bona)
+    print()
+    phase3(bona)
+    print()
+    phase4(bona)
 
 
 if __name__ == "__main__":
