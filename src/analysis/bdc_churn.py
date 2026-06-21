@@ -30,6 +30,7 @@ UNIVERSE = ROOT / "data" / "fund_universe.csv"
 MANAGERS = ROOT / "data" / "dataset" / "fund_manager_map.csv"
 CENSUS_OUT = ROOT / "data" / "dataset" / "bdc_churn_census.csv"
 ENRICHED = ROOT / "data" / "dataset" / "bdc_churn_census_enriched.csv"
+OUT_WB = ROOT / "data" / "dataset" / "bdc_churn.xlsx"
 BDC_VEHICLES = {"Unlisted BDC", "Listed BDC"}   # confirmed-real universe tags
 
 TODAY = date(2026, 6, 20)
@@ -253,6 +254,184 @@ def phase4(bona: pd.DataFrame) -> None:
               f"{int(r.dead):4d} {int(r.mergers):6d} {r.survival:5.0%}")
 
 
+# ----- Curated canonical manager families (fixes name-token splits/misgroupings) -----
+# Applied by regex on the fund name; takes precedence over the heuristic manager_family.
+# Consolidates same-manager funds the tokenizer split (BlackRock/BlackRock Kelso/TCP;
+# FS Investment/FS Energy/Corporate Capital Trust -> FS/KKR; Owl Rock -> Blue Owl).
+import re as _re
+CURATED_FAMILY = [
+    (r"owl rock|blue owl", "Blue Owl"),
+    (r"fs investment|fs energy|fs kkr|fs specialty|fs series|corporate capital trust", "FS/KKR"),
+    (r"blackrock|tcp capital", "BlackRock"),
+    (r"\bares\b", "Ares"),
+    (r"apollo", "Apollo"),
+    (r"bain capital", "Bain Capital"),
+    (r"blackstone|\bgso\b", "Blackstone"),
+    (r"business development corp(oration)? of america|franklin bsp|benefit street", "Franklin BSP"),
+    (r"carey credit", "Carey Credit"),
+    (r"crescent", "Crescent"),
+    (r"golub", "Golub"),
+    (r"gladstone", "Gladstone"),
+    (r"kayne anderson", "Kayne Anderson"),
+    (r"main street|hms income|msc income", "Main Street"),
+    (r"new mountain", "New Mountain"),
+    (r"nuveen churchill|churchill", "Nuveen Churchill"),
+    (r"oaktree|fifth street", "Oaktree"),
+    (r"pennantpark", "PennantPark"),
+    (r"prospect capital", "Prospect"),
+    (r"thl credit|thl investment", "THL Credit"),
+    (r"allied capital|allied investment", "Allied Capital"),
+    (r"berthel", "Berthel"),
+    (r"excelsior", "Excelsior"),
+    (r"goldman sachs", "Goldman Sachs"),
+    (r"morgan stanley", "Morgan Stanley"),
+    (r"hercules", "Hercules"),
+    (r"barings", "Barings"),
+    (r"sierra income|medley", "Medley"),
+]
+_CURATED_RX = [(_re.compile(rx, _re.I), name) for rx, name in CURATED_FAMILY]
+
+
+def canonical_family(name: str, fallback: str) -> str:
+    for rx, fam in _CURATED_RX:
+        if rx.search(str(name)):
+            return fam
+    return fallback or str(name)
+
+
+# ----- Phase 5: data tables + workbook -----
+
+def yearly_table(census: pd.DataFrame) -> pd.DataFrame:
+    by = census.copy()
+    by["birth_yr"] = by["birth_date"].str[:4]
+    by["death_yr"] = by["death_date"].str[:4]
+    births_y = by[by["birth_yr"] != ""].groupby("birth_yr").size()
+    deaths_y = by[by["death_yr"] != ""].groupby("death_yr").size()
+    active = int(census["birth_censored"].sum())
+    rows = []
+    for yr in range(1996, TODAY.year + 1):
+        ys = str(yr)
+        bi, de = int(births_y.get(ys, 0)), int(deaths_y.get(ys, 0))
+        start = active
+        active += bi - de
+        rows.append({"year": yr, "births": bi, "deaths": de, "net": bi - de,
+                     "active": active, "churn_pct": round(de / start, 4) if start else 0.0})
+    return pd.DataFrame(rows)
+
+
+def km_curve_df(sub: pd.DataFrame) -> pd.DataFrame:
+    curve = _km([_dur_event(r) for _, r in sub.iterrows()])
+    return pd.DataFrame(curve, columns=["years", "survival"])
+
+
+def mechanism_table(bona: pd.DataFrame) -> pd.DataFrame:
+    dead = bona[bona["status"] == "dead"]
+    t = pd.crosstab(dead["mechanism"], dead["listed"])
+    t["total"] = t.sum(axis=1)
+    return t.reset_index()
+
+
+def family_table(bona: pd.DataFrame) -> pd.DataFrame:
+    fam = (bona.groupby("manager_family")
+           .apply(lambda d: pd.Series({
+               "launched": len(d),
+               "alive": int((d["status"] == "alive").sum()),
+               "dead": int((d["status"] == "dead").sum()),
+               "mergers": int((d["mechanism"] == "merger").sum()),
+           }), include_groups=False)
+           .reset_index())
+    fam["survival"] = (fam["alive"] / fam["launched"]).round(3)
+    return fam.sort_values(["launched", "survival"], ascending=[False, True])
+
+
+def _fig_png(fig):
+    import io
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=110, bbox_inches="tight")
+    import matplotlib.pyplot as plt
+    plt.close(fig)
+    buf.seek(0)
+    return buf
+
+
+def build_workbook(census: pd.DataFrame, bona: pd.DataFrame) -> None:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from openpyxl.drawing.image import Image as XLImage
+    from openpyxl.utils.dataframe import dataframe_to_rows
+
+    yt = yearly_table(bona)
+    mech = mechanism_table(bona)
+    fam = family_table(bona)
+    sub = bona[bona["birth_date"] != ""].copy()
+    km_all = km_curve_df(sub)
+    km_l = km_curve_df(sub[sub["listed"] == "listed"])
+    km_u = km_curve_df(sub[sub["listed"] == "unlisted"])
+
+    n_alive = int((bona["status"] == "alive").sum())
+    n_dead = int((bona["status"] == "dead").sum())
+    overview = pd.DataFrame({
+        "metric": ["Bona-fide BDCs (N-2 or universe)", "Alive", "Dead", "Crude survival rate",
+                   "KM median lifespan (yrs)", "Long-run hazard (per yr)",
+                   "Deaths: merger", "Deaths: liquidation", "Deaths: conversion",
+                   "Deaths: scheduled wind-down", "Deaths: unknown (verify)",
+                   "Universe note"],
+        "value": [len(bona), n_alive, n_dead, f"{n_alive/len(bona):.1%}",
+                  _median(list(km_all.itertuples(index=False, name=None))) or "not reached",
+                  f"{n_dead / max(yearly_table(bona)['active'].mean(),1):.1%} (approx)",
+                  int((bona['mechanism'] == 'merger').sum()),
+                  int((bona['mechanism'] == 'liquidation').sum()),
+                  int((bona['mechanism'] == 'conversion').sum()),
+                  int((bona['mechanism'] == 'scheduled_winddown').sum()),
+                  int((bona['mechanism'] == 'unknown').sum()),
+                  "Bona-fide = filed Form N-2 (investment-company registration) or a "
+                  "confirmed universe BDC. Births N-54A, deaths N-54C; left-censored pre-1996."]})
+
+    census_cols = ["cik", "fund_name", "manager_family", "listed", "status", "birth_date",
+                   "death_date", "lifespan_years", "mechanism", "mech_confidence", "has_n2"]
+    with pd.ExcelWriter(OUT_WB, engine="openpyxl") as xw:
+        overview.to_excel(xw, sheet_name="Overview", index=False)
+        yt.to_excel(xw, sheet_name="ByYear", index=False)
+        mech.to_excel(xw, sheet_name="Mechanism", index=False)
+        fam.to_excel(xw, sheet_name="Family", index=False)
+        km_all.to_excel(xw, sheet_name="Survival", index=False, startcol=0)
+        km_l.to_excel(xw, sheet_name="Survival", index=False, startcol=3)
+        km_u.to_excel(xw, sheet_name="Survival", index=False, startcol=6)
+        bona[census_cols].to_excel(xw, sheet_name="Census", index=False)
+
+        ch = xw.book.create_sheet("Charts")
+        # 1) active count + births/deaths over time
+        fig, ax = plt.subplots(figsize=(8, 3.5))
+        ax.bar(yt["year"], yt["births"], color="#3a7", label="births", alpha=.7)
+        ax.bar(yt["year"], -yt["deaths"], color="#c44", label="deaths", alpha=.7)
+        ax2 = ax.twinx(); ax2.plot(yt["year"], yt["active"], "k-", lw=2, label="active count")
+        ax.set_title("BDC births / deaths and active count"); ax.legend(loc="upper left")
+        ax2.legend(loc="lower right")
+        ch.add_image(XLImage(_fig_png(fig)), "A1")
+        # 2) churn rate over time
+        fig, ax = plt.subplots(figsize=(8, 3))
+        ax.plot(yt["year"], yt["churn_pct"] * 100, "o-", color="#c44")
+        ax.set_title("Annual churn rate (%)"); ax.set_ylabel("%")
+        ch.add_image(XLImage(_fig_png(fig)), "A20")
+        # 3) KM survival listed vs unlisted
+        fig, ax = plt.subplots(figsize=(8, 3.5))
+        for d, lab, c in [(km_all, "all", "k"), (km_l, "listed", "#3a7"), (km_u, "unlisted", "#c44")]:
+            if len(d):
+                ax.step(d["years"], d["survival"], where="post", label=lab, color=c, lw=2)
+        ax.set_title("Kaplan-Meier survival (time since BDC election)")
+        ax.set_xlabel("years"); ax.set_ylabel("survival"); ax.set_ylim(0, 1); ax.legend()
+        ch.add_image(XLImage(_fig_png(fig)), "A40")
+        # 4) death mechanism
+        fig, ax = plt.subplots(figsize=(6, 3))
+        md = bona[bona["status"] == "dead"]["mechanism"].value_counts()
+        ax.bar(md.index, md.values, color="#47a"); ax.set_title("Death mechanism (bona-fide)")
+        plt.xticks(rotation=20, ha="right")
+        ch.add_image(XLImage(_fig_png(fig)), "A60")
+
+    print(f"Wrote workbook: {OUT_WB}")
+
+
 def main() -> None:
     if not ENRICHED.exists():
         # bootstrap: raw census + descriptive churn only (run churn_enrich.py for the rest)
@@ -272,7 +451,10 @@ def main() -> None:
     # bona-fide = filed Form N-2 OR a confirmed universe BDC (recovers non-offering affiliates)
     hn2 = census["has_n2"].astype(str).isin(["True", "true", "1"])
     census["bona_fide"] = hn2 | census["vehicle_type"].isin(BDC_VEHICLES)
-    census.to_csv(ENRICHED, index=False)   # persist the bona_fide flag
+    # canonical manager family (consolidate name-token splits / misgroupings)
+    census["manager_family"] = census.apply(
+        lambda r: canonical_family(r["fund_name"], r["manager_family"]), axis=1)
+    census.to_csv(ENRICHED, index=False)   # persist bona_fide + cleaned family
 
     bona = census[census["bona_fide"]].copy()
     print(f"Enriched census: {len(census)} BDCs | bona-fide (N-2 or universe BDC): {len(bona)}\n")
@@ -281,6 +463,8 @@ def main() -> None:
     phase3(bona)
     print()
     phase4(bona)
+    print()
+    build_workbook(census, bona)
 
 
 if __name__ == "__main__":
