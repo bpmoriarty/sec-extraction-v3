@@ -191,6 +191,14 @@ def _surv_at(curve, h):
     return s
 
 
+def _operating(bona):
+    """Survival population: bona-fide BDCs that actually OPERATED (filed >=1 periodic report)
+    and have a known birth date. Drops failed launches (registered, never operated) so the
+    survival curve reflects the lifespan of real operating funds, not abandoned registrations."""
+    op = pd.to_numeric(bona["n_periodic"], errors="coerce").fillna(0) >= 1
+    return bona[(bona["birth_date"] != "") & op].copy()
+
+
 def _dur_event(r):
     """(duration in years, event) for a census row with a known birth date."""
     bd = _d(r["birth_date"])
@@ -201,10 +209,12 @@ def _dur_event(r):
 
 def phase3(bona: pd.DataFrame) -> None:
     print("=" * 64)
-    print("PHASE 3 — SURVIVAL ANALYSIS (Kaplan-Meier, time since BDC election)")
-    sub = bona[bona["birth_date"] != ""].copy()
-    print(f"  n={len(sub)} bona-fide BDCs with a known birth date "
-          f"(excluded {len(bona) - len(sub)} left-censored)")
+    print("PHASE 3 — SURVIVAL ANALYSIS (Kaplan-Meier, operating BDCs, time since election)")
+    sub = _operating(bona)
+    n_birth = (bona["birth_date"] != "").sum()
+    print(f"  n={len(sub)} operating bona-fide BDCs with a known birth date "
+          f"(excluded {int((bona['birth_date'] != '').sum() - len(sub))} never-operated/failed-launch"
+          f" + {len(bona) - n_birth} left-censored)")
     curve = _km([_dur_event(r) for _, r in sub.iterrows()])
     med = _median(curve)
     print(f"  median survival: {f'{med:.1f} yrs' if med else 'not reached (>50% still alive)'}")
@@ -364,7 +374,7 @@ def build_workbook(census: pd.DataFrame, bona: pd.DataFrame) -> None:
     yt = yearly_table(bona)
     mech = mechanism_table(bona)
     fam = family_table(bona)
-    sub = bona[bona["birth_date"] != ""].copy()
+    sub = _operating(bona)   # survival = operating BDCs only (exclude failed launches)
     km_all = km_curve_df(sub)
     km_l = km_curve_df(sub[sub["listed"] == "listed"])
     km_u = km_curve_df(sub[sub["listed"] == "unlisted"])
@@ -373,7 +383,7 @@ def build_workbook(census: pd.DataFrame, bona: pd.DataFrame) -> None:
     n_dead = int((bona["status"] == "dead").sum())
     overview = pd.DataFrame({
         "metric": ["Bona-fide BDCs (N-2 or universe)", "Alive", "Dead", "Crude survival rate",
-                   "KM median lifespan (yrs)",
+                   "KM median lifespan (operating BDCs, yrs)",
                    "Deaths: merger", "Deaths: liquidation", "Deaths: conversion",
                    "Deaths: scheduled wind-down", "Deaths: failed launch", "Deaths: unknown",
                    "Universe note"],

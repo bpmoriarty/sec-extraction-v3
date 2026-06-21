@@ -878,28 +878,28 @@ Re-add C6 ONLY if an authoritative tagged roll-forward SUBTOTAL surfaces to anch
   count (their pre-merger holdings overlap is real co-investment, which `portfolio_overlap` is meant
   to capture). Path A: add CIKs → extract → rebuild → document full-vs-survivor headline. Scope as
   its own project. Ties directly into the churn project below.
-- **BDC churn & survival analysis (FUTURE RESEARCH — Brian, session 13).** Quantify the full
-  life-cycle of the BDC universe (listed + unlisted), survivorship-bias-corrected. Data spine is
-  cheap and needs NO financial extraction: **N-54A filings = births** (election to be a BDC),
-  **N-54C = deaths** (withdrawal), `fund_universe` = current survivors — all from the EDGAR filing
-  index. Dimensions to cover: (1) births/deaths/active-count time series + annual churn rate;
-  (2) overall **survival rate** (% of ever-launched BDCs still alive) and per-launch-cohort survival;
-  (3) Kaplan–Meier survival curve / hazard by fund age, median lifespan; (4) **death mechanism split**
-  — liquidation vs merger, and intra-manager rollup vs third-party acquisition (merger ≠ benign,
-  see above); (5) **timing** — was attrition an early wave (2016–2020 non-traded-BDC mortality:
-  Sierra/Medley/FSIC era) or a recent consolidation wave (2023–2026); (6) **listed vs unlisted**
-  survival (non-traded BDCs historically far higher mortality); (7) manager-level churn (serial
-  launchers vs durable single-fund shops); (8) survivorship-bias quantification (how much mark/return
-  averages shift when the dead are added back — the Defect 5 motivation). Mirror **Morningstar fund-
-  survival methodology**: a fund "doesn't survive" if liquidated OR merged; report e.g. a 10-year BDC
-  survival rate; a performance-conditioned "success rate" (survived AND positive total NAV return)
-  needs returns → hits the same pre-2020 extraction gap for the dead. Likely a standalone
-  `src/analysis/` module + a churn workbook. Births/deaths/cohort/mechanism/timing are fully doable
-  now from the index; the performance-conditioned success rate is gated on the survivorship extraction.
-- **Interval/tender-offer extraction** — LLM-over-clean-text (edgartools `filing.text()`/
-  `get_section()`/`chunk_text()`) into the existing spine; financials NOT in XBRL (session-10 scope).
-- **Interval/tender-offer extraction** — LLM-over-clean-text (edgartools `filing.text()`/
-  `get_section()`/`chunk_text()`) into the existing spine; financials NOT in XBRL (session-10 scope).
+- ~~**BDC churn & survival analysis**~~ — **BUILT (session 13).** Modules: `churn_sizing.py`
+  (full-history N-54A/N-54C pull), `churn_enrich.py` (listed/unlisted + death-mechanism + bona-fide
+  filter), `bdc_churn.py` (census + Phases 1–5). Deliverable: `data/dataset/bdc_churn.xlsx`
+  (Overview/ByYear/Mechanism/Family/Survival/Census + 4 embedded charts). **Bona-fide filter = filed
+  Form N-2** (SIC failed — blank for real BDCs even at the SEC source; filing-footprint failed — the
+  contaminants are long-lived *operating companies* that merely elected BDC status; N-2, the
+  investment-company registration form, cleanly separates them; OR a confirmed universe BDC to recover
+  non-offering affiliates → **169 of 465** ever-registered are bona-fide). **Findings:** crude survival
+  58%; **KM median lifespan ~19 yrs (operating BDCs)**, S(10)=63%. **Listed vs unlisted is the
+  headline** — operating non-traded BDCs median ~10 yrs / only 22% survive 15y, vs listed (median not
+  reached, S15=65%): non-traded die ~2× faster. **Churn was far higher historically** (dot-com + GFC
+  10–12%/yr) than now (1–5%/yr); long-run hazard 3.85%/yr. **Death mechanism (verified fund-by-fund,
+  9 unknowns→1):** real BDCs die overwhelmingly by **merger (36)** not liquidation (8) — the raw 50/50
+  was a shell artifact; + conversion 16, failed_launch 9 (registered, never operated), scheduled 1.
+  **Family churn:** FS/KKR rolled up 8 funds (7 dead, 6 merged, 12% survival); Blue Owl/Apollo/Ares/
+  Bain/Blackstone all 100%. 16 intra-family mergers (the consolidation/burial pattern). Survival curve
+  excludes failed launches (operating funds only). **Still gated on Path A:** the performance-conditioned
+  "success rate" (survived AND positive total NAV return) needs the dead funds' returns.
+- **Interval/tender-offer extraction** — financials via LLM-over-clean-text (edgartools `filing.text()`/
+  `markdown()`/`get_section()`/`chunk_text()` → LLM → same C-rules); **holdings via in-house N-PORT**
+  (already collected — see memory). N-CSR financials NOT in XBRL (session-10 scope, confirmed session 13
+  at the raw-fact level). edgartools AI/MCP integration is NOT the lever (serializes already-parsed data).
 
 ---
 
@@ -907,6 +907,7 @@ Re-add C6 ONLY if an authoritative tagged roll-forward SUBTOTAL surfaces to anch
 
 | Date | What Happened |
 |------|---------------|
+| 2026-06-20 (session 13 — Defect 3 re-run, workbook rebuild, BDC churn analysis) | **Defect 3 re-run** on the home machine: clean re-extraction applied the `HOLDINGS_COVERAGE_MIN=0.70` gate — 1,088 filings / 642 pass / 446 review / 1 benign error / 793 holdings CSVs (reproduces session-11 baseline); gate verified on Goldman BDC 2023-Q2 (ratio 0.036 → nulled). **README overhaul** (`2657e18`): listed BDCs, three-layer framing, src/analysis research layer, corrected interval/tender path (LLM-over-clean-text + in-house N-PORT), new Research section. **Survivorship gap reconstructed** (`0656cd7`) from N-54C: 76 candidates / 30 extractable; XBRL-by-vehicle-type probe (`69a4943`) confirmed interval/tender financials not XBRL-tagged at raw-fact level. **Memory:** company already has N-PORT XML holdings (interval/tender holdings = reuse, only financials need LLM). **Rebuilt all workbooks** from fresh data (installed scipy/statsmodels/matplotlib/networkx). **BDC churn analysis BUILT** (`b4825a9`→`86ae861`): full-history N-54A/N-54C census (465 BDCs ever), bona-fide filter = Form N-2 (169 real BDCs; SIC + filing-footprint both failed), Phases 0–5 + verification pass. Findings: 58% crude survival; KM median ~19y (operating); non-traded BDCs median ~10y vs listed durable (die ~2× faster); deaths overwhelmingly by merger (36) not liquidation (8); FS/KKR rolled up 8 funds. Deliverable `bdc_churn.xlsx` (7 tabs + 4 charts). |
 | 2026-06-15 (session 12 cont. — adversarial verification + 6 defect fixes) | Brian ran three verification passes (pipeline, statistical, data-integrity) against a project copy; results in `FIX_INSTRUCTIONS.md`. Fixed all 6 defects in order, one commit each. **D1 (`3e53c5f`)**: README missing analysis deps (scipy/statsmodels/matplotlib/networkx). **D2.1 (`dd2502f`)**: docs mismatch on the leave-one-out estimator — §7 plan corrected (include-self FE attenuates by k/(k−1); code was already correct), 3 docstrings updated, no numeric change. **D2.2 (`e7709c5`)**: thin-manager false significance — FE inference blanked below 20-loan floor, FDR over eligible family only, `significant_robust` column added (requires both FE + bootstrap CI to agree in same direction on ≥20 loans); Fidus n=2 now shows blank p; Barings correctly flips to non-significant (p=0.051 after FDR restriction). **D4a (`9a70ec9`)**: issue-grain overlap was including Low/Single confidence matches (19.5%); fixed by filtering to High/Med only before the grain loop. **D4b (`625e07e`)**: boilerplate mega-clusters ("in controlled" 11,496 rows, "unaffiliated issuer") fixed by adding prepositions + affiliation stopwords to `_GENERIC_TOKENS` and requiring a non-empty `core_key` in `parse_issuer`; parse_ok 96.9%→91.0%, all 7 anchors intact, ≥10-fund overlap improved 406→518. **D6 (`b217bd4`)**: survivor-only/overlap-only/exact-date caveats added to both workbook Overviews. **D3 (`c1807f1`)**: `HOLDINGS_COVERAGE_MIN=0.70` gate added to extractor (Goldman BDC 2023-Q2 pre-check: ratio=0.036, gate fires; Stellus ratio=0.798, gate correctly silent) — ⚠️ code committed, full re-run pending. D5 Path A (survivorship) owner-scoped, Path B disclosure done via D6. Both flagged in Active Roadmap. |
 | 2026-06-13 (session 12 cont. — holdings follow-on research) | Two standalone analyses reusing `holdings_compare.py`, separate outputs. Wrote both plans (`93a762b`): `docs/MARKING_BIAS_PLAN.md` (manager-level rich/cheap vs peers; within-issue leave-one-out deviations; descriptive + bootstrap CIs AND issue-fixed-effects regression w/ cluster-robust SEs + FDR; charts) and `docs/PORTFOLIO_OVERLAP_PLAN.md`. Built **fund→manager map** (`src/analysis/managers.py`, `93a762b`): curated CIK→manager, 74 funds → 57 managers (14 multi-fund), emits `fund_manager_map.csv`; 5 VERIFY cases flagged (BCP→BC Partners?, MidCap→Apollo, MSC→Main Street, John Hancock/Comvest, TPG Twin Brook). Built + validated **portfolio overlap** (`src/analysis/portfolio_overlap.py`, `141042d`): pairwise fund overlap at issuer + issue grain — common count, directional A→B/B→A, Jaccard, overlap coef, $-weighted overlap, hypergeometric lift, same-manager flag; per-date panel + trend; clustered heatmap + co-lending network (networkx) + trend charts → `portfolio_overlap.xlsx` (1,061 latest pairs / 17,507 panel / FundSummary / Trend / Charts). Validation: same-manager sister funds top (Blue Owl II/I 0.78 Jaccard, lift 30×; MSC inside Main Street 0.99 directional), cross-manager club deals at lift 3–8× (Blackstone/HPS share 121 actual loans). First full run was interrupted by a manual restart, then Brian re-ran it by hand successfully. Installed scipy + matplotlib + networkx (`--link-mode=copy`). All pushed. **Next: marking-bias build (needs statsmodels); confirm the 5 manager-map VERIFY cases first.** |
 | 2026-06-12 (session 12 — cross-BDC holdings & mark comparison, Phases 1–4) | Built `src/analysis/holdings_compare.py` per `docs/HOLDINGS_COMPARISON_PLAN.md` (independent of the extractor; reads `data/holdings/`). First: maturity/reference_rate/acquisition_date capture (`af1d88f`) + Brian's full clean re-run (1,045 filings; maturity now on ~22% of holding rows, bimodal). **Phase 1 (`305ef4d`)** consolidate+clean+parse — one 375,530-row table; parses the 3 member formats (comma / em-dash / denormalized PATH) into issuer_name+instrument_text, strips category/geo/GICS-sector boilerplate token-by-token + structured-attribute tails, derives seniority/type, price=FV/par; 96.9% parse_ok, all 7 anchors at 13–16 funds, honest degradation. **Phase 2 (`361af1c`)** fuzzy issuer clustering via a distinctive-token CORE KEY (exact-core merge + rapidfuzz token_sort_ratio ≥92 on cores, blocked) — boilerplate can't bridge unrelated issuers (killed a naive-WRatio 14k mega-cluster); 26,759 norms → 15,149 clusters, purity 2371/2372, anchors clean. **Phase 3 (`e66039b`)** issue/tranche matching by seniority+spread (+maturity corroborator, co-occurrence attach), confidence tiers, per-issue mark stats — 123,961 issues / 22,555 High; fixed commitment-overhang (principal≫cost ⇒ FV/cost) + outlier-robust dispersion (trim >25pts, count outliers). **Phase 4 (`9baa78e`)** mark-comparison workbook `data/dataset/holdings_marks_comparison.xlsx` (Overview/Dispersion/Consensus/HolderDetail/IssuerSummary/Anchors, marks in points of par); fixed per-HOLDER dispersion (collapse a fund's lots first), overhang threshold 1.5×→2.5× (discount ≠ undrawn commitment), upper band →1.10. **Validated**: anchors at par sub-1pt, PetVet real ~10pt markdown; surfaces verifiable cross-manager divergence (Pluralsight Ares 73.5 vs Blue Owl 97.7; YA Intermediate Blackstone 59 vs T. Rowe 99). All four commits pushed. Open: Phase 5 (match-rate stats, manual-review sample, period-over-period trend). |
