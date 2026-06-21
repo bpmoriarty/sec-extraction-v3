@@ -373,17 +373,17 @@ def build_workbook(census: pd.DataFrame, bona: pd.DataFrame) -> None:
     n_dead = int((bona["status"] == "dead").sum())
     overview = pd.DataFrame({
         "metric": ["Bona-fide BDCs (N-2 or universe)", "Alive", "Dead", "Crude survival rate",
-                   "KM median lifespan (yrs)", "Long-run hazard (per yr)",
+                   "KM median lifespan (yrs)",
                    "Deaths: merger", "Deaths: liquidation", "Deaths: conversion",
-                   "Deaths: scheduled wind-down", "Deaths: unknown (verify)",
+                   "Deaths: scheduled wind-down", "Deaths: failed launch", "Deaths: unknown",
                    "Universe note"],
         "value": [len(bona), n_alive, n_dead, f"{n_alive/len(bona):.1%}",
                   _median(list(km_all.itertuples(index=False, name=None))) or "not reached",
-                  f"{n_dead / max(yearly_table(bona)['active'].mean(),1):.1%} (approx)",
                   int((bona['mechanism'] == 'merger').sum()),
                   int((bona['mechanism'] == 'liquidation').sum()),
                   int((bona['mechanism'] == 'conversion').sum()),
                   int((bona['mechanism'] == 'scheduled_winddown').sum()),
+                  int((bona['mechanism'] == 'failed_launch').sum()),
                   int((bona['mechanism'] == 'unknown').sum()),
                   "Bona-fide = filed Form N-2 (investment-company registration) or a "
                   "confirmed universe BDC. Births N-54A, deaths N-54C; left-censored pre-1996."]})

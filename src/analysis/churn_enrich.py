@@ -118,8 +118,11 @@ def _classify(rec: dict, df, name: str, death_date: str) -> None:
         rec.update(mechanism="unknown", mech_confidence="low", mech_signals="no filings")
         return
     forms = set(df["form"].astype(str))
+    n_periodic = int(df["form"].astype(str).isin(PERIODIC).sum())   # operated as a reporting BDC?
     merger_hits = sorted(forms & MERGER_FORMS)
-    dereg_hits = sorted(forms & DEREG_FORMS)
+    # catch the /A variants of the deregistration forms (e.g. 15-12G/A) the base set misses
+    dereg_hits = sorted({f for f in forms if f.replace("/A", "") in DEREG_FORMS or f.startswith("15-")})
+    reg_withdrawn = bool(forms & {"RW", "AW", "RW WD", "AW WD"})    # registration/application withdrawal
     # SUSTAINED substantive filing after withdrawal (latest such report > 1 year past the
     # N-54C) => the entity kept operating in another form (a conversion), not a slow wind-down
     # that files a couple of interim reports before disappearing.
@@ -138,15 +141,20 @@ def _classify(rec: dict, df, name: str, death_date: str) -> None:
     if dereg_hits: sig.append("dereg:" + ",".join(dereg_hits))
     if post: sig.append("post-death-filings")
     if scheduled: sig.append("scheduled-name")
+    if n_periodic == 0: sig.append("never-operated(0 periodic)")
+    if reg_withdrawn: sig.append("reg-withdrawn")
 
-    # Order matters: continued substantive filing under the fund's OWN CIK means the entity
-    # lived on (a conversion / reorg), even if merger forms were used as the mechanism.
+    # Order matters. Continued substantive filing => the entity lived on (conversion). Real
+    # merger forms => merger. A fund that never filed a periodic report never operated as a
+    # reporting BDC => failed launch (distinct from a wind-down of an operating fund).
     if post:
         mech, conf = "conversion", ("high" if post_days > 730 else "med")
-    elif scheduled:
-        mech, conf = "scheduled_winddown", "med"
     elif merger_hits:
         mech, conf = "merger", ("high" if dereg_hits else "med")
+    elif scheduled:
+        mech, conf = "scheduled_winddown", "med"
+    elif n_periodic == 0:
+        mech, conf = "failed_launch", ("high" if reg_withdrawn else "med")
     elif dereg_hits:
         mech, conf = "liquidation", "med"
     else:
