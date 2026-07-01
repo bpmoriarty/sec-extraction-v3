@@ -55,18 +55,26 @@ API_PAUSE = 0.3
 
 def bdc_funds() -> list[dict]:
     """BDC funds with a CIK, from the universe. Each record carries a NORMALIZED vehicle_type:
-    'Listed BDC' when the universe tags it so, else 'Unlisted BDC'. The BDC-extraction segment is
-    the unlisted set today, so funds selected via category=='bdc' but tagged 'unknown' / 'Tender
-    Offer Fund' (e.g. the non-traded BDCs Kennedy Lewis / NC SLF / Terra / Fidelity Private Credit)
-    are correctly labeled 'Unlisted BDC' rather than left mislabeled. Future listed BDCs carry the
-    'Listed BDC' tag in the universe and are respected here."""
+    'Listed BDC' / 'Unlisted BDC' / 'Deregistered BDC'. Deregistered BDCs also carry a
+    'deregistration_date' (YYYY-MM-DD) used by the runner to cap extraction at the filing
+    period just before the fund withdrew its BDC election (N-54C date)."""
     df = pd.read_csv(UNIVERSE_FILE, dtype={"cik": str})
     df["cik"] = df["cik"].fillna("").str.strip()
-    mask = ((df["vehicle_type"].isin(["Unlisted BDC", "Listed BDC"])) | (df["category"] == "bdc")) \
+    mask = ((df["vehicle_type"].isin(["Unlisted BDC", "Listed BDC", "Deregistered BDC"]))
+            | (df["category"] == "bdc")) \
         & (df["cik"] != "")
-    recs = df[mask][["cik", "fund_name", "vehicle_type"]].drop_duplicates("cik").to_dict("records")
+    cols = ["cik", "fund_name", "vehicle_type"]
+    if "deregistration_date" in df.columns:
+        cols.append("deregistration_date")
+    recs = df[mask][cols].drop_duplicates("cik").to_dict("records")
     for r in recs:
-        r["vehicle_type"] = "Listed BDC" if r.get("vehicle_type") == "Listed BDC" else "Unlisted BDC"
+        vt = r.get("vehicle_type", "")
+        if vt == "Listed BDC":
+            r["vehicle_type"] = "Listed BDC"
+        elif vt == "Deregistered BDC":
+            r["vehicle_type"] = "Deregistered BDC"
+        else:
+            r["vehicle_type"] = "Unlisted BDC"
     return recs
 
 
@@ -95,6 +103,9 @@ def run(max_funds=None, max_filings=None, since_year=SINCE_YEAR) -> None:
 
     for f in funds:
         cik, name = f["cik"], f["fund_name"]
+        # deregistration_date caps which filings we extract for deregistered BDCs. Filings
+        # whose period_of_report is after this date are post-BDC data — skip them.
+        dereg_date: str = (f.get("deregistration_date") or "").strip()[:10]
         try:
             company = Company(int(cik))
         except Exception as ex:
@@ -121,6 +132,10 @@ def run(max_funds=None, max_filings=None, since_year=SINCE_YEAR) -> None:
                     try:
                         rd = str(getattr(filing, "period_of_report", "") or "")[:10] \
                             or str(filing.accession_no)
+                        # For deregistered BDCs, skip any filing whose period ended AFTER the
+                        # fund withdrew its BDC election — that data is from a non-BDC entity.
+                        if dereg_date and len(rd) == 10 and rd > dereg_date:
+                            break  # break retry loop; outer filing loop continues
                         out = OUT_DIR / f"{cik}_{form}_{rd}.json"
                         if out.exists():
                             stats["skipped"] += 1

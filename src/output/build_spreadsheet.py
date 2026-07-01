@@ -174,7 +174,7 @@ DATA_FIELDS: list[tuple[str, str, str, str]] = [
 ]
 
 META_COLS = ["cik", "fund_name", "form_type", "reporting_date", "period_months",
-             "vehicle_type", "status", "flags"]
+             "vehicle_type", "deregistered", "status", "flags"]
 
 # Which Data columns each validation rule implicates (for cell-level highlighting). Per-class
 # rules (C2/A2) highlight in the ShareClasses tab instead, so they're not here.
@@ -593,7 +593,9 @@ def build_data_tab(wb, filings: list[dict]):
         fails = failing_rule_bases(j)
         row = [
             j.get("cik"), j.get("fund_name"), j.get("form_type"), j.get("reporting_date"),
-            j.get("period_months"), j.get("vehicle_type"), j.get("validation_status"),
+            j.get("period_months"), j.get("vehicle_type"),
+            "Yes" if j.get("vehicle_type") == "Deregistered BDC" else "",
+            j.get("validation_status"),
             ",".join(fails),
         ]
         stem = filing_stem(j)
