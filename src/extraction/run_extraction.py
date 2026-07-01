@@ -66,7 +66,12 @@ def bdc_funds() -> list[dict]:
     cols = ["cik", "fund_name", "vehicle_type"]
     if "deregistration_date" in df.columns:
         cols.append("deregistration_date")
-    recs = df[mask][cols].drop_duplicates("cik").to_dict("records")
+    recs_df = df[mask][cols].drop_duplicates("cik")
+    if "deregistration_date" in recs_df.columns:
+        # Empty CSV cells become float NaN; coerce to "" so downstream .strip() doesn't fail.
+        recs_df = recs_df.copy()
+        recs_df["deregistration_date"] = recs_df["deregistration_date"].fillna("")
+    recs = recs_df.to_dict("records")
     for r in recs:
         vt = r.get("vehicle_type", "")
         if vt == "Listed BDC":

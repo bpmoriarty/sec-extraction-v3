@@ -291,7 +291,7 @@ fixed in order (1→2→4→6→3), one commit each, all pushed (`3e53c5f`→`c1
   `data/extracted/*.json` are stale — a full clean re-run is needed to apply the gate** (see below).
 **Defect 5 (survivorship, owner-scoped):** Path B disclosure landed via Defect 6. Path A (adding
 ~77 dead-BDC CIKs) is a separate workstream — see Active Roadmap below.
-**Last Session: 2026-06-15 (session 12 cont.)**
+**Last Session: 2026-07-01 (session 14 — deregistered BDC integration)**
 
 ### What's Working
 - Virtual environment set up (`uv venv` inside `sec-extraction-v3/`)
@@ -859,25 +859,21 @@ Re-add C6 ONLY if an authoritative tagged roll-forward SUBTOTAL surfaces to anch
   fires on thin AND contaminated coverage, keeps clean ~1.00×. Old 300-JSON set backed up at
   `data/extracted_backup_20260619_172955/`. Downstream workbooks (spreadsheet + 3 analysis) still
   need a rebuild from the fresh data.
-- **⚠️ Defect 5 Path A — survivorship (OWNER-SCOPED, separate workstream).** The current universe
-  is survivor-only: BDCs that deregistered during the XBRL window are absent. **Gap list
-  RECONSTRUCTED from EDGAR (session 13, `0656cd7`)** — the verification-copy CSV was never committed
-  here, so sourced fresh from N-54C filings (withdrawal of BDC election) since 2016, diffed against
-  the universe: **76 candidates** (`data/survivorship_gap_candidates.csv`), enriched with inline-XBRL
-  availability (`data/survivorship_gap_enriched.csv`, script `src/analysis/survivorship_enrich.py`).
-  **Split: 30 extractable (≥1 inline-XBRL 10-K/10-Q, 278 filings) / 46 not.** KEY FINDING — the split
-  is temporal: BDC inline-XBRL began ~2020–2022, so the marquee pre-2020 distressed failures
-  (American Capital, Sierra/Medley, Garrison, Alcentra, OHA, MVC, Harvest, FS KKR II) are in the
-  NON-extractable 46 → an XBRL-only Path A recovers mostly recent exits and misses the big blowups
-  (those need the LLM-over-HTML path). **CORRECTION (Brian, session 13):** do NOT treat "merged away"
-  as benign — merging a weak fund into a stronger sibling is a primary survivorship-bias *mechanism*
-  (the weak NAV/track-record gets absorbed and disappears), exactly as poorly-performing mutual
-  funds/ETFs are buried. Merger vs liquidation is a churn DIMENSION to measure, not a filter to
-  exclude on; the earlier "double-counting risk" framing was wrong — pre-merger the target and
-  survivor are distinct entities filing separate portfolios at separate dates, so no temporal double
-  count (their pre-merger holdings overlap is real co-investment, which `portfolio_overlap` is meant
-  to capture). Path A: add CIKs → extract → rebuild → document full-vs-survivor headline. Scope as
-  its own project. Ties directly into the churn project below.
+- ~~**Defect 5 Path A — survivorship (OWNER-SCOPED) — DONE (session 14, 2026-07-01).**~~ Added 26
+  deregistered BDCs to `fund_universe.csv` (602 → 628 rows): `vehicle_type="Deregistered BDC"`,
+  `deregistered=True`, `deregistration_date` (N-54C date, YYYY-MM-DD). Excluded 4 stale CIKs whose
+  XBRL filings all post-date deregistration (Medallion Financial, Point Capital, Mill City Ventures
+  III, MacKenzie Realty Capital — would extract non-BDC data). Commits `ef37ce2` (code) + NaN fix
+  (unfixed commit — `deregistration_date` empty cells read as float NaN by pandas, crashing `.strip()`;
+  fixed inline in `bdc_funds()` with `.fillna("")` before `.to_dict()`). Changes: (1) `fund_universe.csv`
+  +26 rows +2 cols; (2) `run_extraction.py` — `bdc_funds()` rewritten to include "Deregistered BDC"
+  in filter mask, preserve it in normalization, and return `deregistration_date`; `run()` skips any
+  filing whose `period_of_report > deregistration_date` (ISO string compare, date-capped at N-54C);
+  (3) `build_spreadsheet.py` — "Deregistered?" column added (Yes/blank) after `vehicle_type`. Extraction
+  ran (~100–150 new filings from 26 dead BDCs, all existing 1,088 JSONs skipped). Spreadsheet rebuilt.
+  **Next step:** document full-vs-survivor comparison and note the PATH A LIMITATION — XBRL-only
+  recovers mostly recent exits (2022–2026); pre-2020 distressed failures (American Capital, Garrison,
+  Alcentra, FS KKR II, etc.) are in the non-extractable 46 and need LLM-over-HTML to recover.
 - ~~**BDC churn & survival analysis**~~ — **BUILT (session 13).** Modules: `churn_sizing.py`
   (full-history N-54A/N-54C pull), `churn_enrich.py` (listed/unlisted + death-mechanism + bona-fide
   filter), `bdc_churn.py` (census + Phases 1–5). Deliverable: `data/dataset/bdc_churn.xlsx`
@@ -907,6 +903,7 @@ Re-add C6 ONLY if an authoritative tagged roll-forward SUBTOTAL surfaces to anch
 
 | Date | What Happened |
 |------|---------------|
+| 2026-07-01 (session 14 — deregistered BDC integration) | **Defect 5 Path A — survivorship gap closed (XBRL-extractable subset).** From the 76 N-54C dead BDCs identified in session 13, excluded 4 stale CIKs whose XBRL filings all post-date their deregistration date (Medallion Financial n54c=2018/xbrl=2020; Point Capital n54c=2018/xbrl=2021; Mill City Ventures III n54c=2019/xbrl=2021; MacKenzie Realty Capital n54c=2020/xbrl=2021) — they'd extract non-BDC entity data. Added the remaining **26 deregistered BDCs** to `fund_universe.csv` (24 clearly useful + 2 borderline same-year): 602 → 628 rows; two new columns (`deregistered`, `deregistration_date`); `vehicle_type="Deregistered BDC"`. Code changes (commit `ef37ce2` + NaN hotfix): `run_extraction.py` — `bdc_funds()` rewritten to include "Deregistered BDC" in the filter mask and normalize correctly (old code coerced all non-Listed to "Unlisted BDC", silently mislabeling); `run()` now reads `deregistration_date` per fund and skips filings where `period_of_report > deregistration_date` (ISO string compare; `break` exits the 3-attempt retry loop while the outer filing loop continues). NaN hotfix: pandas reads empty CSV cells as `float NaN`; `NaN or ""` evaluates to `NaN` (it's truthy), so `.strip()` crashed with `AttributeError: 'float' object has no attribute 'strip'` — fixed by calling `.fillna("")` on the `deregistration_date` column in `bdc_funds()` before `.to_dict()`. `build_spreadsheet.py` — added "Deregistered?" column to `META_COLS` and Data tab (Yes/blank). Extraction ran successfully (~100–150 new filings, all 1,088 existing JSONs skipped). Spreadsheet rebuilt. Limitation: XBRL-only Path A recovers mostly recent exits (2022–2026); the pre-2020 marquee failures need LLM-over-HTML. |
 | 2026-06-20 (session 13 — Defect 3 re-run, workbook rebuild, BDC churn analysis) | **Defect 3 re-run** on the home machine: clean re-extraction applied the `HOLDINGS_COVERAGE_MIN=0.70` gate — 1,088 filings / 642 pass / 446 review / 1 benign error / 793 holdings CSVs (reproduces session-11 baseline); gate verified on Goldman BDC 2023-Q2 (ratio 0.036 → nulled). **README overhaul** (`2657e18`): listed BDCs, three-layer framing, src/analysis research layer, corrected interval/tender path (LLM-over-clean-text + in-house N-PORT), new Research section. **Survivorship gap reconstructed** (`0656cd7`) from N-54C: 76 candidates / 30 extractable; XBRL-by-vehicle-type probe (`69a4943`) confirmed interval/tender financials not XBRL-tagged at raw-fact level. **Memory:** company already has N-PORT XML holdings (interval/tender holdings = reuse, only financials need LLM). **Rebuilt all workbooks** from fresh data (installed scipy/statsmodels/matplotlib/networkx). **BDC churn analysis BUILT** (`b4825a9`→`86ae861`): full-history N-54A/N-54C census (465 BDCs ever), bona-fide filter = Form N-2 (169 real BDCs; SIC + filing-footprint both failed), Phases 0–5 + verification pass. Findings: 58% crude survival; KM median ~19y (operating); non-traded BDCs median ~10y vs listed durable (die ~2× faster); deaths overwhelmingly by merger (36) not liquidation (8); FS/KKR rolled up 8 funds. Deliverable `bdc_churn.xlsx` (7 tabs + 4 charts). |
 | 2026-06-15 (session 12 cont. — adversarial verification + 6 defect fixes) | Brian ran three verification passes (pipeline, statistical, data-integrity) against a project copy; results in `FIX_INSTRUCTIONS.md`. Fixed all 6 defects in order, one commit each. **D1 (`3e53c5f`)**: README missing analysis deps (scipy/statsmodels/matplotlib/networkx). **D2.1 (`dd2502f`)**: docs mismatch on the leave-one-out estimator — §7 plan corrected (include-self FE attenuates by k/(k−1); code was already correct), 3 docstrings updated, no numeric change. **D2.2 (`e7709c5`)**: thin-manager false significance — FE inference blanked below 20-loan floor, FDR over eligible family only, `significant_robust` column added (requires both FE + bootstrap CI to agree in same direction on ≥20 loans); Fidus n=2 now shows blank p; Barings correctly flips to non-significant (p=0.051 after FDR restriction). **D4a (`9a70ec9`)**: issue-grain overlap was including Low/Single confidence matches (19.5%); fixed by filtering to High/Med only before the grain loop. **D4b (`625e07e`)**: boilerplate mega-clusters ("in controlled" 11,496 rows, "unaffiliated issuer") fixed by adding prepositions + affiliation stopwords to `_GENERIC_TOKENS` and requiring a non-empty `core_key` in `parse_issuer`; parse_ok 96.9%→91.0%, all 7 anchors intact, ≥10-fund overlap improved 406→518. **D6 (`b217bd4`)**: survivor-only/overlap-only/exact-date caveats added to both workbook Overviews. **D3 (`c1807f1`)**: `HOLDINGS_COVERAGE_MIN=0.70` gate added to extractor (Goldman BDC 2023-Q2 pre-check: ratio=0.036, gate fires; Stellus ratio=0.798, gate correctly silent) — ⚠️ code committed, full re-run pending. D5 Path A (survivorship) owner-scoped, Path B disclosure done via D6. Both flagged in Active Roadmap. |
 | 2026-06-13 (session 12 cont. — holdings follow-on research) | Two standalone analyses reusing `holdings_compare.py`, separate outputs. Wrote both plans (`93a762b`): `docs/MARKING_BIAS_PLAN.md` (manager-level rich/cheap vs peers; within-issue leave-one-out deviations; descriptive + bootstrap CIs AND issue-fixed-effects regression w/ cluster-robust SEs + FDR; charts) and `docs/PORTFOLIO_OVERLAP_PLAN.md`. Built **fund→manager map** (`src/analysis/managers.py`, `93a762b`): curated CIK→manager, 74 funds → 57 managers (14 multi-fund), emits `fund_manager_map.csv`; 5 VERIFY cases flagged (BCP→BC Partners?, MidCap→Apollo, MSC→Main Street, John Hancock/Comvest, TPG Twin Brook). Built + validated **portfolio overlap** (`src/analysis/portfolio_overlap.py`, `141042d`): pairwise fund overlap at issuer + issue grain — common count, directional A→B/B→A, Jaccard, overlap coef, $-weighted overlap, hypergeometric lift, same-manager flag; per-date panel + trend; clustered heatmap + co-lending network (networkx) + trend charts → `portfolio_overlap.xlsx` (1,061 latest pairs / 17,507 panel / FundSummary / Trend / Charts). Validation: same-manager sister funds top (Blue Owl II/I 0.78 Jaccard, lift 30×; MSC inside Main Street 0.99 directional), cross-manager club deals at lift 3–8× (Blackstone/HPS share 121 actual loans). First full run was interrupted by a manual restart, then Brian re-ran it by hand successfully. Installed scipy + matplotlib + networkx (`--link-mode=copy`). All pushed. **Next: marking-bias build (needs statsmodels); confirm the 5 manager-map VERIFY cases first.** |
