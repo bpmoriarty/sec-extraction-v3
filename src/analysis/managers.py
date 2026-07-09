@@ -98,13 +98,54 @@ MANAGER_BY_CIK: dict[str, str] = {
     "0001786108": "Trinity Capital",          # Trinity Capital Inc
     "0001580345": "TriplePoint",              # TriplePoint Venture Growth BDC
     "0001552198": "WhiteHorse (H.I.G.)",      # WhiteHorse Finance (H.I.G. Capital)
+
+    # --- Deregistered BDCs — added session 15 (2026-07-02), curated by CIK. ---
+    # These 26 dead BDCs were folded into the universe in session 14. Mapping them lets their
+    # holdings contribute to their parent manager's marking-bias estimate. 18 have holdings (marked
+    # * below); the other 8 have no schedule-of-investments XBRL, so they never enter the study.
+    # Most roll into an existing manager; the three *** VERIFY *** cases are judgment calls (see VERIFY).
+    "0001326003": "BlackRock",                # BlackRock Capital Investment Corp *  (merged into BlackRock TCP Capital)
+    "0001807427": "Blue Owl",                 # Blue Owl Capital Corp III *
+    "0001889668": "Blue Owl",                 # Blue Owl Technology Finance Corp. II *
+    "0001851277": "Carlyle",                  # Carlyle Secured Lending III *
+    "0001490927": "Franklin BSP",             # Franklin BSP Lending Corp *
+    "0002018545": "Franklin BSP",             # Franklin BSP Real Estate Debt BDC *
+    "0001865174": "Goldman Sachs",            # Goldman Sachs Middle Market Lending Corp. II *
+    "0001715268": "Golub",                    # Golub Capital BDC 3, Inc. *
+    "0001948565": "Investcorp",               # Investcorp US Institutional Private Credit Fund *
+    "0001512931": "Monroe Capital",           # Monroe Capital Corp *
+    "0001781870": "New Mountain",             # New Mountain Guardian III BDC, L.L.C. *
+    "0002071136": "Nuveen Churchill",         # Nuveen Churchill BDC V *
+    "0002022625": "Nuveen Churchill",         # Nuveen Churchill Private Credit Fund *
+    "0001825590": "Morgan Stanley",           # SL Investment Corp * (merged into North Haven Private Income, an MS fund)
+    "0001870267": "Redwood Capital Management",  # Redwood Enhanced Income Corp * (adviser: Redwood Capital Management LLC)
+    "0001642862": "Western Technology Investment",  # Venture Lending & Leasing VIII, Inc. * (WTI / Westech Investment Advisors)
+    "0001571329": "BC Partners",              # Logan Ridge Finance Corp * (Mount Logan Mgmt, a BC Partners affiliate; merged into BCP Investment Corp)  *** VERIFY ***
+    "0001501729": "FS/KKR",                   # FS Specialty Lending Fund * (ex-FS Energy & Power Fund, FS/KKR-advised)  *** VERIFY ***
+    "0001666384": "TPG Twin Brook",           # AG Twin Brook BDC (Twin Brook platform; Angelo Gordon-advised at exit, later TPG)  *** VERIFY ***
+    "0001464963": "First Eagle",              # First Eagle Alternative Capital BDC (ex-THL Credit; no holdings)
+    "0001618697": "Guggenheim",               # Guggenheim Credit Income Fund (no holdings)
+    "0001618694": "Guggenheim",               # Guggenheim Credit Income Fund 2016 T (no holdings)
+    "0001618696": "Guggenheim",               # Guggenheim Credit Income Fund 2019 (no holdings)
+    "0001587987": "Newtek",                   # Newtek Business Services Corp (internally managed; became NewtekOne bank; no holdings)
+    "0001922947": "Wellings Capital",         # Wellings Real Estate Income Fund (no holdings)
+    "0001999538": "X1 Capital",               # X1 Capital Inc. (no holdings)
 }
 
 # The five originally-debatable cases were confirmed by Brian (2026-06-13):
 #   BCP Investment Corp -> BC Partners; MidCap Financial -> keep Apollo; MSC Income -> Main Street;
 #   John Hancock Comvest -> "John Hancock"; TPG Twin Brook -> "TPG Twin Brook".
-# No outstanding verifications.
-VERIFY: dict[str, str] = {}
+# Session 15 (2026-07-02) added the 26 deregistered BDCs; three are debatable-parent judgment calls
+# below (the rest are unambiguous). Please confirm/correct.
+VERIFY: dict[str, str] = {
+    "0001571329": "Logan Ridge Finance Corp -> BC Partners. Adviser is Mount Logan Management LLC, "
+                  "an affiliate of BC Partners Advisors; LRFC merged into BCP Investment Corp (already "
+                  "mapped to BC Partners). This ADDS to the existing BC Partners bias estimate — has holdings.",
+    "0001501729": "FS Specialty Lending Fund -> FS/KKR. Formerly FS Energy & Power Fund, advised by the "
+                  "FS/KKR JV. Adds to the FS/KKR estimate — has holdings.",
+    "0001666384": "AG Twin Brook BDC -> TPG Twin Brook. Twin Brook lending platform; Angelo Gordon-advised "
+                  "at its 2023 exit (pre TPG/Angelo Gordon deal). No holdings, so no marking-bias impact.",
+}
 
 
 def manager_of(cik: str) -> str:
