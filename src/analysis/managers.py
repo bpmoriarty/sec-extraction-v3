@@ -120,9 +120,9 @@ MANAGER_BY_CIK: dict[str, str] = {
     "0001825590": "Morgan Stanley",           # SL Investment Corp * (merged into North Haven Private Income, an MS fund)
     "0001870267": "Redwood Capital Management",  # Redwood Enhanced Income Corp * (adviser: Redwood Capital Management LLC)
     "0001642862": "Western Technology Investment",  # Venture Lending & Leasing VIII, Inc. * (WTI / Westech Investment Advisors)
-    "0001571329": "BC Partners",              # Logan Ridge Finance Corp * (Mount Logan Mgmt, a BC Partners affiliate; merged into BCP Investment Corp)  *** VERIFY ***
-    "0001501729": "FS/KKR",                   # FS Specialty Lending Fund * (ex-FS Energy & Power Fund, FS/KKR-advised)  *** VERIFY ***
-    "0001666384": "TPG Twin Brook",           # AG Twin Brook BDC (Twin Brook platform; Angelo Gordon-advised at exit, later TPG)  *** VERIFY ***
+    "0001571329": "BC Partners",              # Logan Ridge Finance Corp * (Mount Logan Mgmt, a BC Partners affiliate; merged into BCP Investment Corp) — confirmed Brian 2026-07-07
+    "0001501729": "FS/KKR",                   # FS Specialty Lending Fund * (ex-FS Energy & Power Fund, FS/KKR-advised) — confirmed Brian 2026-07-07
+    "0001666384": "TPG Twin Brook",           # AG Twin Brook BDC (Twin Brook platform; Angelo Gordon-advised at exit, later TPG) — confirmed Brian 2026-07-07
     "0001464963": "First Eagle",              # First Eagle Alternative Capital BDC (ex-THL Credit; no holdings)
     "0001618697": "Guggenheim",               # Guggenheim Credit Income Fund (no holdings)
     "0001618694": "Guggenheim",               # Guggenheim Credit Income Fund 2016 T (no holdings)
@@ -135,17 +135,12 @@ MANAGER_BY_CIK: dict[str, str] = {
 # The five originally-debatable cases were confirmed by Brian (2026-06-13):
 #   BCP Investment Corp -> BC Partners; MidCap Financial -> keep Apollo; MSC Income -> Main Street;
 #   John Hancock Comvest -> "John Hancock"; TPG Twin Brook -> "TPG Twin Brook".
-# Session 15 (2026-07-02) added the 26 deregistered BDCs; three are debatable-parent judgment calls
-# below (the rest are unambiguous). Please confirm/correct.
-VERIFY: dict[str, str] = {
-    "0001571329": "Logan Ridge Finance Corp -> BC Partners. Adviser is Mount Logan Management LLC, "
-                  "an affiliate of BC Partners Advisors; LRFC merged into BCP Investment Corp (already "
-                  "mapped to BC Partners). This ADDS to the existing BC Partners bias estimate — has holdings.",
-    "0001501729": "FS Specialty Lending Fund -> FS/KKR. Formerly FS Energy & Power Fund, advised by the "
-                  "FS/KKR JV. Adds to the FS/KKR estimate — has holdings.",
-    "0001666384": "AG Twin Brook BDC -> TPG Twin Brook. Twin Brook lending platform; Angelo Gordon-advised "
-                  "at its 2023 exit (pre TPG/Angelo Gordon deal). No holdings, so no marking-bias impact.",
-}
+# Session 15 (2026-07-02) added the 26 deregistered BDCs; its three debatable-parent judgment calls
+# were confirmed by Brian (2026-07-07): Logan Ridge -> BC Partners (Mount Logan is a BC Partners
+# affiliate; merged into BCP Investment Corp); FS Specialty Lending -> FS/KKR (ex-FS Energy & Power);
+# AG Twin Brook -> TPG Twin Brook (Twin Brook platform).
+# No outstanding verifications.
+VERIFY: dict[str, str] = {}
 
 
 def manager_of(cik: str) -> str:
