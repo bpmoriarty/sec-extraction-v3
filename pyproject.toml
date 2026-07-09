@@ -1,0 +1,33 @@
+# Project manifest — declares every third-party package the pipeline imports,
+# so the environment is reproducible from a clean checkout (uv lock + uv sync).
+# Version floors match the working environment captured 2026-07-07; uv.lock pins exact versions.
+[project]
+name = "sec-extraction-v3"
+version = "0.1.0"
+description = "SEC filing extraction pipeline: XBRL (BDCs) + LLM-over-HTML (interval/tender funds)"
+requires-python = ">=3.13"
+# Exact pins (==) reproduce the environment the BDC pipeline was validated against
+# (sessions 4-16, 1,280-filing baseline). Upgrades should be deliberate, re-verified acts.
+dependencies = [
+    # --- extraction core (XBRL path) ---
+    "edgartools==5.35.1",     # EDGAR access + XBRL parsing (pipeline hand-validated on this version)
+    "pandas==3.0.3",
+    "numpy==2.4.6",
+    "pydantic==2.13.4",       # FilingExtraction schema
+    "openpyxl==3.1.5",        # spreadsheet assembler
+    "rapidfuzz==3.14.5",      # holdings issuer clustering
+    # --- analysis layer (research workbooks) ---
+    "scipy==1.17.1",
+    "statsmodels==0.14.6",
+    "matplotlib==3.11.0",
+    "networkx==3.6.1",
+    # --- N-CSR LLM path (session 17+) ---
+    "anthropic>=0.116",       # Claude API SDK (structured outputs + batches); new dep, latest ok
+    "lxml==6.1.1",            # HTML parsing for ncsr_sections.py
+    "beautifulsoup4==4.14.3", # HTML cleanup helpers
+    "truststore==0.10.4",     # corporate-SSL fix for httpx (Windows cert store)
+]
+
+[tool.uv]
+# This repo is a collection of scripts, not an installable package.
+package = false
