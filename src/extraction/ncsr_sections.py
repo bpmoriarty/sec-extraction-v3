@@ -661,6 +661,18 @@ _DROP_TAGS = {"sup", "script", "style", "noscript"}
 _PREFIX_SYMBOLS = {"$", "(", "$("}
 _SUFFIX_SYMBOLS = {")", "%", ")%", "%)"}
 _MAX_NARRATIVE_CHARS = 600
+# Not every filer uses HTML tables. A minority lay their statements out as pre-formatted text
+# with dot leaders:
+#     Investment in securities--at cost .....................  1,234
+# For those documents lxml finds zero <table> elements, so everything arrives as narrative and
+# the 600-character prose cap would throw the entire financial statements away. (It did: 24
+# filings across 7 filers, led by Principal Real Asset Fund, were being mis-reported as
+# contents pages for exactly this reason.) So a narrative run that carries financial values
+# gets a much larger allowance, while ordinary prose stays tightly capped.
+_MAX_FINANCIAL_NARRATIVE_CHARS = 40_000
+# Runs of three or more dots are leaders joining a row label to its value; turning them into
+# the same pipe used for table cells makes these filings read like every other one.
+_DOT_LEADER_RE = re.compile(r"\s*\.{3,}\s*")
 # Above this share of replacement characters, treat the document as cp1252 rather than
 # UTF-8-with-damage. See read_filing_text.
 UTF8_ERROR_TOLERANCE = 1e-4
@@ -813,8 +825,17 @@ def serialize_region(raw_slice: str) -> str:
             return
         text = _collapse_ws(" ".join(narrative))
         narrative.clear()
-        if text:
-            parts.append(text[:_MAX_NARRATIVE_CHARS])
+        if not text:
+            return
+        text = _DOT_LEADER_RE.sub(" | ", text)
+        # Financial content earns a large allowance; prose does not. See the comment on
+        # _MAX_FINANCIAL_NARRATIVE_CHARS for why this distinction is load-bearing.
+        cap = (
+            _MAX_FINANCIAL_NARRATIVE_CHARS
+            if _has_financial_values(text)
+            else _MAX_NARRATIVE_CHARS
+        )
+        parts.append(text[:cap])
 
     def visit(node) -> None:  # noqa: ANN001 - lxml element
         if node.tag == "table":
@@ -874,6 +895,9 @@ _FINANCIAL_VALUE_RE = re.compile(
 # A contents page yields zero of the above; a single statement yields dozens. Any small
 # number works here — 8 leaves a wide margin on both sides.
 MIN_FINANCIAL_VALUES = 8
+# A block at least this large that still serialises to no financial values is our failure to
+# read the layout, not a contents page — a contents page is a few thousand characters at most.
+UNDERFLOW_MIN_BLOCK_CHARS = 50_000
 
 
 def _has_financial_values(text: str) -> bool:
@@ -985,19 +1009,29 @@ def extract_sections(
                 for b in blocks
             ]
             keeping = [(b, t) for b, t in rendered if _has_financial_values(t)]
-            if len(keeping) < len(rendered):
-                flags.append(
-                    f"preprocess:dropped_{len(rendered) - len(keeping)}_contents_pages"
-                )
+            dropped = [(b, t) for b, t in rendered if not _has_financial_values(t)]
+            if dropped:
+                # Distinguish the two reasons a block can hold no financial values, because
+                # they call for different follow-up. A small block is a contents page (a real
+                # finding about the document). A LARGE block that serialised to almost nothing
+                # is our own failure to read the layout — conflating the two is what hid the
+                # table-less-filer bug behind a contents-page flag.
+                underflow = sum(1 for b, t in dropped if b.chars >= UNDERFLOW_MIN_BLOCK_CHARS)
+                if underflow:
+                    flags.append(f"preprocess:{underflow}_serialization_underflow")
+                if len(dropped) - underflow:
+                    flags.append(
+                        f"preprocess:dropped_{len(dropped) - underflow}_contents_pages"
+                    )
             if keeping:
                 blocks = [b for b, _ in keeping]
                 text = "\n".join(t for _, t in keeping)
             else:
-                # Every block we located turned out to be a contents page. The statements do
-                # exist in this document, so report NOT LOCATED rather than handing the model
-                # a page of page numbers: a flagged miss goes to the review queue, whereas a
-                # confident-looking empty extraction would not.
-                flags.append("preprocess:only_contents_pages")
+                # Nothing usable. The statements do exist in this document, so report NOT
+                # LOCATED rather than handing the model a page of page numbers: a flagged miss
+                # goes to the review queue, whereas a confident-looking empty extraction would
+                # not.
+                flags.append("preprocess:no_usable_block")
                 blocks = []
             if blocks and not text.strip():
                 flags.append("preprocess:empty_serialization")
