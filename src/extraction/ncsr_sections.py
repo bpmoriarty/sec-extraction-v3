@@ -241,6 +241,11 @@ def _title_pattern(*alternatives: str) -> re.Pattern[str]:
 # "Shareholders Capital", "Shareholder's Equity", "Members' Capital". A trailing character
 # class covers them all without enumerating the variants.
 _OWNERS = r"(?:(?:share|stock)holder[s'’]*|member[s'’]*|partner[s'’]*)"
+# Qualifiers that sit between "changes in" and the owner noun: "Changes in LIMITED Partners
+# Capital" (SEI Structured Credit Fund LP), "Changes in General Partner's Capital". Allowing
+# up to two words keeps the pattern open without loosening the owner-noun + equity-noun
+# requirement that actually constrains it.
+_QUALIFIERS = r"(?:[A-Za-z]+ ){0,2}"
 # The balance-sheet-equity noun. Corporations say "equity", LLCs and partnerships "capital";
 # funds-of-hedge-funds (a large slice of the tender-offer universe) are usually LLCs.
 _EQUITY = r"(?:equity|capital)"
@@ -261,9 +266,9 @@ ANCHOR_PATTERNS: dict[str, re.Pattern[str]] = {
     Kind.OPERATIONS: _title_pattern(r"(?:consolidated )?statements? of operations"),
     Kind.CHANGES: _title_pattern(
         r"(?:consolidated )?statements? of changes in net assets",
-        rf"(?:consolidated )?statements? of changes in {_OWNERS} {_EQUITY}",
+        rf"(?:consolidated )?statements? of changes in {_QUALIFIERS}{_OWNERS} {_EQUITY}",
         # A few filers drop the "changes in" and title it by the owner noun alone.
-        rf"(?:consolidated )?statements? of {_OWNERS} {_EQUITY}",
+        rf"(?:consolidated )?statements? of {_QUALIFIERS}{_OWNERS} {_EQUITY}",
     ),
     Kind.CASH_FLOWS: _title_pattern(r"(?:consolidated )?statements? of cash flows"),
     Kind.HIGHLIGHTS: _title_pattern(r"(?:consolidated )?financial highlights"),

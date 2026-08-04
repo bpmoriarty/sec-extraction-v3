@@ -310,8 +310,18 @@ def summarize(csv_path: Path) -> None:
         " genuinely no financials)"
     )
     print(f"    {len(suspicious):,} are >=0.05 MB  <-- INSPECT: may be unrecognised wording")
+    # A known benign cause: a fund that had not commenced operations by its fiscal year end
+    # files a balance sheet and nothing else — there was no activity to report. Those show a
+    # balance-sheet title with no Operations/Changes, which is correct, not a locator miss.
+    bs_only = suspicious[suspicious["heading_kinds"].str.contains(Kind.ASSETS_LIAB, na=False)]
+    if len(bs_only):
+        print(
+            f"      of which {len(bs_only):,} have a balance-sheet title only "
+            "(pre-operational / seed-stage funds — expected, not a miss)"
+        )
     for _, r in suspicious.nlargest(8, "file_mb").iterrows():
-        print(f"      {r['file_mb']:>7.2f} MB  {r['filename'][:66]}")
+        tag = " [bs-only]" if Kind.ASSETS_LIAB in str(r["heading_kinds"]) else ""
+        print(f"      {r['file_mb']:>7.2f} MB  {r['filename'][:60]}{tag}")
 
     print("\n--- statement coverage (located filings only) ---")
     loc = df[df["located"] == 1]
@@ -409,7 +419,15 @@ def main(argv: list[str] | None = None) -> int:
         default=2,
         help="workers for files >20MB (each needs several hundred MB of memory)",
     )
-    ap.add_argument("--resume", action="store_true", help="skip filings already in the CSV")
+    ap.add_argument(
+        "--resume",
+        action="store_true",
+        help=(
+            "skip filings already in the CSV. Use this ONLY to finish an interrupted run — "
+            "after any change to ncsr_sections.py the existing rows are stale, so re-run "
+            "from scratch instead or the census will mix two versions of the locator."
+        ),
+    )
     ap.add_argument("--summary-only", action="store_true", help="just re-print the summary")
     args = ap.parse_args(argv)
 
