@@ -418,6 +418,17 @@ MAX_BLOCK_CHARS = 1_500_000
 # A little context before the first title, which sometimes carries "(in thousands)".
 LEAD_IN_CHARS = 200
 
+# Smallest a block may be relative to the LARGEST block in the same filing. Below this it is
+# not a sibling series but a fragment that reuses the statement titles — typically a
+# restatement/reconciliation table in the notes, which lists "Statement of Assets and
+# Liabilities", "Statement of Operations" etc. as ROW LABELS with as-reported/adjustment/
+# as-restated columns. City National Rochdale's N-CSRS/A produced twelve of those.
+#
+# Safe because block size tracks line-item count and markup, not fund size: genuine sibling
+# series come out within ~1.6x of each other (Stone Ridge Trust V: 166,513 vs 166,523 chars;
+# Cypress Creek: 219K / 231K / 356K), while these fragments run 5-40x smaller.
+RELATIVE_SIZE_FLOOR = 0.25
+
 
 @dataclass
 class Block:
@@ -627,6 +638,15 @@ def select_blocks(anchors: list[Anchor], doc_len: int) -> list[Block]:
         )
         consumed_to = max(consumed_to, end)
 
+    # Discard fragments that are far too small to be a sibling series (see
+    # RELATIVE_SIZE_FLOOR). Always keeps the largest block, so this can never empty the list.
+    if len(blocks) > 1:
+        largest = max(b.chars for b in blocks)
+        kept = [b for b in blocks if b.chars >= RELATIVE_SIZE_FLOOR * largest]
+        if len(kept) < len(blocks):
+            kept[0].flags.append(f"preprocess:dropped_{len(blocks) - len(kept)}_small_blocks")
+            blocks = kept
+
     return blocks
 
 
@@ -831,6 +851,40 @@ FALLBACK_MAX_CHARS = 600_000
 # sizing and cost estimates, never for anything load-bearing.
 CHARS_PER_TOKEN = 4
 
+# --- the contents-page test -------------------------------------------------------------
+# A document's contents page lists every statement title in canonical order with plausible
+# gaps, so it satisfies every structural rule above and is indistinguishable from the real
+# thing by position or spacing alone. What it does NOT have is money in it: the only numbers
+# on a contents page are one- or two-digit page numbers.
+#
+# So we require a block to contain actual financial values. This is checked on the SERIALIZED
+# text, which is the thing that would be sent to the model, and it is deliberately semantic
+# rather than a size threshold — a size rule would misfire on a genuinely small fund, whereas
+# any real statement has dozens of qualifying values and a contents page has none.
+_FINANCIAL_VALUE_RE = re.compile(
+    r"""
+      \d{1,3}(?:,\d{3})+          # thousands-separated: 1,234,567 (no space after the comma,
+                                  # so "December 31, 2024" is not mistaken for one)
+    | \$\s?\d                     # a currency amount
+    | \(\s?\d[\d,]*(?:\.\d+)?\s?\)  # parenthetical negative: (237,536)
+    | \d+\.\d{2}\b                # a cent-precision figure: 25.59
+    """,
+    re.VERBOSE,
+)
+# A contents page yields zero of the above; a single statement yields dozens. Any small
+# number works here — 8 leaves a wide margin on both sides.
+MIN_FINANCIAL_VALUES = 8
+
+
+def _has_financial_values(text: str) -> bool:
+    """True if serialized text contains enough money-shaped numbers to be a real statement."""
+    found = 0
+    for _ in _FINANCIAL_VALUE_RE.finditer(text):
+        found += 1
+        if found >= MIN_FINANCIAL_VALUES:
+            return True
+    return False
+
 
 @dataclass
 class SectionResult:
@@ -923,19 +977,40 @@ def extract_sections(
                 flags.append(fl)
 
     text = ""
+    located_anything = bool(blocks)  # before the contents-page filter can empty the list
     if blocks:
         if serialize:
-            text = "\n".join(
-                serialize_region(raw[s:e]) for b in blocks for s, e in b.spans
-            )
-            if not text.strip():
+            rendered = [
+                (b, "\n".join(serialize_region(raw[s:e]) for s, e in b.spans))
+                for b in blocks
+            ]
+            keeping = [(b, t) for b, t in rendered if _has_financial_values(t)]
+            if len(keeping) < len(rendered):
+                flags.append(
+                    f"preprocess:dropped_{len(rendered) - len(keeping)}_contents_pages"
+                )
+            if keeping:
+                blocks = [b for b, _ in keeping]
+                text = "\n".join(t for _, t in keeping)
+            else:
+                # Every block we located turned out to be a contents page. The statements do
+                # exist in this document, so report NOT LOCATED rather than handing the model
+                # a page of page numbers: a flagged miss goes to the review queue, whereas a
+                # confident-looking empty extraction would not.
+                flags.append("preprocess:only_contents_pages")
+                blocks = []
+            if blocks and not text.strip():
                 flags.append("preprocess:empty_serialization")
         if len(blocks) > 1:
             # Deliberately "multi_block", not "multi_series": several statement blocks can
             # mean a multi-series trust OR a master fund's statements attached as
             # supplemental information. Telling those apart is M2's job (ncsr_series.py).
             flags.append(f"preprocess:multi_block_{len(blocks)}")
-    else:
+    elif not located_anything:
+        # Nothing was ever found. Distinct from "found only contents pages" above, which must
+        # NOT claim no_anchors and does NOT fall back: sending ~150K tokens of whole-document
+        # text for a filing whose statements we demonstrably failed to slice would be an
+        # expensive guess, so it goes to the review queue instead.
         flags.append("preprocess:no_anchors")
         if serialize and fallback:
             flat = flatten_preserving_offsets(raw[:FALLBACK_MAX_CHARS])
