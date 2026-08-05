@@ -673,6 +673,26 @@ _MAX_FINANCIAL_NARRATIVE_CHARS = 40_000
 # Runs of three or more dots are leaders joining a row label to its value; turning them into
 # the same pipe used for table cells makes these filings read like every other one.
 _DOT_LEADER_RE = re.compile(r"\s*\.{3,}\s*")
+
+# A THIRD table layout, distinct from both real HTML tables and the dot-leader narrative above:
+# the legacy EDGAR ASCII table. Here <TABLE> is not a grid at all but a container for
+# pre-formatted text, with SGML column markers and alignment done entirely with spaces:
+#
+#     <TABLE>
+#     <CAPTION>
+#     <S>                                                    <C>
+#     ASSETS:
+#       Investments in unaffiliated issuers (cost $878,282,596)      $824,865,426
+#       Cash                                                            6,928,407
+#     --------------------------------------------------------------------------
+#           Total assets                                             $832,647,460
+#     </TABLE>
+#
+# These documents contain ZERO <tr> elements, so the row-walking serializer returns nothing,
+# and because the <table> branch of `visit` also swallows the element's text, the statements
+# disappeared entirely. Columns are separated by runs of two or more spaces, which is what
+# lets us recover the grid.
+_ASCII_COLUMN_GAP_RE = re.compile(r"\s{2,}")
 # Above this share of replacement characters, treat the document as cp1252 rather than
 # UTF-8-with-damage. See read_filing_text.
 UTF8_ERROR_TOLERANCE = 1e-4
@@ -773,6 +793,42 @@ def _tidy_row(cells: list[str]) -> list[str]:
     return out
 
 
+def _serialize_ascii_table(table: object) -> str:
+    """Recover a legacy EDGAR ASCII table, where columns are runs of spaces.
+
+    See the comment on _ASCII_COLUMN_GAP_RE. `text_content()` is used rather than
+    `_element_text` precisely because we must NOT collapse whitespace here — the spacing
+    between the row label and its amount is the only column boundary these tables have.
+
+    Output is the same `label | value` shape a real HTML table produces, so nothing
+    downstream needs to know which layout a filing used.
+    """
+    text = table.text_content()  # type: ignore[attr-defined]
+    rows: list[str] = []
+    for raw_line in text.splitlines():
+        # Split on the column gaps FIRST, then normalise each cell. Doing it the other way
+        # round collapses the runs of spaces that are the only column boundary these tables
+        # have, which silently welds every row label onto its amount.
+        line = raw_line.replace("\xa0", " ").rstrip()
+        if not line.strip():
+            continue
+        cells = [_collapse_ws(c) for c in _ASCII_COLUMN_GAP_RE.split(line.strip())]
+        cells = _tidy_row(_merge_symbol_cells(cells))
+        if not any(cells):
+            continue
+        out = " | ".join(cells)
+        # Rules and borders ("-----", "=====") carry no information. This also discards the
+        # <S>/<C> column-marker line, which strips down to nothing but spaces.
+        if not re.search(r"[0-9A-Za-z]", out):
+            continue
+        if rows and rows[-1] == out:  # repeated page header inside one table
+            continue
+        rows.append(out)
+    if not rows:
+        return ""
+    return "[TABLE]\n" + "\n".join(rows) + "\n[/TABLE]"
+
+
 def _serialize_table(table: object) -> str:
     rows: list[str] = []
     for tr in table.iter("tr"):  # type: ignore[attr-defined]
@@ -790,7 +846,9 @@ def _serialize_table(table: object) -> str:
             continue
         rows.append(line)
     if not rows:
-        return ""
+        # No <tr> anywhere: either an empty layout table (yields nothing either way) or a
+        # legacy ASCII table holding the whole statement as pre-formatted text.
+        return _serialize_ascii_table(table)
     return "[TABLE]\n" + "\n".join(rows) + "\n[/TABLE]"
 
 
