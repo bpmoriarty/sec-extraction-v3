@@ -968,6 +968,76 @@ def _has_financial_values(text: str) -> bool:
     return False
 
 
+def _credit_balance_sheet_inside_block(
+    raw: str, anchors: list[Anchor], blocks: list[Block]
+) -> None:
+    """Clear a false `no_balance_sheet_title` flag when the statement is in fact inside the block.
+
+    The balance sheet is only ever searched BACKWARD from the Operations anchor
+    (see select_blocks), so a balance-sheet title that sits AFTER that anchor can never be
+    credited. That happens whenever the anchor the block started from was not a heading at
+    all but a footnote cross-reference — Pioneer's Level 3 note reads "...included in the
+    realized gain (loss) from investments on the Statement of Operations", and the cue
+    look-behind is too short to see "included in" from there. The real balance sheet then
+    sits a thousand characters further on, inside the block, fully extracted, while the
+    filing is reported as having no balance sheet.
+
+    Measured over the flagged population: 164 of 217 flags were false in exactly this way.
+
+    WHY THIS AND NOT A WIDER CUE LOOK-BEHIND: the alternative is to classify that footnote
+    reference correctly by looking further back for a cue. Measured, that cannot work. A
+    statement page ENDS with "The accompanying notes are an integral part of these financial
+    statements." and the next page's REAL heading follows immediately after, so cue distance
+    does not separate the two cases — for Pioneer the false anchor sits 49 characters after
+    its cue and the four real headings sit 78 characters after theirs. Corpus-wide the
+    distributions overlap at every threshold (a look-behind of 80 would reject 60 of 72
+    target anchors but also 29 of 35 legitimate ones). See PROJECT_STATUS for the table.
+
+    The test used here is instead structural and scale-free: a real statement heading is
+    followed by its own table before the next statement heading of a different kind, so we
+    serialize exactly that stretch and require real financial values in it. A contents-page
+    row or a note that merely names the statement yields none. No absolute character
+    threshold is involved, which matters because raw-markup distance scales with document
+    size — the mistake that made the first contents-page guard fail.
+
+    Mutates `blocks` in place. Only diagnostics change: block spans, and therefore the text
+    sent to the model, are untouched.
+    """
+    flag = "preprocess:no_balance_sheet_title"
+    for b in blocks:
+        if flag not in b.flags:
+            continue
+        for span_start, span_end in b.spans:
+            credited = False
+            for a in anchors:
+                if a.start < span_start or a.start >= span_end:
+                    continue
+                if a.kind != Kind.ASSETS_LIAB or a.is_reference:
+                    continue
+                # End at the next heading of a DIFFERENT kind: that is where this
+                # statement's own table must live if the title is a real heading.
+                stop = span_end
+                for nxt in anchors:
+                    if (
+                        nxt.start >= a.end
+                        and nxt.kind != a.kind
+                        and not nxt.is_reference
+                    ):
+                        stop = min(span_end, nxt.start)
+                        break
+                if stop <= a.end:
+                    continue
+                if _has_financial_values(serialize_region(raw[a.start : stop])):
+                    credited = True
+                    break
+            if credited:
+                b.flags.remove(flag)
+                if Kind.ASSETS_LIAB not in b.kinds:
+                    b.kinds.insert(0, Kind.ASSETS_LIAB)
+                b.flags.append("preprocess:balance_sheet_after_start_anchor")
+                break
+
+
 @dataclass
 class SectionResult:
     """Everything stage 1 knows about one filing."""
@@ -1052,6 +1122,9 @@ def extract_sections(
 
     flags: list[str] = []
     heading_kinds = sorted({a.kind for a in anchors if not a.is_reference})
+
+    # Diagnostics-only pass: must run before block flags are collected below.
+    _credit_balance_sheet_inside_block(raw, anchors, blocks)
 
     for b in blocks:
         for fl in b.flags:
