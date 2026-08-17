@@ -1,5 +1,61 @@
 # SEC Filing Extraction — Project Status
 
+<!-- ─────────────────────────────────────────────────────────────────────────────
+     RESUME HERE. This block is the only part of this file that must be current.
+     Everything below line ~40 is chronological history: useful, but it is a LOG,
+     not instructions. Update this block at the end of every session.
+     ───────────────────────────────────────────────────────────────────────────── -->
+
+## ⏩ RESUME HERE (last updated: session 21, 2026-08-17)
+
+**Two pipelines. One is finished and shipping; one is mid-build.**
+
+| Workstream | State |
+|---|---|
+| **XBRL / BDC** (10-K, 10-Q) | **DONE and shipping.** 1,088 filings, C1–C11 validation, holdings, `semiliquid_bdc_dataset.xlsx`. Touch only for bug fixes. |
+| **N-CSR LLM** (interval + tender funds) | **ACTIVE. M0–M3 done, M4 next.** Runbook: [`docs/NCSR_LLM_PLAN.md`](docs/NCSR_LLM_PLAN.md) — read that, not this file, for the architecture and milestones. |
+
+**Where the N-CSR work stands:** M1 locator gate **99.1%** (2,323/2,343), 3,026 filings
+located, 27 true misses. M3 built the middle of the pipeline (`ncsr_raw`, `ncsr_prompt`,
+`ncsr_anchors`, `ncsr_map`, `ncsr_llm`) and the end-to-end spine is verified — the
+UNCHANGED `validate()` and `compute_derived()` run on LLM-sourced data. **Nothing has been
+spent yet.** Measured corpus cost: **$96**.
+
+**The next three actions, in order:**
+1. **M4 — the ~25-filing hand-verified gold sample.** It gates the entire spend.
+   Stratification and the three things it must MEASURE are in `docs/NCSR_LLM_PLAN.md` §4.
+2. **M5 — batch backfill** (~$96). Blocked on M4.
+3. **M2 — multi-series slicer** over 429 multi-block filings. Deliberately NOT a
+   prerequisite for M5; it is ~$15 of the deadline-sensitive cost.
+
+**Blocked on Brian (nothing can proceed past M3 without these):**
+- `ANTHROPIC_API_KEY` unset → then run `uv run python src/extraction/api_smoke_test.py`
+  (fixed in session 21; it now actually verifies its result).
+- Personal vs enterprise Anthropic account, before any spend.
+- **Sonnet 5 introductory pricing ends 2026-08-31.** Slipping costs ~$41 on the
+  single-block bulk, ~$15 on the multi-series tail.
+
+**Optional free work, highest value first:** (1) the fixed 60,000-char
+`HIGHLIGHTS_WINDOW` truncates Financial Highlights mid-table — confirmed on 4 filings,
+known fix pattern (end at the next heading of a different kind, per session 19);
+(2) 27 true misses, a heterogeneous tail, out of scope under the ≥3-filings rule.
+
+### ⚠️ How this file will mislead you if you trust it uncritically
+
+**It records hypotheses in the same confident voice as measured results, and several have
+turned out to be wrong.** Session 21 re-derived three recorded "diagnoses" that were false:
+the cause of `no_anchors`, the cause of the table-less stragglers, and a forward-search fix
+I myself recommended in session 19 and then measured as not worth building. Before acting
+on any diagnosis in the history below, check whether it says it was **measured**. If it
+doesn't, treat it as a hypothesis and re-measure — it is cheap here (the census is free)
+and it has been wrong roughly as often as it has been right.
+
+**Convention from session 21 on:** write **MEASURED** for anything backed by a corpus run
+or a probe, and **ASSUMED** / **HYPOTHESIS** for anything else. A superseded claim gets
+marked in place rather than deleted, so the log stays honest.
+
+---
+
 ## Project Goal
 
 Extract structured financial data from SEC filings (HTML format) across a broad
@@ -572,6 +628,14 @@ runs 48.9%–60.6% but the balance sheet is printed at **65.5%, AFTER the statem
 flag is correct and points at a real extraction gap. **That is a genuine follow-up worth doing:** a
 forward search for a balance sheet printed after the statements, directly analogous to the existing
 `highlights_after_notes` recovery.
+**⛔ SUPERSEDED — DO NOT ACT ON THE LIST BELOW. Session 21 MEASURED all three of its technical
+claims and all three were wrong.** Kept in place because this log is append-only, but the current
+open-items list is in the RESUME HERE block at the top of this file. Specifically: the ACAP
+forward search recovers only **2 of 52** filings (below the ≥3 rule — not built); `no_anchors` was
+a **conflated flag**, not a size problem (16 filings truly lack titles, 46 had 1–130 headings our
+own sequence rules rejected); and 6 of the 7 "table-less" filings were an **intra-word tag split**
+in the title patterns, not a narrative-serialization shortfall. This is the clearest example in
+the file of a hypothesis written in the voice of a finding.
 **STILL OPEN (all free to investigate, no API key):** (1) **balance sheet printed AFTER the
 statements run** — ACAP-style, 52 single-block filings still flagged; needs a forward-search
 recovery like `highlights_after_notes`; (2) **62 filings flagged `no_anchors`** — undiagnosed,
