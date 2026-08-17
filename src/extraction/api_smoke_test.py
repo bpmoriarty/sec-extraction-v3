@@ -12,7 +12,17 @@ Run (after setting your API key for this shell):
                  uv run python src/extraction/api_smoke_test.py
 
 Expected output: the model's one-word reply, the model id, and token usage.
-Cost: well under $0.01.
+Cost: about $0.0002 — two hundredths of a cent.
+
+WHY THIS SCRIPT SETS `thinking` AND CHECKS `stop_reason` (session 20). As first written
+it omitted `thinking` and set `max_tokens=16`, then printed "SMOKE TEST PASSED"
+unconditionally. On Sonnet 5, omitting `thinking` runs ADAPTIVE THINKING, and
+`max_tokens` is a hard cap on thinking PLUS response text — so if the model spent any of
+those 16 tokens thinking, the reply came back empty with `stop_reason="max_tokens"` and
+the script still declared success. That is the project's most expensive recurring failure
+shape (a confident-looking pass hiding a failure: the contents-page blocks that "looked
+located", the 290 silently truncated filings), so it is closed here rather than left as a
+one-in-N surprise on the very first paid call.
 """
 
 import os
@@ -27,6 +37,11 @@ import anthropic  # noqa: E402  (import after inject_into_ssl on purpose)
 
 # The pilot's primary model — testing the exact model we'll use, not just connectivity.
 MODEL = "claude-sonnet-5"
+# Headroom over the ~1-token answer. Small enough to stay free, large enough that the
+# result cannot be an artefact of the ceiling.
+MAX_TOKENS = 64
+# Sonnet 5 intro pricing, $ per million tokens (ends 2026-08-31).
+PRICE_IN, PRICE_OUT = 2.00, 10.00
 
 
 def main() -> int:
@@ -38,14 +53,38 @@ def main() -> int:
     client = anthropic.Anthropic()
     resp = client.messages.create(
         model=MODEL,
-        max_tokens=16,
+        max_tokens=MAX_TOKENS,
+        # Explicit, not omitted: on Sonnet 5 an omitted `thinking` runs adaptive, and a
+        # connectivity check has nothing to think about. Disabling it also makes the
+        # token counts below a clean reading of the request itself.
+        thinking={"type": "disabled"},
         messages=[{"role": "user", "content": "Reply with the single word: ok"}],
     )
     text = next((b.text for b in resp.content if b.type == "text"), "").strip()
-    print(f"reply: {text!r}")
-    print(f"model: {resp.model}")
-    print(f"usage: in={resp.usage.input_tokens} out={resp.usage.output_tokens}")
-    print("SMOKE TEST PASSED — API reachable through this network, model accessible.")
+    u = resp.usage
+    cost = u.input_tokens / 1e6 * PRICE_IN + u.output_tokens / 1e6 * PRICE_OUT
+
+    print(f"reply : {text!r}")
+    print(f"model : {resp.model}")
+    print(f"stop  : {resp.stop_reason}")
+    print(f"usage : in={u.input_tokens} out={u.output_tokens}  (${cost:.6f})")
+
+    # Verify BEFORE claiming success. Each of these would previously have printed PASSED.
+    if resp.stop_reason == "refusal":
+        print("SMOKE TEST FAILED - the request was refused; check the prompt.")
+        return 1
+    if resp.stop_reason == "max_tokens":
+        print(f"SMOKE TEST FAILED - truncated at max_tokens={MAX_TOKENS}; raise it.")
+        return 1
+    if not text:
+        print("SMOKE TEST FAILED - reached the model but got no text back.")
+        return 1
+    if "ok" not in text.lower():
+        print(f"SMOKE TEST FAILED - unexpected reply {text!r}; expected 'ok'.")
+        return 1
+
+    print("SMOKE TEST PASSED - API reachable through this network, model accessible, "
+          "reply verified.")
     return 0
 
 

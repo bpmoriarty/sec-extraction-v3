@@ -226,13 +226,47 @@ OPTIONAL_SEQUENCE: tuple[str, ...] = (
 SEQUENCE: tuple[str, ...] = REQUIRED_SEQUENCE + OPTIONAL_SEQUENCE
 
 
+# Words whose trailing plural "s" filers sometimes wrap in its own tag, e.g.
+# `Net Asset<span style="...">s</span>`. Because the flatten blanks tags into an EQUAL
+# number of spaces, that split lands WHITESPACE INSIDE THE WORD — "Net Asset      s" —
+# and a pattern written `net\s+assets` cannot match it.
+#
+# Session 18 noted that blanked tags "turn into whitespace a `\s+` pattern absorbs". That
+# is true BETWEEN words and false WITHIN one, which is the gap this closes. Measured on
+# Destra Multi-Alternative and BlueBay Destra: the statements run is found, its Changes
+# heading is not, and the whole filing is lost.
+#
+# Only the plural "s" is made split-tolerant, not every letter: `a\s*s\s*s\s*e\s*t\s*s`
+# would match almost anything. Each entry must be a plain literal word in the pattern
+# sources below — never a character class — because the substitution is textual.
+_SPLIT_TOLERANT_PLURALS = (
+    "statements", "assets", "liabilities", "operations", "flows", "investments",
+    "highlights", "changes",
+)
+
+
+def _tolerate_split_plurals(alt: str) -> str:
+    """`net assets` -> `net asset\\s*s`, so a tag split before the plural still matches."""
+    for word in _SPLIT_TOLERANT_PLURALS:
+        alt = re.sub(rf"\b{word}\b", word[:-1] + r"\\s*" + word[-1], alt)
+    return alt
+
+
 def _title_pattern(*alternatives: str) -> re.Pattern[str]:
     """Compile title alternatives, letting any run of whitespace stand in for a space.
 
     Written with single spaces for readability; every space becomes `\\s+` so the
-    pattern still matches after tags between words have been blanked into whitespace.
+    pattern still matches after tags between words have been blanked into whitespace,
+    and each plural noun tolerates a tag split before its final "s" (see
+    `_SPLIT_TOLERANT_PLURALS`).
+
+    Order matters: plural tolerance is applied to the human-readable source FIRST, while
+    spaces are still literal spaces. Doing it after the `\\s+` conversion would rewrite the
+    "s" inside `\\s+` itself and corrupt every pattern.
     """
-    body = "|".join(alt.replace(" ", r"\s+") for alt in alternatives)
+    body = "|".join(
+        _tolerate_split_plurals(alt).replace(" ", r"\s+") for alt in alternatives
+    )
     return re.compile(f"(?:{body})", re.IGNORECASE)
 
 
@@ -1173,10 +1207,29 @@ def extract_sections(
             flags.append(f"preprocess:multi_block_{len(blocks)}")
     elif not located_anything:
         # Nothing was ever found. Distinct from "found only contents pages" above, which must
-        # NOT claim no_anchors and does NOT fall back: sending ~150K tokens of whole-document
+        # NOT claim no titles and does NOT fall back: sending ~150K tokens of whole-document
         # text for a filing whose statements we demonstrably failed to slice would be an
         # expensive guess, so it goes to the review queue instead.
-        flags.append("preprocess:no_anchors")
+        #
+        # SPLIT INTO TWO FLAGS (session 21). This was one flag named `no_anchors`, which read
+        # as "the document has no statement titles" while it actually fired on "select_blocks
+        # returned nothing". Measured on the 62 filings it flagged: only 16 had no titles;
+        # the other 46 had 1-130 of them and were rejected by our own sequence rules. Merging
+        # a fact about the FILING with a fact about our CODE is exactly how the
+        # `only_contents_pages` diagnostic hid a serializer bug for two corpus runs
+        # (session 18) — and this one cost a session's diagnosis time to see through.
+        if not any(not a.is_reference for a in anchors):
+            flags.append("preprocess:no_statement_titles")
+        else:
+            flags.append("preprocess:block_selection_failed")
+            missing = [
+                k for k in REQUIRED_SEQUENCE
+                if not any(a.kind == k and not a.is_reference for a in anchors)
+            ]
+            if missing:
+                # No valid block is even possible without these, so this is a title-wording
+                # gap to investigate, not a sequencing bug.
+                flags.append("preprocess:missing_" + "+".join(missing))
         if serialize and fallback:
             flat = flatten_preserving_offsets(raw[:FALLBACK_MAX_CHARS])
             text = _collapse_ws(flat)
