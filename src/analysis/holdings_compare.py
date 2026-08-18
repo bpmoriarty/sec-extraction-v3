@@ -932,6 +932,112 @@ def trend_summary(marks: pd.DataFrame, counts: pd.DataFrame) -> pd.DataFrame:
     return df[df["range_pts"] >= TREND_MIN_RANGE_PTS] if not df.empty else df
 
 
+# ---------------------------------------------------------------------------
+# Phase 7 — per-holder history of the moving credits (the LoanHistory tab)
+# ---------------------------------------------------------------------------
+# TrendOwners is a snapshot: it says who holds a decliner NOW. This says what each holder's
+# mark, position and portfolio weight were at a series of as-of dates, so the arc of a holding
+# is one row rather than something to reconstruct.
+#
+# GRAIN IS ISSUER, NOT TRANCHE — and that was measured, not assumed. The obvious key for "the
+# same loan over time" is the issue_id minus its date, i.e. (issuer, seniority, spread). It does
+# not survive: of 1,059 such tranches on the Dispersion tab across these six dates, 581 (55%)
+# appear on only ONE date and exactly ONE appears on all six, because repricings, amendments and
+# tagging drift move the spread. At issuer grain 674 of 1,160 appear on all six. So a tranche-keyed
+# history would be mostly blanks. The cost of issuer grain is that a borrower's several tranches
+# collapse into one median mark and a summed exposure.
+#
+# TWO COLUMNS THAT LOOK COMPARABLE ACROSS DATES AND ARE NOT:
+#   - TotalExp$mm is summed over the funds that REPORTED that date, and that count moves (53 at
+#     2023-12 down to 43 at 2026-06, because funds with later fiscal year-ends have not filed).
+#     Medallia's $1,501m -> $950m is partly Monroe Capital dropping out. Hence a Funds column
+#     beside it at every date: the denominator of the sum, made visible.
+#   - %Port moves on its DENOMINATOR too. Apollo's Medallia weight fell 0.24% -> 0.07% partly
+#     because Apollo's own book went $14.6bn -> $25.4bn. Hence FundPort$mm at every date.
+
+HISTORY_DATES = ["2023-12-31", "2024-06-30", "2024-12-31",
+                 "2025-06-30", "2025-12-31", "2026-06-30"]
+# The as-of date whose mark and total exposure are also bolted onto TrendOwners for a
+# side-by-side against "now". A named constant so next year is a one-line edit.
+COMPARISON_DATE = "2025-12-31"
+
+
+def _history_long(holdings: pd.DataFrame, universe: set[str],
+                  dates: list[str]) -> pd.DataFrame:
+    """Long per-(issuer, fund, date) frame with every metric the history needs. Shared by the
+    wide LoanHistory tab and by TrendOwners' as-of columns, so the two cannot disagree."""
+    d = holdings[holdings["issuer_cluster"].isin(universe)
+                 & (holdings["hold_class"] == "debt")
+                 & holdings["cmp_price"].notna()
+                 & holdings["reporting_date"].isin(dates)].copy()
+    if d.empty:
+        return pd.DataFrame()
+    d["cik"] = d["cik"].astype(str).str.zfill(10)
+    g = (d.groupby(["issuer_cluster", "cik", "fund_name", "reporting_date"])
+         .agg(mark=("cmp_price", "median"), pos_fv=("fair_value", "sum")).reset_index())
+    ctx = (g.groupby(["issuer_cluster", "reporting_date"])
+           .agg(total_exp_fv=("pos_fv", "sum"), funds_reporting=("cik", "nunique"))
+           .reset_index())
+    g = g.merge(ctx, on=["issuer_cluster", "reporting_date"], how="left")
+    g = g.merge(tagged_portfolio_fv(), on=["cik", "reporting_date"], how="left")
+    g["mark_pts"] = (g["mark"] * 100).round(1)
+    g["pos_mm"] = (g["pos_fv"] / 1e6).round(2)
+    g["pct_port"] = (100 * g["pos_fv"] / g["portfolio_fv"]).round(3)
+    g["total_exp_mm"] = (g["total_exp_fv"] / 1e6).round(1)
+    g["port_mm"] = (g["portfolio_fv"] / 1e6).round(0)
+    return g
+
+
+# (metric column, label prefix) in the order the groups appear on the tab
+_HISTORY_METRICS = [
+    ("mark_pts", "Mark"), ("pos_mm", "Pos$mm"), ("pct_port", "%Port"),
+    ("port_mm", "FundPort$mm"), ("total_exp_mm", "TotalExp$mm"), ("funds_reporting", "Funds"),
+]
+
+
+def loan_history(holdings: pd.DataFrame, universe: set[str],
+                 dates: list[str] | None = None) -> pd.DataFrame:
+    """Wide history: one row per (issuer, fund), a column group per metric per as-of date.
+
+    A blank is meaningful and deliberately left blank — the fund either did not hold the credit
+    on that date or had not filed for it. Never zero-filled, which would read as a real position
+    of zero. `Dates present` counts the dates a pair actually has, so a one-date row cannot be
+    mistaken for a history."""
+    dates = dates or HISTORY_DATES
+    g = _history_long(holdings, universe, dates)
+    if g.empty:
+        return pd.DataFrame()
+    idx = ["issuer_cluster", "fund_name"]
+    out = None
+    for col, prefix in _HISTORY_METRICS:
+        piv = g.pivot_table(index=idx, columns="reporting_date", values=col, aggfunc="first")
+        piv = piv.reindex(columns=dates)          # every date present, in order, even if empty
+        piv.columns = [f"{prefix} {c[:7]}" for c in piv.columns]
+        out = piv if out is None else out.join(piv)
+    out = out.reset_index()
+
+    present = g.groupby(idx)["reporting_date"].nunique().rename("dates_present")
+    out = out.merge(present.reset_index(), on=idx, how="left")
+
+    # Net mark move across whatever dates the pair actually has — the natural sort key, and it
+    # must ignore blanks rather than treating a gap as flat.
+    mark_cols = [f"Mark {d[:7]}" for d in dates]
+    def _net(row):
+        s = row[mark_cols].dropna()
+        return round(s.iloc[-1] - s.iloc[0], 1) if len(s) >= 2 else None
+    out["mark_chg_pts"] = out.apply(_net, axis=1)
+
+    last_pos = [f"Pos$mm {d[:7]}" for d in dates][::-1]
+    out["_sort_pos"] = out[last_pos].bfill(axis=1).iloc[:, 0]
+    out = out.sort_values(["issuer_cluster", "_sort_pos"], ascending=[True, False]) \
+             .drop(columns="_sort_pos")
+    # metric-major order: all Marks across time, then all Pos$mm, and so on
+    cols = idx + ["dates_present", "mark_chg_pts"]
+    for _, prefix in _HISTORY_METRICS:
+        cols += [f"{prefix} {d[:7]}" for d in dates]
+    return out[cols]
+
+
 def last_quarter_change(fm: pd.DataFrame, marks: pd.DataFrame) -> pd.DataFrame:
     """Change across an issuer's last two OBSERVED dates, computed two ways: over every fund
     reporting on each date (raw), and over only the funds present on BOTH dates (stable set).
@@ -1055,6 +1161,18 @@ def trend_ownership(holdings: pd.DataFrame, fm: pd.DataFrame) -> tuple[
                  holder_spread_pts=("fund_mark", lambda s: round(
                      (s.max() - s.min()) * 100, 1) if s.notna().sum() >= 2 else None),
                  ).reset_index())
+
+    # As-of columns: the same holder's mark and the same credit's total exposure at
+    # COMPARISON_DATE, for a side-by-side against "now". Sourced from _history_long so these
+    # cannot drift from the LoanHistory tab.
+    asof = _history_long(holdings, targets, [COMPARISON_DATE])
+    if not asof.empty:
+        asof = asof[["issuer_cluster", "cik", "mark_pts", "total_exp_mm"]].rename(columns={
+            "mark_pts": "mark_at_comparison", "total_exp_mm": "exposure_at_comparison"})
+        own = own.merge(asof, on=["issuer_cluster", "cik"], how="left")
+    else:
+        own["mark_at_comparison"] = pd.NA
+        own["exposure_at_comparison"] = pd.NA
 
     lq = last_quarter_change(fm, marks)
     own = own.merge(ranked, on="issuer_cluster", how="inner").merge(
@@ -1329,8 +1447,11 @@ def build_workbook(threshold: int = 92, from_cache: bool = False) -> None:
         "last_q_chg_stable_pts": "Last qtr, same holders(pts)",
         "composition_gap_pts": "Composition gap(pts)",
         "holder_spread_pts": "Holder spread(pts)",
-        "total_exposure_mm": "Total BDC exposure($mm)", "fund_name": "Fund",
-        "fund_mark_pts": "Fund mark", "dev_vs_consensus_pts": "Dev vs consensus(pts)",
+        "total_exposure_mm": "Total BDC exposure($mm)",
+        "exposure_at_comparison": f"Total BDC exposure @{COMPARISON_DATE}($mm)",
+        "fund_name": "Fund",
+        "fund_mark_pts": "Fund mark", "mark_at_comparison": f"Fund mark @{COMPARISON_DATE}",
+        "dev_vs_consensus_pts": "Dev vs consensus(pts)",
         "position_mm": "Position($mm)", "pct_of_portfolio": "% of fund portfolio",
         "portfolio_mm": "Fund portfolio($mm)", "seniority": "Seniority",
         "n_positions": "Lots", "first_held": "First held", "quarters_held": "Quarters held",
@@ -1347,9 +1468,29 @@ def build_workbook(threshold: int = 92, from_cache: bool = False) -> None:
         coverage["TREND OWNERSHIP (Phase 6)"] = ""
         coverage.update(tstats)
 
+    # ---- Phase 7: per-holder history of those same decliners, wide by as-of date ----
+    hist = (loan_history(holdings, set(owners["issuer_cluster"]))
+            if not owners.empty else pd.DataFrame())
+    if not hist.empty:
+        mark_cols = [f"Mark {d[:7]}" for d in HISTORY_DATES]
+        blanks = hist[mark_cols].isna().sum().sum()
+        coverage["LOAN HISTORY (Phase 7)"] = ""
+        coverage.update({
+            "as-of dates": ", ".join(HISTORY_DATES),
+            "(issuer, fund) rows": int(len(hist)),
+            "  with >=4 of the as-of dates": int((hist["dates_present"] >= 4).sum()),
+            "  with only ONE date (not a history)": int((hist["dates_present"] == 1).sum()),
+            "blank mark cells (fund did not hold, or had not filed)":
+                f"{int(blanks)} of {len(hist)*len(mark_cols)} "
+                f"({blanks/(len(hist)*len(mark_cols)):.0%})",
+            "NOTE (history)": "TotalExp$mm is summed over the funds that REPORTED each date - "
+                              "read the Funds column beside it. %Port moves on its denominator "
+                              "too - read FundPort$mm beside it.",
+        })
+
     _write_workbook(dispersion, base_cols, consensus, hd, hd_cols, isum, isum_cols,
                     anchors, stats, coverage, review_sample, trend,
-                    owners, own_cols, ended, ended_cols)
+                    owners, own_cols, ended, ended_cols, hist)
     print(f"wrote {WORKBOOK}")
     if tstats:
         print(f"  TrendOwners: {len(owners)} owner rows over "
@@ -1359,7 +1500,8 @@ def build_workbook(threshold: int = 92, from_cache: bool = False) -> None:
 
 def _write_workbook(dispersion, base_cols, consensus, hd, hd_cols, isum, isum_cols,
                     anchors, stats, coverage, review_sample, trend,
-                    owners=None, own_cols=None, ended=None, ended_cols=None) -> None:
+                    owners=None, own_cols=None, ended=None, ended_cols=None,
+                    hist=None) -> None:
     import openpyxl
     from openpyxl.styles import Font
 
@@ -1384,6 +1526,16 @@ def _write_workbook(dispersion, base_cols, consensus, hd, hd_cols, isum, isum_co
         "  TrendEnded    — trending credits whose series STOPPED before the latest date. Their",
         "                  net change is measured over an old window and a shrinking holder set,",
         "                  so they are quarantined here rather than ranked. Check LAST OBSERVED.",
+        "  LoanHistory   — the SAME decliners, one row per (issuer, fund), read left to right",
+        "                  through six as-of dates: each holder's mark, position $mm, % of its",
+        "                  portfolio, its portfolio size, the credit's total BDC exposure, and how",
+        "                  many funds that exposure covers. A BLANK means the fund did not hold",
+        "                  the credit then or had not filed — never zero-filled. 'Dates present'",
+        "                  counts what a row actually has, so a one-date row is not a history.",
+        "                  Grain is ISSUER, not tranche: measured, 55% of (issuer,seniority,spread)",
+        "                  tranches survive only one of these dates, so a tranche-keyed history",
+        "                  would be mostly blank. Several tranches of one borrower are therefore",
+        "                  collapsed into a median mark and a summed exposure.",
         "",
         "Confidence: High = seniority+spread matched, no maturity conflict, 2-15 holders.",
         "            Medium = spread matched but ambiguous; Low = seniority only; Single = 1 holder.",
@@ -1425,6 +1577,11 @@ def _write_workbook(dispersion, base_cols, consensus, hd, hd_cols, isum, isum_co
         if ended is not None and not ended.empty:
             ended[list(ended_cols)].rename(columns=ended_cols).to_excel(
                 xl, sheet_name="TrendEnded", index=False)
+        if hist is not None and not hist.empty:
+            hist.rename(columns={"issuer_cluster": "Issuer", "fund_name": "Fund",
+                                 "dates_present": "Dates present",
+                                 "mark_chg_pts": "Mark chg(pts)"}).to_excel(
+                xl, sheet_name="LoanHistory", index=False)
 
         wb = xl.book
         ov = wb["Overview"]
@@ -1498,6 +1655,25 @@ def _write_workbook(dispersion, base_cols, consensus, hd, hd_cols, isum, isum_co
         if ended is not None and not ended.empty:
             _style_sheet(wb["TrendEnded"], len(ended_cols), pct_cols=[2, 3, 7, 8],
                          widths={1: 30, 4: 14, 5: 15, 7: 14, 8: 20})
+        if hist is not None and not hist.empty:
+            ws = wb["LoanHistory"]
+            hcols = list(hist.columns)
+            # 1-dp everywhere except %Port (3-dp, the values are small) and Funds (integer)
+            one_dp = [i + 1 for i, c in enumerate(hcols)
+                      if c.startswith(("Mark ", "Pos$mm ", "FundPort$mm ", "TotalExp$mm "))
+                      or c == "mark_chg_pts"]
+            _style_sheet(ws, len(hcols), pct_cols=one_dp,
+                         widths={hcols.index("issuer_cluster") + 1: 26,
+                                 hcols.index("fund_name") + 1: 32,
+                                 hcols.index("dates_present") + 1: 9,
+                                 hcols.index("mark_chg_pts") + 1: 11})
+            for i, c in enumerate(hcols):
+                if c.startswith("%Port "):
+                    for row in range(2, ws.max_row + 1):
+                        ws.cell(row=row, column=i + 1).number_format = "0.000"
+            # Freeze BOTH header row and the two label columns — with 38 columns you lose track
+            # of which issuer/fund a row belongs to as soon as you scroll right.
+            ws.freeze_panes = "C2"
 
 
 def build(threshold: int = 90) -> None:
