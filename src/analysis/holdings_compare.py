@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import glob
+import json
 import re
 from collections import defaultdict
 from pathlib import Path
@@ -823,6 +824,278 @@ def diagnose_issues(threshold: int = 90) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Phase 6 — trend ownership: WHO owns the biggest-moving credits
+# ---------------------------------------------------------------------------
+# The Trend tab answers "which credits moved most" but drops holder identity on the way to a
+# median. This section puts it back, and adds each holder's position size.
+#
+# TWO GUARDS, both arrived at by measuring rather than assuming:
+#
+# 1. RECENCY. Trend's net change is (last observed - first observed) over a series that only
+#    exists on dates where >=3 funds reported a mark. When an issuer drops below that
+#    threshold the series simply STOPS — so a headline "-44pt decline" can be a 2023->2024
+#    move on a credit no fund has reported since. Ranking that beside a live 12-quarter slide
+#    conflates credit deterioration with holder-coverage CHURN, and asking "who owns it" of
+#    such an issuer has no honest answer. Issuers still observed at the corpus's latest date
+#    are ranked; the rest are quarantined into their own table WITH the date last seen —
+#    recorded rather than silently ranked, and not discarded either.
+#
+# 2. THE PORTFOLIO DENOMINATOR IS THE TAGGED TOTAL, NOT THE SOI SUM. Summing the schedule of
+#    investments looks like the obvious way to size a position against its portfolio, and it
+#    is wrong: filers tag INDUSTRY-LEVEL AGGREGATE rows on the same InvestmentIdentifierAxis
+#    ("Trading companies & distributors", fair value $311m), so the sum double-counts. MEASURED
+#    on the 2026-03 corpus: only 44% of fund-dates fell within +/-10% of the XBRL-tagged
+#    `investments_at_fair_value`, 95th percentile 3.18x. So we use the tagged total — the
+#    filer's own portfolio figure, and the source of truth the rest of the pipeline already
+#    validates — and emit NaN plus a flag where it is absent, never a confident wrong percent.
+
+EXTRACTED_DIR = PROJECT_ROOT / "data" / "extracted"
+
+TREND_MIN_FUNDS = 3        # a date counts only if >=3 funds marked the credit (matches Trend)
+TREND_MIN_QUARTERS = 3     # need a few quarters before a "trend" is meaningful (matches Trend)
+TREND_MIN_RANGE_PTS = 3.0  # ignore credits that barely moved (matches Trend)
+TREND_MIN_NET_PTS = -5.0   # a "decliner" must have fallen at least this far, first->last
+TREND_TOP_N = 150          # backstop on issuers given holder detail. Set ABOVE the observed
+                           # population (95 live decliners at 2026-03) so it drops nothing in
+                           # practice; whatever it does drop is reported on the Coverage tab
+                           # rather than silently truncated.
+# A single BDC name position above this share of the portfolio is implausible and indicates an
+# aggregate row swept into the numerator — flagged, not silently published.
+CONCENTRATION_FLAG_PCT = 25.0
+# Gap between the raw last-quarter move and the same move on a CONSTANT holder set, beyond
+# which the move is substantially a composition change rather than a repricing.
+COMPOSITION_FLAG_PTS = 5.0
+# Spread across current holders' own marks on the same credit, beyond which the "issue" is more
+# likely two different tranches merged than a genuine valuation disagreement.
+DISAGREEMENT_FLAG_PTS = 20.0
+
+
+def tagged_portfolio_fv() -> pd.DataFrame:
+    """Portfolio fair value per (cik, reporting_date) from the XBRL-tagged balance sheet in
+    data/extracted/*.json. This is the denominator for 'how big is this loan in their book'.
+    Returns an EMPTY frame (not an error) when the extracted dir is absent, so the workbook
+    still builds — the percentage columns then come out flagged rather than wrong."""
+    if not EXTRACTED_DIR.exists():
+        return pd.DataFrame(columns=["cik", "reporting_date", "portfolio_fv"])
+    rows = []
+    for path in EXTRACTED_DIR.glob("*.json"):
+        try:
+            d = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        fact = (d.get("balance_sheet") or {}).get("investments_at_fair_value") or {}
+        val = fact.get("value")
+        if val:
+            rows.append({"cik": str(d.get("cik")).zfill(10),
+                         "reporting_date": str(d.get("reporting_date"))[:10],
+                         "portfolio_fv": float(val)})
+    if not rows:
+        return pd.DataFrame(columns=["cik", "reporting_date", "portfolio_fv"])
+    return pd.DataFrame(rows).drop_duplicates(["cik", "reporting_date"])
+
+
+def issuer_mark_history(fm: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """(marks, fund_counts) pivots — issuer x reporting_date. Built from the same fund_marks
+    frame the Trend tab uses, so the two tabs cannot disagree about a credit's trajectory."""
+    ok = fm.dropna(subset=["cmp_price"])
+    g = (ok.groupby(["issuer_cluster", "reporting_date"])
+         .agg(mark=("cmp_price", "median"), funds=("cik", "nunique")).reset_index())
+    g = g[g["funds"] >= TREND_MIN_FUNDS]
+    marks = g.pivot(index="issuer_cluster", columns="reporting_date", values="mark").mul(100)
+    counts = g.pivot(index="issuer_cluster", columns="reporting_date", values="funds")
+    cols = sorted(marks.columns)
+    marks, counts = marks[cols], counts[cols]
+    keep = marks.notna().sum(axis=1) >= TREND_MIN_QUARTERS
+    return marks[keep], counts[keep]
+
+
+def trend_summary(marks: pd.DataFrame, counts: pd.DataFrame) -> pd.DataFrame:
+    """One row per trending issuer: net change, swing, the window actually observed, and the
+    fund count at each end (so a move measured across a shrinking holder set is visible)."""
+    out = []
+    for iss, row in marks.iterrows():
+        s = row.dropna()
+        if len(s) < 2:
+            continue
+        first, last = s.index[0], s.index[-1]
+        out.append({
+            "issuer_cluster": iss,
+            "net_change_pts": round(s.iloc[-1] - s.iloc[0], 1),
+            "range_pts": round(s.max() - s.min(), 1),
+            "first_obs": first, "last_obs": last, "n_quarters": int(len(s)),
+            "first_mark_pts": round(s.iloc[0], 1), "last_mark_pts": round(s.iloc[-1], 1),
+            "peak_mark_pts": round(s.max(), 1), "trough_mark_pts": round(s.min(), 1),
+            "funds_at_first": int(counts.at[iss, first]),
+            "funds_at_last": int(counts.at[iss, last]),
+        })
+    df = pd.DataFrame(out)
+    return df[df["range_pts"] >= TREND_MIN_RANGE_PTS] if not df.empty else df
+
+
+def last_quarter_change(fm: pd.DataFrame, marks: pd.DataFrame) -> pd.DataFrame:
+    """Change across an issuer's last two OBSERVED dates, computed two ways: over every fund
+    reporting on each date (raw), and over only the funds present on BOTH dates (stable set).
+
+    GUARD 3. A fund that has not filed yet leaves the sample silently, and if its marks sat
+    above the pack the median falls without any loan being repriced. MEASURED on this corpus:
+    'central parent' shows -38.7pts Mar->Jun, but BOTH Prospect funds — which marked it 86.1
+    and 100.0, the two highest — have a June fiscal year-end and had not filed at extraction
+    time. Part of that move is composition, not credit. The recency guard cannot catch this,
+    because the issuer IS still observed at the latest date; only holding the holder set
+    constant separates the two. The stable-set number is the defensible one, and a wide gap
+    between raw and stable is flagged rather than left for the reader to discover.
+    """
+    ok = fm.dropna(subset=["cmp_price"])
+    per = ok.groupby(["issuer_cluster", "reporting_date", "cik"])["cmp_price"].median()
+    rows = []
+    for iss, row in marks.iterrows():
+        s = row.dropna()
+        if len(s) < 2:
+            continue
+        d0, d1 = s.index[-2], s.index[-1]
+        try:
+            a, b = per.loc[(iss, d0)], per.loc[(iss, d1)]
+        except KeyError:
+            continue
+        common = a.index.intersection(b.index)
+        raw = s.iloc[-1] - s.iloc[-2]
+        stable = ((b[common].median() - a[common].median()) * 100
+                  if len(common) else float("nan"))
+        rows.append({
+            "issuer_cluster": iss, "prev_obs": d0,
+            "last_q_chg_pts": round(raw, 1),
+            "last_q_chg_stable_pts": (round(stable, 1) if pd.notna(stable) else None),
+            "n_stable_holders": int(len(common)),
+            "n_left": int(len(a.index.difference(b.index))),
+            "n_joined": int(len(b.index.difference(a.index))),
+            "composition_gap_pts": (round(raw - stable, 1) if pd.notna(stable) else None),
+        })
+    return pd.DataFrame(rows)
+
+
+def trend_ownership(holdings: pd.DataFrame, fm: pd.DataFrame) -> tuple[
+        pd.DataFrame, pd.DataFrame, dict]:
+    """WHO owns the biggest decliners, and how big the position is in each owner's portfolio.
+
+    Returns (owners, ended, stats):
+      owners — one row per (trending issuer, holding fund) at the latest reporting date, with
+               the fund's own mark, its deviation from the cross-holder consensus, the position
+               in $mm, and the position as a % of that fund's tagged portfolio fair value.
+               Also carries when the fund FIRST and LAST held the credit, so holders who sat
+               through the whole decline are distinguishable from ones who bought into it.
+      ended  — trending issuers whose series stopped before the latest date (guard 1).
+      stats  — counts for the Coverage tab, including what the TREND_TOP_N cap dropped.
+    """
+    marks, counts = issuer_mark_history(fm)
+    summ = trend_summary(marks, counts)
+    if summ.empty:
+        return pd.DataFrame(), pd.DataFrame(), {}
+
+    latest = max(holdings["reporting_date"].dropna().astype(str))
+    live = summ[summ["last_obs"] == latest]
+    ended = (summ[summ["last_obs"] != latest]
+             .sort_values("net_change_pts")
+             .reset_index(drop=True))
+
+    decliners = live[live["net_change_pts"] <= TREND_MIN_NET_PTS].sort_values("net_change_pts")
+    n_decliners = len(decliners)
+    ranked = decliners.head(TREND_TOP_N).copy()
+    ranked["rank"] = range(1, len(ranked) + 1)
+    targets = set(ranked["issuer_cluster"])
+
+    # Position detail. Debt rows only (equity/unfunded are not what the mark trend measures),
+    # restricted to rows that actually matched into an issue so the numerator is real holdings
+    # rather than a category aggregate.
+    d = holdings[holdings["issuer_cluster"].isin(targets)
+                 & (holdings["hold_class"] == "debt")
+                 & holdings["issue_id"].notna()].copy()
+    d["cik"] = d["cik"].astype(str).str.zfill(10)
+
+    # tenure across ALL dates — who has been holding through the slide
+    tenure = (d.groupby(["issuer_cluster", "cik"])
+              .agg(first_held=("reporting_date", "min"), last_held=("reporting_date", "max"),
+                   quarters_held=("reporting_date", "nunique")).reset_index())
+
+    cur = d[d["reporting_date"] == latest]
+    own = (cur.groupby(["issuer_cluster", "cik", "fund_name"])
+           .agg(position_fv=("fair_value", "sum"), fund_mark=("cmp_price", "median"),
+                n_positions=("fair_value", "size"),
+                seniority=("seniority", lambda s: "; ".join(sorted(set(s.dropna())))or None))
+           .reset_index())
+    own = own.merge(tenure, on=["issuer_cluster", "cik"], how="left")
+
+    port = tagged_portfolio_fv()
+    port = port[port["reporting_date"] == latest][["cik", "portfolio_fv"]]
+    own = own.merge(port, on="cik", how="left")
+
+    own["pct_of_portfolio"] = (100 * own["position_fv"] / own["portfolio_fv"]).round(3)
+    # Guard: no denominator -> no percentage (never a fabricated one); implausible share ->
+    # keep the number but say so, since it signals an aggregate row in the numerator.
+    flags = []
+    for _, r in own.iterrows():
+        f = []
+        if pd.isna(r["portfolio_fv"]):
+            f.append("no_portfolio_total")
+        elif r["pct_of_portfolio"] > CONCENTRATION_FLAG_PCT:
+            f.append("implausible_concentration")
+        if pd.isna(r["fund_mark"]):
+            f.append("no_usable_mark")
+        flags.append("; ".join(f))
+    own["flags"] = flags
+    own.loc[own["portfolio_fv"].isna(), "pct_of_portfolio"] = pd.NA
+
+    # Issuer-level context: total exposure across every BDC we can see, holder count, and how
+    # far apart the holders are TODAY. A wide current spread is the tell for a tranche mismatch:
+    # MEASURED, 'truist insurance' holders agreed within 1.5pts in March and 50.8pts in June,
+    # which is not how five sophisticated managers disagree about one loan. Flagged so a
+    # mis-merge is not read as a repricing.
+    roll = (own.groupby("issuer_cluster")
+            .agg(n_holders_now=("cik", "nunique"),
+                 total_exposure_fv=("position_fv", "sum"),
+                 holder_spread_pts=("fund_mark", lambda s: round(
+                     (s.max() - s.min()) * 100, 1) if s.notna().sum() >= 2 else None),
+                 ).reset_index())
+
+    lq = last_quarter_change(fm, marks)
+    own = own.merge(ranked, on="issuer_cluster", how="inner").merge(
+        roll, on="issuer_cluster", how="left").merge(lq, on="issuer_cluster", how="left")
+    # Guard 3: say so when the last-quarter move is substantially a holder-set change.
+    own.loc[own["composition_gap_pts"].abs() >= COMPOSITION_FLAG_PTS, "flags"] = (
+        own["flags"].fillna("") + "; composition_shift").str.strip("; ")
+    own.loc[own["holder_spread_pts"] >= DISAGREEMENT_FLAG_PTS, "flags"] = (
+        own["flags"].fillna("") + "; holders_disagree_check_tranche").str.strip("; ")
+    own["fund_mark_pts"] = (own["fund_mark"] * 100).round(1)
+    own["dev_vs_consensus_pts"] = (own["fund_mark_pts"] - own["last_mark_pts"]).round(1)
+    own["position_mm"] = (own["position_fv"] / 1e6).round(2)
+    own["total_exposure_mm"] = (own["total_exposure_fv"] / 1e6).round(1)
+    own["portfolio_mm"] = (own["portfolio_fv"] / 1e6).round(0)
+    own["held_since_peak"] = (own["first_held"] <= own["first_obs"]).map(
+        {True: "yes", False: "no"})
+    own = own.sort_values(["rank", "position_fv"], ascending=[True, False])
+
+    stats = {
+        "latest reporting date": latest,
+        "trending issuers (range>=%.0fpts)" % TREND_MIN_RANGE_PTS: int(len(summ)),
+        "  still observed at latest date": int(len(live)),
+        "  series ENDED earlier (quarantined)": int(len(ended)),
+        "decliners (net<=%.0fpts) among live" % TREND_MIN_NET_PTS: n_decliners,
+        "  given holder detail (TREND_TOP_N cap)": int(len(ranked)),
+        "  DROPPED by the cap": int(max(0, n_decliners - TREND_TOP_N)),
+        "owner rows": int(len(own)),
+        "  missing a portfolio denominator": int(own["portfolio_fv"].isna().sum()),
+        "  flagged implausible concentration":
+            int((own["flags"].str.contains("implausible", na=False)).sum()),
+        "issuers flagged composition_shift (guard 3)":
+            int(own.loc[own["flags"].str.contains("composition_shift", na=False),
+                        "issuer_cluster"].nunique()),
+        "issuers flagged holders_disagree (tranche check)":
+            int(own.loc[own["flags"].str.contains("holders_disagree", na=False),
+                        "issuer_cluster"].nunique()),
+    }
+    return own, ended, stats
+
+
+# ---------------------------------------------------------------------------
 # Phase 4 — cross-holder mark-comparison workbook
 # ---------------------------------------------------------------------------
 
@@ -869,11 +1142,28 @@ def _style_sheet(ws, n_cols: int, pct_cols: list[int] | None = None,
             ws.cell(row=row, column=col).number_format = "0.0"
 
 
-def build_workbook(threshold: int = 92) -> None:
+def load_matched_cache() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Read back the (holdings, issues) that `--build` already wrote, instead of recomputing
+    them. `--build` writes exactly `match_issues(...)`'s two outputs, so this is the same data
+    by construction — the point of the CLAUDE.md rule about deriving from the source of truth
+    rather than recomputing it. Clustering + issue matching is ~70 minutes on the full corpus,
+    so this turns a workbook-only change from an hour into seconds. Raises if the cache is
+    absent, so it can never silently fall back to stale or partial input."""
+    hp, ip = OUT_DIR / "holdings_matched.csv", OUT_DIR / "issues.csv"
+    for p in (hp, ip):
+        if not p.exists():
+            raise SystemExit(f"--from-cache needs {p.name}; run --build first")
+    return (pd.read_csv(hp, low_memory=False), pd.read_csv(ip, low_memory=False))
+
+
+def build_workbook(threshold: int = 92, from_cache: bool = False) -> None:
     """Phase-4 deliverable: a cross-holder mark-comparison workbook (data/dataset/
     holdings_marks_comparison.xlsx). Marks are expressed in POINTS of par (price x 100)."""
-    df = add_clusters(load_consolidated(), threshold=threshold)
-    holdings, issues = match_issues(df)
+    if from_cache:
+        holdings, issues = load_matched_cache()
+    else:
+        df = add_clusters(load_consolidated(), threshold=threshold)
+        holdings, issues = match_issues(df)
     fm = fund_marks(holdings, issues)
 
     # points-of-par views
@@ -1028,13 +1318,48 @@ def build_workbook(threshold: int = 92) -> None:
     trend = trend[trend["Range over time"] >= 3].sort_values("Net change (first->last)")
     trend = trend.reset_index().rename(columns={"issuer_cluster": "Issuer"})
 
+    # ---- Phase 6: who owns the biggest-moving credits (see the section header for the
+    # two guards this applies — recency, and the tagged-total denominator) ----
+    owners, ended, tstats = trend_ownership(holdings, fm)
+    own_cols = {
+        "rank": "Rank", "issuer_cluster": "Issuer", "net_change_pts": "Net change(pts)",
+        "first_mark_pts": "Mark at start", "last_mark_pts": "Mark now",
+        "n_quarters": "Quarters", "n_holders_now": "Holders now",
+        "last_q_chg_pts": "Last qtr(pts)",
+        "last_q_chg_stable_pts": "Last qtr, same holders(pts)",
+        "composition_gap_pts": "Composition gap(pts)",
+        "holder_spread_pts": "Holder spread(pts)",
+        "total_exposure_mm": "Total BDC exposure($mm)", "fund_name": "Fund",
+        "fund_mark_pts": "Fund mark", "dev_vs_consensus_pts": "Dev vs consensus(pts)",
+        "position_mm": "Position($mm)", "pct_of_portfolio": "% of fund portfolio",
+        "portfolio_mm": "Fund portfolio($mm)", "seniority": "Seniority",
+        "n_positions": "Lots", "first_held": "First held", "quarters_held": "Quarters held",
+        "held_since_peak": "Held since start?", "flags": "Flags",
+    }
+    ended_cols = {
+        "issuer_cluster": "Issuer", "net_change_pts": "Net change(pts)",
+        "range_pts": "Range(pts)", "first_obs": "First observed", "last_obs": "LAST OBSERVED",
+        "n_quarters": "Quarters", "first_mark_pts": "Mark at start",
+        "last_mark_pts": "Mark when last seen", "funds_at_first": "Funds at start",
+        "funds_at_last": "Funds at end",
+    }
+    if tstats:
+        coverage["TREND OWNERSHIP (Phase 6)"] = ""
+        coverage.update(tstats)
+
     _write_workbook(dispersion, base_cols, consensus, hd, hd_cols, isum, isum_cols,
-                    anchors, stats, coverage, review_sample, trend)
+                    anchors, stats, coverage, review_sample, trend,
+                    owners, own_cols, ended, ended_cols)
     print(f"wrote {WORKBOOK}")
+    if tstats:
+        print(f"  TrendOwners: {len(owners)} owner rows over "
+              f"{owners['issuer_cluster'].nunique() if not owners.empty else 0} issuers; "
+              f"TrendEnded: {len(ended)} quarantined")
 
 
 def _write_workbook(dispersion, base_cols, consensus, hd, hd_cols, isum, isum_cols,
-                    anchors, stats, coverage, review_sample, trend) -> None:
+                    anchors, stats, coverage, review_sample, trend,
+                    owners=None, own_cols=None, ended=None, ended_cols=None) -> None:
     import openpyxl
     from openpyxl.styles import Font
 
@@ -1053,6 +1378,12 @@ def _write_workbook(dispersion, base_cols, consensus, hd, hd_cols, isum, isum_co
         "  Coverage      — match-rate, confidence + dispersion-band stats.",
         "  ReviewSample  — stratified hand-check sample (fill the Verdict column).",
         "  Trend         — median mark (>=3 holders) per issuer over time (spot deterioration).",
+        "  TrendOwners   — WHO owns the biggest decliners, each holder's mark, position $mm and",
+        "                  share of their portfolio. Ranked only for credits still reported at the",
+        "                  latest date; 'Held since start?' = held it before the slide began.",
+        "  TrendEnded    — trending credits whose series STOPPED before the latest date. Their",
+        "                  net change is measured over an old window and a shrinking holder set,",
+        "                  so they are quarantined here rather than ranked. Check LAST OBSERVED.",
         "",
         "Confidence: High = seniority+spread matched, no maturity conflict, 2-15 holders.",
         "            Medium = spread matched but ambiguous; Low = seniority only; Single = 1 holder.",
@@ -1060,6 +1391,19 @@ def _write_workbook(dispersion, base_cols, consensus, hd, hd_cols, isum, isum_co
         "ends are aligned only within the same reporting date; a lone holder >25pts off the median",
         "is trimmed as a unit/partial-funding artifact (counted in 'Outliers'). Best-effort match,",
         "not exact reconciliation — investigate wide spreads before relying on them.",
+        "",
+        "On TrendOwners, read THREE columns before trusting a decline:",
+        "  'Last qtr, same holders' — the move recomputed over only the funds reporting on BOTH",
+        "    dates. 'Composition gap' is how much of the raw move was a holder-set change instead",
+        "    (a fund with a later fiscal year-end drops out and takes its mark with it).",
+        "  'Holder spread' — how far apart current holders are. Above ~20pts, suspect two",
+        "    different tranches merged into one issue rather than a real disagreement.",
+        "",
+        "'% of fund portfolio' divides the position by the fund's XBRL-TAGGED investments at fair",
+        "value, NOT by the sum of its schedule of investments. Measured reason: filers tag",
+        "industry-level AGGREGATE rows on the same axis, so the SOI sum double-counts (only 44% of",
+        "fund-dates came within +/-10% of the tagged total). Blank = no tagged total for that",
+        "fund-date; see the Flags column.",
     ]
     with pd.ExcelWriter(WORKBOOK, engine="openpyxl") as xl:
         pd.DataFrame({"": []}).to_excel(xl, sheet_name="Overview", index=False)
@@ -1075,6 +1419,12 @@ def _write_workbook(dispersion, base_cols, consensus, hd, hd_cols, isum, isum_co
             review_sample.to_excel(xl, sheet_name="ReviewSample", index=False)
         if not trend.empty:
             trend.to_excel(xl, sheet_name="Trend", index=False)
+        if owners is not None and not owners.empty:
+            owners[list(own_cols)].rename(columns=own_cols).to_excel(
+                xl, sheet_name="TrendOwners", index=False)
+        if ended is not None and not ended.empty:
+            ended[list(ended_cols)].rename(columns=ended_cols).to_excel(
+                xl, sheet_name="TrendEnded", index=False)
 
         wb = xl.book
         ov = wb["Overview"]
@@ -1126,6 +1476,28 @@ def _write_workbook(dispersion, base_cols, consensus, hd, hd_cols, isum, isum_co
             # cols: Issuer, Net change, Range, then one col per date — all numeric except Issuer
             _style_sheet(wb["Trend"], trend.shape[1],
                          pct_cols=list(range(2, trend.shape[1] + 1)), widths={1: 30})
+        if owners is not None and not owners.empty:
+            # Column positions are derived from own_cols BY NAME, never hard-coded — adding a
+            # column upstream would otherwise silently number-format the wrong ones.
+            keys = list(own_cols)
+            def _at(name: str) -> int:
+                return keys.index(name) + 1
+            one_dp = [_at(k) for k in (
+                "net_change_pts", "first_mark_pts", "last_mark_pts", "last_q_chg_pts",
+                "last_q_chg_stable_pts", "composition_gap_pts", "holder_spread_pts",
+                "total_exposure_mm", "fund_mark_pts", "dev_vs_consensus_pts", "position_mm")
+                if k in keys]
+            _style_sheet(wb["TrendOwners"], len(own_cols), pct_cols=one_dp,
+                         widths={_at("issuer_cluster"): 26, _at("fund_name"): 32,
+                                 _at("last_q_chg_stable_pts"): 16,
+                                 _at("composition_gap_pts"): 14,
+                                 _at("pct_of_portfolio"): 15, _at("flags"): 42})
+            for row in range(2, wb["TrendOwners"].max_row + 1):
+                wb["TrendOwners"].cell(
+                    row=row, column=_at("pct_of_portfolio")).number_format = "0.00"
+        if ended is not None and not ended.empty:
+            _style_sheet(wb["TrendEnded"], len(ended_cols), pct_cols=[2, 3, 7, 8],
+                         widths={1: 30, 4: 14, 5: 15, 7: 14, 8: 20})
 
 
 def build(threshold: int = 90) -> None:
@@ -1147,9 +1519,13 @@ if __name__ == "__main__":
     ap.add_argument("--build", action="store_true", help="write consolidated + matched + issues CSVs")
     ap.add_argument("--workbook", action="store_true", help="write Phase-4 mark-comparison .xlsx")
     ap.add_argument("--threshold", type=int, default=92, help="fuzzy merge threshold (Phase 2)")
+    ap.add_argument("--from-cache", action="store_true",
+                    help="with --workbook: reuse the holdings_matched/issues CSVs written by "
+                         "--build instead of re-clustering (~70min -> seconds). Only valid when "
+                         "those CSVs are current; re-run --build after any parsing change.")
     args = ap.parse_args()
     if args.workbook:
-        build_workbook(threshold=args.threshold)
+        build_workbook(threshold=args.threshold, from_cache=args.from_cache)
     elif args.build:
         build(threshold=args.threshold)
     elif args.cluster:

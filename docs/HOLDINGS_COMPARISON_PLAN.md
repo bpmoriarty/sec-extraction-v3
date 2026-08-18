@@ -115,6 +115,32 @@ Each phase is a checkpoint; prototype on a clean subset before scaling.
    confidence/dispersion-band distribution; ReviewSample is a stratified hand-check sample with a
    Verdict column; Trend pivots each issuer's MEDIAN mark (>=3 holders) by reporting date (caught First Brands,
    Naviga). Remaining future work: cross-fiscal-date alignment (matching is exact-date today).
+6. **Trend ownership — WHO owns the movers** — DONE session 22 (`trend_ownership` → **TrendOwners**
+   + **TrendEnded** tabs). Trend identified the credits that moved; it did not say who holds them,
+   because the median that makes the trend legible discards holder identity. Phase 6 rejoins the
+   holders, each one's own mark, its deviation from the cross-holder consensus, the position in $mm,
+   and the position as a share of that holder's portfolio. `Held since start?` separates funds that
+   sat through the whole slide from funds that bought into it.
+
+   Two guards, both MEASURED rather than assumed:
+
+   - **Recency.** Trend's net change is (last observed − first observed) on a series that only
+     exists where ≥3 funds marked the credit; when an issuer falls below that bar the series
+     just stops. MEASURED at 2026-03: **191 of 541** trending issuers (35%) were last observed
+     before the latest date — Naviga's headline −43.9pts is a 2023→2024 move on a credit no fund
+     has reported since, measured across a holder set that shrank 4→3. Those are quarantined into
+     TrendEnded with `LAST OBSERVED` rather than ranked beside live declines; asking "who owns it"
+     of them has no honest answer.
+   - **The portfolio denominator is the XBRL-tagged total, not the SOI sum.** Summing the schedule
+     of investments is the obvious way to size a position and it is wrong: filers tag industry-level
+     AGGREGATE rows on the same `InvestmentIdentifierAxis` (e.g. "Trading companies & distributors",
+     FV $311m), so the sum double-counts. MEASURED: only **44.5%** of fund-dates fell within ±10% of
+     the tagged `investments_at_fair_value` (median 1.14×, p95 6.45×; 1.05×/3.18× after restricting
+     to `parse_ok` rows). We divide by the tagged total instead, and emit a blank + a `Flags` value
+     where it is absent — never a confident wrong percentage.
+
+   The `TREND_TOP_N` backstop is set above the observed population so it drops nothing in practice,
+   and whatever it does drop is counted on the Coverage tab rather than silently truncated.
 
 ---
 
