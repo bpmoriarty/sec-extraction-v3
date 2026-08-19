@@ -1,7 +1,13 @@
 # Credit Migration & Fund Attribution — Plan
 
-**Status:** planned, not built (2026-08-18). Standalone deliverable; nothing mixes into
-`holdings_marks_comparison.xlsx`.
+**Status: BUILT 2026-08-18** — `src/analysis/credit_migration.py` →
+`data/dataset/credit_migration.xlsx` (8 tabs). Standalone; nothing mixes into
+`holdings_marks_comparison.xlsx`. Gate came in exactly as scoped: **43 usable funds, 88.9% of
+end-date assets.**
+
+Built results: 15,327 (fund, issuer) pairs — 5,918 held at both ends, 4,443 exited, 4,966
+entered; 2,958 issuers on IssuerImpact; universe asset-weighted valuation drag **−1.99 pts**;
+29 funds with a complete reported-return chain.
 
 **Origin:** a seven-question review list from a colleague (his numbering has two items
 labelled 5, so they are 5a and 5b here — nothing is dropped).
@@ -160,7 +166,36 @@ is answered as **valuation drag vs actual reported total return**, side by side,
 change explicitly labelled a drag and never a return. That is a stronger answer than the proxy
 the question implies.
 
-### 4.4 Weighting by ending fair value is circular
+**CORRECTION (MEASURED 2026-08-18): `total_return` is fiscal YEAR-TO-DATE, and `period_months`
+does not describe it.** Golub Capital BDC (September FYE) reports 2.77 → 4.72 → 6.96 across
+consecutive quarters, then 9.36 on the 10-K, then **resets to 1.65** for the next fiscal year —
+all tagged `period_months = 3`. Capital Southwest (March FYE) behaves the same way. Naively
+compounding per-filing values would therefore double-count badly.
+
+Consequence for #6, and it is a real constraint:
+
+- A window return **is** reconstructable by chaining YTD figures across fiscal-year boundaries
+  (for Golub, Dec-2024 → Jun-2026 = (1.0936 / 1.0277) × 1.0195 − 1 ≈ 8.5%), but it needs each
+  fund's fiscal year-end and an unbroken YTD chain.
+- It is therefore computed **best-effort and flagged**: produced only where the chain is
+  complete over the window, blank with a reason where it is not, and never estimated. Expect
+  materially less than the 64% headline coverage once a full chain is required.
+- The **window-aligned number that is always available is the valuation drag**, so that stays
+  the primary column. Reported return is context, with its own period labelled — it is not
+  window-aligned unless the chain succeeded.
+
+### 4.4 A drag is only a fact about a fund if it rests on most of the fund (found while building)
+
+Not in the original scoping — surfaced by the first build. AB Private Lending Fund shows a
+−2.84 pt valuation drag, and its priced-debt-with-par basis is **2.3% of its portfolio**. The
+number is arithmetically correct and analytically meaningless: it describes a sliver, not a book.
+
+`drag_basis_pct` is therefore published on FundAttribution, and below `MIN_DRAG_BASIS` (50%) the
+row is flagged `low_basis` **and excluded from the universe benchmark** — a sliver-basis fund
+would otherwise contribute a drag that is not really its own. **12 of 51 funds are flagged**;
+excluding them moved the benchmark from −1.94 to **−1.99 pts**.
+
+### 4.5 Weighting by ending fair value is circular
 
 A marked-down loan carries a smaller ending weight and so understates its own contribution.
 **All weights are fixed at the start of the window** (start-date fair value), with **par as a
@@ -268,13 +303,11 @@ dollar answers are safe. Build in this order so it can be abandoned early:
 
 ---
 
-## 10. Open decisions
+## 10. Decisions — SETTLED 2026-08-18 (Brian)
 
-- **Report all 92 funds with flags, or only the 43 usable ones?** Recommendation: show all,
-  with unusable funds in a separate block, so nobody accidentally ranks a 2025 launch as the
-  cleanest book.
-- **#6 headline:** drag vs reported `total_return` (real, 64% coverage) or pure weighted mark
-  change (full coverage, not a return)? Recommendation: both columns side by side, mark change
-  explicitly labelled a valuation drag.
-- **Par or fair value as the #1 weight?** Recommendation: start-date fair value as the headline,
-  par as the published robustness check.
+- **Universe: ALL funds**, with `usable?` / `constant_sample?` flags, unusable ones in their own
+  block rather than interleaved. Nothing is dropped from the file; the flags carry the warning.
+- **#6: BOTH columns, labelled** — the window-aligned valuation drag alongside the reported
+  return, with the drag explicitly named a valuation drag and never a return, and the reported
+  return carrying its own period label (see the §4.3 correction: YTD chaining, best-effort).
+- **#1 weight: start-date fair value as the headline, par published as the robustness check.**
