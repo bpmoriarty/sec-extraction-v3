@@ -590,6 +590,314 @@ def sensitivity(p: pd.DataFrame, usable: set[str]) -> pd.DataFrame:
 
 
 # ─────────────────────────────────────────────────────────────────────────────────────────────
+# Definitions tab
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+# One entry per column: (what it means, how it is computed, what to watch out for). Written for
+# a colleague who did not build this and will read a number without reading the Overview.
+#
+# VALIDATED at build time against the columns actually written (see `definitions_table`): a new
+# column with no definition, or a definition for a column that no longer exists, is reported
+# rather than silently shipped. Documentation that drifts from the data is worse than none.
+
+_DEFS: dict[str, tuple[str, str, str]] = {
+    # ---- identifiers, shared across tabs ----
+    "cik": ("The fund's unique SEC identifier (Central Index Key), zero-padded to 10 digits.",
+            "From the SEC filing.",
+            "Join on this, never on fund_name - names are spelled inconsistently across filings."),
+    "fund_name": ("The fund's name as reported in its filing.",
+                  "From the SEC filing.",
+                  "Spelling varies between filings for the same fund; cik is the stable key."),
+    "manager": ("Parent asset manager the fund rolls up to (e.g. all Blue Owl vehicles -> "
+                "'Blue Owl').",
+                "Curated by CIK in src/analysis/managers.py.",
+                "'UNMAPPED' means the CIK is not in the curated map - never silently bucketed."),
+    "issuer_cluster": ("The borrower (portfolio company).",
+                       "Fuzzy-clustered from the issuer names filers tag in their schedule of "
+                       "investments.",
+                       "One row per BORROWER, not per loan. A borrower's several tranches are "
+                       "combined into one weighted mark. A borrower whose name clusters two "
+                       "ways will appear as two rows, understating its true size."),
+    # ---- flags ----
+    "usable?": ("Whether this fund's DOLLAR figures can be trusted.",
+                "'yes' = the fund's priced debt reconciles to its own XBRL-tagged portfolio "
+                "total at BOTH window dates (ratio <= 1.05).",
+                "'no' means the filing double-counts holdings rows, so every $ and % for this "
+                "fund is OVERSTATED. Such funds are kept in the file on purpose, in their own "
+                "block, and named on Coverage. Do not rank them against the others."),
+    "constant_sample?": ("Whether the fund has data at both ends of the window.",
+                         "'yes' = priced holdings present at both the start and end date.",
+                         "A 'no' fund is usually one that LAUNCHED MID-WINDOW (seven first "
+                         "appear at 2025-06-30). It will show little or no migration because it "
+                         "has no history - not because it underwrote well. This is the single "
+                         "easiest way to misread the file."),
+    "flags": ("Machine-readable warnings for the row.",
+              "Combination of: low_basis, not_reconciling, missing_an_endpoint.",
+              "'low_basis' is the important one - see drag_basis_pct."),
+    # ---- portfolio sizes ----
+    "portfolio_start_mm": ("The fund's whole investment portfolio at the START date, $ millions.",
+                           "XBRL-tagged 'investments at fair value' from the fund's own balance "
+                           "sheet.",
+                           "This is the denominator for every % on the tab. It is the filer's "
+                           "own figure, not a sum of the holdings we parsed."),
+    "portfolio_end_mm": ("The fund's whole investment portfolio at the END date, $ millions.",
+                         "As portfolio_start_mm, at the end date.",
+                         "A fund can grow a lot over the window; a position's % can fall purely "
+                         "because the portfolio grew."),
+    "priced_debt_cov_start": ("What fraction of the fund's portfolio this analysis actually "
+                              "measures, at the START date.",
+                              "(priced debt with a par amount) / (tagged portfolio total).",
+                              "0.9 means 90% of the book is covered; the rest is equity, cash, "
+                              "unpriced debt and holdings with no par. Above 1.05 means "
+                              "double-counting, which is what sets usable? = no."),
+    "priced_debt_cov_end": ("Same coverage fraction at the END date.",
+                            "As priced_debt_cov_start, at the end date.",
+                            "Coverage can differ between dates for the same fund."),
+    # ---- FundMigration measures ----
+    "migrated_mm": ("Start-date value of credits that went from healthy to impaired, $ millions.",
+                    f"Sum of START fair value for issuers held at BOTH dates, marked "
+                    f">= {HEALTHY_START:.0f} at the start and < {IMPAIRED_END:.0f} at the end.",
+                    "Valued at the START date deliberately, so a markdown does not shrink its "
+                    "own measured size."),
+    "migrated_pct_of_portfolio": ("The same figure as a share of the whole fund.",
+                                  "migrated_mm / portfolio_start_mm x 100.",
+                                  "The headline 'how much of this fund went bad' number. Read "
+                                  "usable? and constant_sample? before comparing funds."),
+    "migrated_issuers": ("How many borrowers made that healthy-to-impaired move.",
+                         "Count of issuers meeting the migration test.",
+                         "A count, not a size - one big name and ten small ones both count as "
+                         "their number of borrowers."),
+    "exited_mm": ("Start-date value of credits the fund held at the start and no longer held at "
+                  "the end, $ millions.",
+                  "Sum of START fair value where status = exited.",
+                  "Sold, repaid at maturity, or restructured - THE FILINGS DO NOT SAY WHICH. A "
+                  "fund that sold its deteriorating loans shows LOW migration and HIGH exits, "
+                  "which can look like good underwriting but is not the same thing."),
+    "exited_issuers": ("How many borrowers left the portfolio during the window.",
+                       "Count of issuers with status = exited.",
+                       "Turnover is large across this universe - 4,443 of 15,327 positions "
+                       "exited - so a low migration figure often means churn, not resilience."),
+    "issuers_held_both": ("How many borrowers the fund held, with a usable mark, at BOTH dates.",
+                          "Count of issuers with status = held_both.",
+                          "The population every migration measure is drawn from. A small number "
+                          "makes the fund's percentages noisy."),
+    # ---- IssuerImpact ----
+    "wtd_mark_chg_pts": ("How far this borrower's price moved over the window, in points of par "
+                         "(100 = par).",
+                         "Change in mark from start to end, weighted across holders by each "
+                         "holder's START fair value.",
+                         "Negative = marked down. Weighted at the start on purpose: weighting "
+                         "by ending value would let a marked-down loan shrink its own weight."),
+    "wtd_mark_chg_pts_par_weighted": ("The same price move, weighted by par instead of by fair "
+                                      "value.",
+                                      "As wtd_mark_chg_pts, weighted by START par.",
+                                      "A robustness check. Par does not move with the mark, so "
+                                      "if this differs materially from the fair-value-weighted "
+                                      "figure, the weighting is being influenced by the "
+                                      "revaluation itself."),
+    "bdc_debt_start_mm": ("How much of this borrower's debt the BDCs held at the START, "
+                          "$ millions of fair value.",
+                          "Sum of START fair value across the reconciling BDCs.",
+                          "BDC-VISIBLE ONLY. CLOs, insurance accounts and other private funds "
+                          "hold the rest of these loans and are invisible here, so this is not "
+                          "the loan's market size."),
+    "bdc_debt_end_mm": ("The same exposure at the END, $ millions of fair value.",
+                        "Sum of END fair value across the reconciling BDCs.",
+                        "A fall here mixes THREE things: markdowns, repayments, and holders "
+                        "dropping out of the sample. It is not a measure of price alone."),
+    "par_start_mm": ("Face (par) amount of the borrower's debt held at the START, $ millions.",
+                     "Sum of START principal across the reconciling BDCs.",
+                     "Par does not move when a loan is marked down, so it is the more stable "
+                     "measure of how big a position really is."),
+    "universe_share_start_pct": ("How much of all BDC priced debt this one borrower represents, "
+                                 "at the START.",
+                                 "bdc_debt_start_mm / (all reconciling BDCs' priced debt) x 100.",
+                                 "Denominator is the reconciling funds only, so it is a share of "
+                                 "the measured universe (88.9% of BDC assets), not of everything."),
+    "contribution_to_universe_pts": ("THE IMPORTANCE RANKING: how many points this single "
+                                     "borrower moved the entire BDC book.",
+                                     "universe_share_start_pct/100 x wtd_mark_chg_pts.",
+                                     "This is what makes a mild fall on a huge position outrank "
+                                     "a severe fall on a tiny one - by design. Sort ascending "
+                                     "for the most damaging credits."),
+    "n_holders": ("How many BDCs held this borrower at both dates.",
+                  "Distinct CIK count.",
+                  "1 means NO cross-holder corroboration - the mark is one manager's opinion "
+                  "with nothing to check it against. Treat single-holder rows cautiously."),
+    "mark_start": ("The borrower's average price at the START, points of par.",
+                   "Fair-value-weighted average across holders.",
+                   "Above 100 usually means accrued interest landed in fair value, not a "
+                   "genuine premium."),
+    "mark_end": ("The borrower's average price at the END, points of par.",
+                 "Fair-value-weighted average across holders.",
+                 "Compare with mark_start; the difference is wtd_mark_chg_pts."),
+    # ---- FundAttribution ----
+    "priced_debt_start_mm": ("Start-date value of the fund's debt that this analysis measures, "
+                             "$ millions.",
+                             "Sum of START fair value of priced debt with a par amount.",
+                             "Compare with portfolio_start_mm: the gap is what we cannot "
+                             "measure. See drag_basis_pct."),
+    "valuation_drag_pts": ("How far the fund's measured credits were marked down over the "
+                           "window, in points of par.",
+                           "Fair-value-weighted average mark change across credits held at both "
+                           "dates, weighted at the START.",
+                           "*** THIS IS NOT A RETURN. *** It captures revaluation only. It "
+                           "excludes interest income - which dominates BDC total return - plus "
+                           "realised gains, leverage and fees. Funds here carry -2 to -4 points "
+                           "of drag and still reported returns above +10%."),
+    "drag_from_migrated_pts": ("How much of that drag came from the healthy-to-impaired credits.",
+                               "Sum(mark change x START fair value) for migrated issuers, "
+                               "divided by the START fair value of ALL credits held at both "
+                               "dates.",
+                               "Same units as valuation_drag_pts, so the two are directly "
+                               "comparable."),
+    "share_of_drag_from_migrated": ("What proportion of the fund's drag the migrated credits "
+                                    "explain.",
+                                    "drag_from_migrated_pts / valuation_drag_pts.",
+                                    "CAN EXCEED 1.0. That happens when the fund's other credits "
+                                    "moved UP and offset part of the decline - it is meaningful, "
+                                    "not an error."),
+    "drag_basis_pct": ("How much of the fund the drag figure actually describes.",
+                       "priced_debt_start_mm / portfolio_start_mm x 100.",
+                       f"Below {MIN_DRAG_BASIS:.0%} the drag is a statement about a SLICE, not "
+                       f"the fund, and the row is flagged low_basis and left out of the "
+                       f"benchmark. One fund's basis is 2.3% - its drag is arithmetically "
+                       f"correct and analytically meaningless."),
+    "universe_drag_pts_asset_wtd": ("The benchmark: the average valuation drag across the BDC "
+                                    "universe.",
+                                    "Asset-weighted mean valuation_drag_pts over funds that both "
+                                    "reconcile and have an adequate basis, weighted by START "
+                                    "portfolio size.",
+                                    "The SAME value on every row - it is a single universe "
+                                    "figure, not a per-fund one."),
+    "vs_universe_pts": ("How this fund compares with that benchmark.",
+                        "valuation_drag_pts - universe_drag_pts_asset_wtd.",
+                        "Negative = marked down MORE than the universe. This measures relative "
+                        "valuation change, not skill - a fund can be worse here because it held "
+                        "riskier credits or because it marks more conservatively. Cross-check "
+                        "marking_bias.xlsx to tell those apart."),
+    "reported_window_total_return_pct": ("The fund's ACTUAL total return over the window, "
+                                         "percent.",
+                                         "Chained from the fund's reported fiscal YEAR-TO-DATE "
+                                         "total return, across fiscal year ends (identified by "
+                                         "10-K dates).",
+                                         "THIS is a return; valuation_drag_pts is not. Blank "
+                                         "where the year-to-date chain is incomplete - the "
+                                         "reason is in the next column. Never estimated."),
+    "reported_return_gap_reason": ("Why the window return above is blank.",
+                                   "Set by the chaining routine.",
+                                   "Blank here means the return was computed successfully."),
+    "reported_fiscal_ytd_at_end_pct": ("The fund's reported fiscal year-to-date total return as "
+                                       "of the END date, percent.",
+                                       "Read straight from the filing's financial highlights.",
+                                       "NOT WINDOW-ALIGNED and NOT COMPARABLE ACROSS FUNDS: each "
+                                       "fund's fiscal year starts in a different month, so this "
+                                       "covers a different number of months for each one."),
+    # ---- Concentration ----
+    "declining_issuers": ("How many of the fund's borrowers were marked DOWN over the window.",
+                          "Count of held-both issuers with a negative mark change.",
+                          "Ignores size - a 1-point and a 40-point fall both count once."),
+    "issuers for 80% of drag": ("How few borrowers explain most of the fund's decline.",
+                                "Borrowers ranked by |mark change x START fair value|; the count "
+                                "needed to reach 80% of the total.",
+                                "A low number means the damage is one or two names; a high "
+                                "number means it is broad. Both can produce the same "
+                                "valuation_drag_pts, which is why this tab exists."),
+    "concentration_ratio": ("The same idea as a fraction.",
+                            "'issuers for 80% of drag' / declining_issuers.",
+                            "Low = concentrated. Compare funds of similar size; a fund with "
+                            "only two declining credits will always look concentrated."),
+    "top_3_contributors": ("The three borrowers doing the most damage to this fund.",
+                           "Largest three by |mark change x START fair value|.",
+                           "Contribution combines size and price move, so a large stable-ish "
+                           "position can outrank a small collapsing one."),
+    # ---- ManagerRollup ----
+    "funds": ("How many of this manager's BDCs are included.",
+              "Distinct CIK count among reconciling funds.",
+              "Only reconciling funds are rolled up, so a manager's total may exclude some of "
+              "its vehicles."),
+    "valuation_drag_pts_wtd": ("The manager's overall valuation drag, in points of par.",
+                               "Mean valuation_drag_pts across its funds, weighted by each "
+                               "fund's priced debt.",
+                               "Same caveat as valuation_drag_pts: NOT a return."),
+}
+
+# Extra guidance for tabs that are not simple column tables.
+_TAB_NOTES: dict[str, list[tuple[str, str, str, str]]] = {
+    "MigrationMatrix": [
+        ("rows (start bucket)", "The price band a credit sat in at the START of the window.",
+         "Bands are points of par: <85, 85-90, 90-95, 95-98, 98-100, 100-110, >110.",
+         "'>110 (suspect)' is held separately because a mark that high usually means accrued "
+         "interest landed in fair value, not a loan trading above par."),
+        ("columns (end bucket)", "The band the same credit sat in at the END.",
+         "Same bands, plus EXITED.",
+         "The DIAGONAL is what did not move - read every other cell against it."),
+        ("EXITED column", "Positions held at the start that were gone by the end.",
+         "Sold, repaid or restructured; the filings do not distinguish.",
+         "This is the biggest block in the matrix ($38.3bn left the 98-100 band alone), so "
+         "turnover - not migration - is the dominant story in this data."),
+        ("upper block: DOLLARS", "Start-date fair value in each cell, $ millions.",
+         "Sum of START fair value.",
+         "Valued at the start so a markdown does not shrink its own measured size."),
+        ("lower block: COUNTS", "Number of (fund, borrower) positions in each cell.",
+         "Row count.",
+         "Use with the dollar block: many small positions and one huge one look identical in "
+         "counts alone."),
+    ],
+    "Coverage": [
+        ("reconciliation gate", "Which funds' dollar figures are trustworthy, and which are not.",
+         "Priced debt summed against each fund's XBRL-tagged portfolio total.",
+         "Excluded fund-dates are listed BY NAME with their ratio - nothing is hidden."),
+        ("threshold sensitivity", "How much the answer depends on where 'healthy' and 'impaired' "
+         "are drawn.",
+         "The migration test re-run at 95/90, 95/85, 98/90 and 90/85.",
+         "54.7% of all marks sit between 98 and 100, so the result is genuinely sensitive to "
+         "whether healthy means 95 or 98. Check this before quoting a single figure."),
+    ],
+}
+
+
+def definitions_table(sheet_cols: dict[str, list[str]]) -> tuple[pd.DataFrame, list[str]]:
+    """Build the Definitions rows, organised by tab, and report any drift.
+
+    Returns (frame, problems). `problems` lists columns written to the workbook with no
+    definition, and definitions for columns no longer written - so documentation cannot quietly
+    fall out of step with the data."""
+    rows, problems = [], []
+    for tab, cols in sheet_cols.items():
+        for label, meaning, how, watch in _TAB_NOTES.get(tab, []):
+            rows.append({"Tab": tab, "Column / element": label, "What it means": meaning,
+                         "How it is computed": how, "Watch out for": watch})
+        for c in cols:
+            key = c
+            if c.startswith(("start % ", "end % ")):       # generated bucket columns
+                when, band = ("START", c[8:]) if c.startswith("start % ") else ("END", c[6:])
+                rows.append({
+                    "Tab": tab, "Column / element": c,
+                    "What it means": f"Share of the fund's WHOLE portfolio held in credits "
+                                     f"marked {band} points of par, at the {when} date.",
+                    "How it is computed": f"Sum of {when.lower()}-date fair value of priced debt "
+                                          f"in the {band} band, divided by the fund's tagged "
+                                          f"portfolio total at that date, x 100.",
+                    "Watch out for": "These bands do NOT sum to 100%. The remainder is equity, "
+                                     "cash, unpriced debt and holdings with no par amount - see "
+                                     "priced_debt_cov. Bands are shares of the fund, not of its "
+                                     "debt.",
+                })
+                continue
+            if key not in _DEFS:
+                problems.append(f"NO DEFINITION: {tab}.{c}")
+                continue
+            meaning, how, watch = _DEFS[key]
+            rows.append({"Tab": tab, "Column / element": c, "What it means": meaning,
+                         "How it is computed": how, "Watch out for": watch})
+    written = {c for cols in sheet_cols.values() for c in cols}
+    for k in _DEFS:
+        if k not in written:
+            problems.append(f"ORPHAN DEFINITION (column not written): {k}")
+    return pd.DataFrame(rows), problems
+
+
+# ─────────────────────────────────────────────────────────────────────────────────────────────
 # Workbook
 # ─────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -718,6 +1026,18 @@ def build() -> None:
             f"and excluded from the benchmark)"] = nlow
         cov["  median drag basis across funds"] = f"{attr['drag_basis_pct'].median():.1f}%"
 
+    # Definitions, built from the columns actually being written so it cannot drift
+    sheet_cols = {"MigrationMatrix": [], "FundMigration": list(fmig.columns),
+                  "IssuerImpact": list(iimp.columns)}
+    if not attr.empty:
+        sheet_cols["FundAttribution"] = list(attr.columns)
+    if not conc.empty:
+        sheet_cols["Concentration"] = list(conc.columns)
+    if not mgr.empty:
+        sheet_cols["ManagerRollup"] = list(mgr.columns)
+    sheet_cols["Coverage"] = []
+    defs, def_problems = definitions_table(sheet_cols)
+
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     with pd.ExcelWriter(WORKBOOK, engine="openpyxl") as xl:
         pd.DataFrame({"": []}).to_excel(xl, sheet_name="Overview", index=False)
@@ -731,6 +1051,7 @@ def build() -> None:
         if not mgr.empty:
             mgr.to_excel(xl, sheet_name="ManagerRollup", index=False)
         pd.DataFrame({"": []}).to_excel(xl, sheet_name="Coverage", index=False)
+        defs.to_excel(xl, sheet_name="Definitions", index=False)
 
         wb = xl.book
         from openpyxl.styles import Font
@@ -796,7 +1117,30 @@ def build() -> None:
         if not mgr.empty:
             _style(wb["ManagerRollup"], mgr.shape[1], widths={1: 26})
 
+        # Definitions: wrapped prose, grouped by tab with a visible band on each tab's first row
+        ds = wb["Definitions"]
+        _style(ds, defs.shape[1], widths={1: 17, 2: 30, 3: 62, 4: 62, 5: 62}, freeze="C2")
+        from openpyxl.styles import Alignment as _Al, Font as _Fn, PatternFill as _Pf
+        band = _Pf("solid", fgColor="DCE6F1")
+        prev = None
+        for i, tab in enumerate(defs["Tab"], start=2):
+            for c in range(1, defs.shape[1] + 1):
+                cell = ds.cell(row=i, column=c)
+                cell.alignment = _Al(vertical="top", wrap_text=True)
+                if tab != prev:
+                    cell.fill = band
+                    if c <= 2:
+                        cell.font = _Fn(bold=True)
+            prev = tab
+
     print(f"wrote {WORKBOOK}")
+    print(f"  Definitions: {len(defs)} entries across {defs['Tab'].nunique()} tabs")
+    if def_problems:
+        print("  DEFINITIONS DRIFT - fix before sharing:")
+        for pb in def_problems:
+            print(f"    {pb}")
+    else:
+        print("  every written column has a definition; no orphans")
     print(f"  usable funds {len(usable)} / {p['cik'].nunique()} in file, {share:.1%} of assets")
     print(f"  pairs {len(p):,}  (held_both {(p['status']=='held_both').sum():,}, "
           f"exited {(p['status']=='exited').sum():,}, entered {(p['status']=='entered').sum():,})")
