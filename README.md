@@ -11,15 +11,25 @@ The project has three layers over **one shared fund universe**:
    See [Workflow 2](#workflow-2--fund-universe--filing-download).
 2. **Extraction** — turning filings into typed, validated per-filing records. Two paths:
    - **XBRL extraction** — for funds whose filings are machine-readable (structured XBRL).
-     **Live today** for **BDCs** (listed + unlisted): 81 funds, 1,088 filings. See
+     **Live today** for **BDCs** (listed + unlisted + deregistered): 107 funds in scope,
+     **1,353 filings**, data current through **2026-06-30**. See
      [Workflow 1](#workflow-1--bdc-xbrl-extraction).
    - **LLM-over-clean-text** — for interval/tender-offer funds, whose N-CSR financial
-     statements are **not** XBRL-tagged. **Not built yet** (scoped). See
-     [Interval & tender-offer extraction](#interval--tender-offer-extraction-not-yet-built).
+     statements are **not** XBRL-tagged. **Built through M3, not yet run** — the section
+     locator, schema, prompt, XBRL anchors, mapper and API module all exist and the
+     end-to-end spine is verified, but **nothing has been spent**. See
+     [Interval & tender-offer extraction](#interval--tender-offer-extraction-built-through-m3)
+     and the runbook at [`docs/NCSR_LLM_PLAN.md`](docs/NCSR_LLM_PLAN.md).
 3. **Research & analysis** — cross-fund studies built on the extracted data: holdings/mark
-   comparison, manager marking bias, portfolio overlap. **Live today.** See
+   comparison, trend ownership, credit migration, manager marking bias, portfolio overlap,
+   BDC churn/survival. **Live today.** See
    [Workflow 3](#workflow-3--research--analysis-layer) for how to run them and
    [Research — What This Data Can Do](#research--what-this-data-can-do) for what they answer.
+
+> **Current state lives in [`PROJECT_STATUS.md`](PROJECT_STATUS.md), not here.** Read its
+> `⏩ RESUME HERE` block first — it carries the live counts, the quarterly-refresh runbook, and
+> the known follow-ups. This README describes the *architecture*, which changes far more slowly
+> than the numbers.
 
 ---
 
@@ -32,15 +42,21 @@ sec-extraction-v3/
 │   ├── extracted/                 # [W1] One JSON per filing (gitignored, regenerable)
 │   ├── holdings/                  # [W1] One CSV per filing — schedule of investments (gitignored)
 │   ├── review_queue/              # [W1] index.txt of filings flagged for review (gitignored)
+│   ├── download_state.csv         # [W2] PER-MACHINE download progress (cik → last_checked); gitignored
 │   ├── dataset/                   # [W1/W3] Assembled workbooks + intermediate CSVs (gitignored, rebuildable)
 │   │   ├── semiliquid_bdc_dataset.xlsx        #   [W1] the core per-filing dataset (6 tabs)
 │   │   ├── holdings_consolidated.csv          #   [W3] all holdings cleaned into one table
 │   │   ├── holdings_matched.csv               #   [W3] each holding tagged to its loan/issue
 │   │   ├── issues.csv                         #   [W3] one row per distinct loan (issue)
-│   │   ├── holdings_marks_comparison.xlsx     #   [W3] cross-BDC mark comparison (9 tabs)
+│   │   ├── holdings_marks_comparison.xlsx     #   [W3] cross-BDC marks, trend ownership, loan history (12 tabs)
+│   │   ├── credit_migration.xlsx              #   [W3] credit migration + fund attribution (9 tabs, standalone)
 │   │   ├── portfolio_overlap.xlsx             #   [W3] pairwise fund overlap + co-lending network
 │   │   ├── marking_bias.xlsx                  #   [W3] manager rich/cheap marking bias
+│   │   ├── bdc_churn.xlsx                     #   [W3] BDC births/deaths/survival (7 tabs)
+│   │   ├── bdc_churn_census*.csv              #   [W3] one row per BDC ever elected (+ enriched)
+│   │   ├── ncsr_inventory.csv                 #   [W4] N-CSR section-locator census (free, no API)
 │   │   └── fund_manager_map.csv               #   [W3] curated CIK → manager map
+│   ├── churn_births_raw.csv / churn_deaths_raw.csv  # [W3] N-54A / N-54C pulls (EDGAR index)
 │   ├── survivorship_gap_candidates.csv        # Deregistered-BDC CIKs (N-54C), survivorship workstream
 │   ├── survivorship_gap_enriched.csv          #   …enriched with XBRL availability
 │   └── xbrl_by_vehicle_type.csv               # Inline-XBRL coverage by vehicle type (probe output)
@@ -48,10 +64,12 @@ sec-extraction-v3/
 │   ├── DATA_DICTIONARY.md         # [W1] What financial data we extract (the spec)
 │   ├── XBRL_EXPANSION_PLAN.md     # [W1] Roadmap for additional XBRL data themes
 │   ├── LISTED_BDC_PLAN.md         # [W1] Plan for incorporating listed BDCs
-│   ├── HOLDINGS_COMPARISON_PLAN.md# [W3] Technical plan for the holdings/mark matcher
+│   ├── NCSR_LLM_PLAN.md           # [W4] THE RUNBOOK for the N-CSR LLM path (M0–M6)
+│   ├── HOLDINGS_COMPARISON_PLAN.md# [W3] Technical plan for the holdings/mark matcher (7 phases)
 │   ├── HOLDINGS_RESEARCH_EXPLAINER.md # [W3] Plain-English guide to the marks comparison
 │   ├── MARKING_BIAS_PLAN.md       # [W3] Plan + methodology for manager marking bias
-│   └── PORTFOLIO_OVERLAP_PLAN.md  # [W3] Plan for portfolio overlap analysis
+│   ├── PORTFOLIO_OVERLAP_PLAN.md  # [W3] Plan for portfolio overlap analysis
+│   └── CREDIT_MIGRATION_PLAN.md   # [W3] Plan + the five measured guards behind credit_migration
 ├── src/
 │   ├── fund_universe/             # [W2] Build & maintain the shared fund list
 │   │   ├── build_universe.py      #   Build the initial fund list from filenames + EDGAR
@@ -61,28 +79,42 @@ sec-extraction-v3/
 │   │   ├── initial_pull.py        #   Download all historical filings (one-time)
 │   │   └── update_pull.py         #   Check for new filings (run periodically)
 │   ├── schema/
-│   │   └── models.py              # [W1] Typed schema for extracted data (pydantic)
+│   │   ├── models.py              # [W1] Typed schema for extracted data (pydantic)
+│   │   └── ncsr_raw.py            # [W4] Flat intermediate the LLM fills in (64 fields)
 │   ├── extraction/
 │   │   ├── bdc_xbrl.py            # [W1] BDC XBRL extractor (maps us-gaap concepts → schema)
-│   │   └── run_extraction.py      # [W1] Resumable runner: extract → validate → per-filing JSON
+│   │   ├── run_extraction.py      # [W1] Resumable runner: extract → validate → per-filing JSON
+│   │   ├── ncsr_sections.py       # [W4] M1: locate the financial statements in N-CSR HTML
+│   │   ├── ncsr_prompt.py         # [W4] M3: prompt built FROM the schema so they can't drift
+│   │   ├── ncsr_anchors.py        # [W4] M3: inline-XBRL cover-page anchors (identity checks)
+│   │   ├── ncsr_map.py            # [W4] M3: map the LLM's raw record into the shared schema
+│   │   ├── ncsr_llm.py            # [W4] M3: Claude API module (interactive + batch)
+│   │   └── api_smoke_test.py      # [W4] One cheap call to prove the API key works
 │   ├── validation/
 │   │   └── rules.py               # [W1] Validation layer (identity checks + reasonableness)
 │   ├── output/
 │   │   └── build_spreadsheet.py   # [W1] Assemble the JSONs into the core dataset workbook
 │   └── analysis/                  # [W3] Research layer (reads data/holdings/ + data/extracted/)
-│       ├── holdings_compare.py    #   Cross-BDC holdings & mark comparison (5-phase matcher)
+│       ├── holdings_compare.py    #   Cross-BDC holdings & marks; trend ownership; loan history
+│       ├── credit_migration.py    #   Credit migration + fund attribution (standalone workbook)
 │       ├── portfolio_overlap.py   #   Pairwise fund overlap + co-lending network
 │       ├── marking_bias.py        #   Manager rich/cheap marking bias (stats)
 │       ├── managers.py            #   Curated fund → manager map
+│       ├── bdc_churn.py           #   BDC churn: census, births/deaths, survival, workbook
+│       ├── churn_sizing.py        #   EDGAR N-54A/N-54C pulls that feed the churn census
+│       ├── churn_enrich.py        #   Death-mechanism classification (merger/liquidation/…)
+│       ├── ncsr_inventory.py      #   [W4] Free corpus census of N-CSR locator coverage
 │       ├── survivorship_enrich.py #   Deregistered-BDC gap list + XBRL availability
 │       └── xbrl_by_vehicle_type.py#   Inline-XBRL coverage probe across vehicle types
 ├── Listed BDCs Mstar.xlsx                          # [W1] Morningstar input (listed-BDC universe)
 ├── United States Semiliquid Funds Mstar.xlsx       # [W2] Morningstar input (universe build)
 ├── semiliquid fund categorization Mstar.xlsx       # [W2] Morningstar input (vehicle types)
-└── PROJECT_STATUS.md              # Running log of decisions and progress
+├── pyproject.toml / uv.lock / .python-version   # Pinned, reproducible environment (uv sync)
+└── PROJECT_STATUS.md              # Running log of decisions and progress — START HERE
 ```
 
-`[W1]` = XBRL extraction · `[W2]` = fund universe & download · `[W3]` = research & analysis.
+`[W1]` = XBRL extraction · `[W2]` = fund universe & download · `[W3]` = research & analysis ·
+`[W4]` = N-CSR LLM extraction (interval / tender-offer funds).
 
 The `filings/` folder (where downloaded HTML files are saved) lives **one level up**
 from this folder, at `SEC Filing Extraction/filings/`. It is not inside `sec-extraction-v3/`
@@ -94,31 +126,30 @@ Workflow 1). The downloaded HTML is for the future interval/tender extraction pa
 
 ## First-Time Setup
 
-### 1. Create a virtual environment
+### 1. Build the environment
 
-From inside the `sec-extraction-v3/` folder:
-
-```bash
-uv venv
-```
-
-### 2. Install dependencies
+The project declares its own dependencies in `pyproject.toml`, pins exact versions in
+`uv.lock`, and pins the interpreter in `.python-version`. So the whole environment comes from
+one command, run from inside the `sec-extraction-v3/` folder:
 
 ```bash
-uv pip install edgartools pandas openpyxl rapidfuzz scipy statsmodels matplotlib networkx --link-mode=copy
+uv sync
 ```
 
-> **Note on `--link-mode=copy`:** This flag is required if this folder is inside
-> OneDrive, iCloud, or any cloud-synced directory (these block the hardlinks that
-> `uv` uses by default). If the project is on a regular local drive, you can omit
-> `--link-mode=copy` and just run `uv pip install edgartools pandas openpyxl rapidfuzz scipy statsmodels matplotlib networkx`.
+That is the only setup step. Do **not** hand-install with `uv pip install` — it records no
+versions and drifts from the lock. To add a package, use `uv add <pkg>`, which updates
+`pyproject.toml` and `uv.lock` together.
 
-> **Note on analysis dependencies:** `rapidfuzz`, `scipy`, `statsmodels`, `matplotlib`,
-> and `networkx` are required only by the **Workflow-3 research scripts** (`src/analysis/`).
-> The extraction pipeline (`run_extraction.py`) and the core spreadsheet builder do not
-> need them.
+> **If `uv sync` fails with a hardlink error**, this folder is inside OneDrive/iCloud (which
+> block the hardlinks `uv` prefers). Use `uv sync --link-mode=copy`.
 
-### 3. Corporate networks (SSL inspection)
+> **Why versions are pinned with `==`:** the BDC pipeline was hand-validated against these
+> exact versions (notably `edgartools==5.35.1`, whose XBRL parsing the extractor's concept
+> maps were verified against). Upgrading is a deliberate act that needs re-verification, not a
+> routine refresh. `anthropic` is the one floor-pinned (`>=`) dependency, since the N-CSR path
+> wants current structured-output support.
+
+### 2. Corporate networks (SSL inspection)
 
 On a corporate network that does SSL inspection (e.g. the Morningstar machine), EDGAR
 HTTPS calls fail with `SSLVerificationError: CERTIFICATE_VERIFY_FAILED`. Every
@@ -126,6 +157,22 @@ EDGAR-touching script already handles this by calling `configure_http(use_system
 right after `set_identity()` — this uses the Windows certificate store (which trusts the
 corporate root CA) and is harmless on home networks. No action needed; just be aware that
 this line is required and shouldn't be removed.
+
+The N-CSR LLM path needs the same treatment for the Anthropic SDK, which uses `httpx` rather
+than `edgartools`' HTTP layer: `ncsr_llm.py` calls `truststore.inject_into_ssl()` **before**
+importing `anthropic`. Order matters — injecting afterwards has no effect.
+
+### 3. Anthropic API key (only for the N-CSR LLM path)
+
+Nothing in Workflows 1–3 needs it. The N-CSR path does:
+
+```bash
+# set ANTHROPIC_API_KEY in the environment, then prove it works for ~$0.0002:
+uv run python src/extraction/api_smoke_test.py
+```
+
+The smoke test verifies its own result (checks `stop_reason` for refusal/truncation and that
+the reply is non-empty and correct) rather than printing PASSED unconditionally.
 
 ---
 
@@ -146,20 +193,31 @@ The right extraction path depends on how a fund files.
 
 | Fund type | Filing forms | Financials source | Holdings source | Status |
 |---|---|---|---|---|
-| **Unlisted BDC** | 10-K / 10-Q | **XBRL** | XBRL (schedule of investments) | **Live** — part of the 81-fund / 1,088-filing run |
+| **Unlisted BDC** | 10-K / 10-Q | **XBRL** | XBRL (schedule of investments) | **Live** — part of the 107-fund / 1,353-filing run |
 | **Listed BDC** | 10-K / 10-Q | **XBRL** | XBRL (schedule of investments) | **Live** — 55 funds added (session 11) |
+| **Deregistered BDC** | 10-K / 10-Q | **XBRL** | XBRL | **Live** — 26 dead BDCs added for survivorship correction; extraction capped at the N-54C withdrawal date |
 | Unlisted REIT | 10-K / 10-Q | XBRL | XBRL | Not built (XBRL-tagged, but needs CIK sourcing + REIT-specific concept maps) |
-| Interval Fund | N-CSR / N-CSRS | **LLM-over-clean-text** (no XBRL) | **N-PORT** (in-house) | Not built (financials); holdings available |
-| Tender Offer Fund | N-CSR / N-CSRS | **LLM-over-clean-text** (no XBRL) | **N-PORT** (in-house) | Not built (financials); holdings available |
+| Interval Fund | N-CSR / N-CSRS | **LLM-over-clean-text** (no XBRL) | **N-PORT** (in-house) | **Built through M3, not yet run** (financials); holdings available |
+| Tender Offer Fund | N-CSR / N-CSRS | **LLM-over-clean-text** (no XBRL) | **N-PORT** (in-house) | **Built through M3, not yet run** (financials); holdings available |
 
 ---
 
 ## Workflow 1 — BDC XBRL Extraction
 
 This is the **live** extraction pipeline. It targets funds tagged `Unlisted BDC` /
-`Listed BDC` (or `category = bdc`) in `fund_universe.csv`, pulls every 10-K / 10-Q since
-2016, extracts the financial data, validates it, and writes one JSON per filing. A full run
-covers **81 BDC funds → ~1,088 filings (642 pass / 446 review)**.
+`Listed BDC` / `Deregistered BDC` (or `category = bdc`) in `fund_universe.csv`, pulls every
+10-K / 10-Q since 2016, extracts the financial data, validates it, and writes one JSON per
+filing. As of 2026-08-18 it covers **107 BDC CIKs in scope → 1,353 filings
+(829 pass / 524 review)**, current through the **2026-06-30** reporting period.
+
+For deregistered BDCs, extraction is **capped at the fund's `deregistration_date`** (its N-54C
+withdrawal) — filings whose period ends after that are post-BDC data and are skipped.
+
+> **Refreshing each quarter:** the runner is additive by construction — it keys output on
+> `{cik}_{form}_{period}.json` and skips what exists, with a fixed `SINCE_YEAR = 2016`, so no
+> window ever rolls forward and prior filings are never lost. The full nine-step refresh order
+> (extraction through every downstream workbook) is in
+> [`PROJECT_STATUS.md`](PROJECT_STATUS.md)'s `🔁 BDC quarterly refresh runbook`.
 
 **What XBRL gives us:** because BDCs file 10-K/10-Q, their balance sheet, income statement,
 per-class NAV, fair-value hierarchy, schedule of investments, cash flow, tax basis, expense
@@ -360,8 +418,9 @@ Forms downloaded per fund category:
 
 **Key behaviors:**
 - Skips files that already exist (safe to interrupt and re-run)
-- Saves progress to `fund_universe.csv` after each fund — if the script crashes, restart it
-  and it picks up where it left off
+- Saves progress to `data/download_state.csv` after each fund — if the script crashes, restart
+  it and it picks up where it left off. (It no longer writes `last_checked` into
+  `fund_universe.csv`; see the note under `update_pull.py`.)
 - `TEST_MODE_LIMIT = 3` at the top of the file lets you test on 3 funds before committing to
   the full run; set it to `None` for the full download
 
@@ -373,10 +432,16 @@ uv run python src/downloader/initial_pull.py
 
 ### `src/downloader/update_pull.py` — fetch new filings
 
-**What it does:** Checks for new filings filed since the last time each fund was checked. It
-reads the `last_checked` date from `fund_universe.csv` for each fund and asks EDGAR for
-anything filed after that date. Downloads new filings and updates `last_checked` to today. If
-a fund has never been checked, it falls back to 2016-01-01 so no filings are missed.
+**What it does:** Checks for new filings filed since the last time each fund was checked, and
+downloads anything new. If a fund has never been checked, it falls back to 2016-01-01 so no
+filings are missed.
+
+> **`last_checked` lives in `data/download_state.csv`, NOT in `fund_universe.csv`.** Download
+> progress is **per-machine** (this repo is worked from two machines and `data/` is gitignored),
+> so keeping it in the shared, committed universe file would have made one machine's progress
+> silently suppress the other's downloads. A fresh clone has no state file, queries full
+> history, and re-downloads nothing thanks to the on-disk existence check. See
+> `src/downloader/download_state.py`.
 
 **When to run:** Periodically — once a month is usually enough for this type of fund.
 
@@ -395,8 +460,9 @@ This CSV is the backbone of the whole project. Every script reads from or writes
 | `category` | `interval_fund`, `ncsr_fund`, `bdc`, `reit`, or `unknown` (derived from EDGAR forms/SIC) |
 | `form_types` | Pipe-separated list of forms this fund has been seen filing |
 | `last_filing_date` | Most recent filing date found in our filings folder (ISO `YYYY-MM-DD`) |
-| `last_checked` | Date this fund was last queried against EDGAR (ISO `YYYY-MM-DD`) |
 | `notes` | Free-text notes, e.g., data source or quirks |
+| `deregistered` | Set for BDCs that filed an N-54C (withdrew their BDC election) |
+| `deregistration_date` | N-54C date (ISO `YYYY-MM-DD`). **The XBRL runner caps extraction here** — filings whose period ends later are post-BDC data. |
 | `vehicle_type` | `Interval Fund`, `Tender Offer Fund`, `Unlisted BDC`, `Listed BDC`, `Unlisted REIT`, or `unknown` (from the categorization workbook — see `add_vehicle_type.py`) |
 | `mstar_ticker` | Morningstar ticker, where available |
 | `isin` | ISIN identifier, where available |
@@ -407,18 +473,39 @@ This CSV is the backbone of the whole project. Every script reads from or writes
 **Important — reading the file:** Always read with `dtype={"cik": str}` in pandas, otherwise
 leading zeros in CIKs are stripped (e.g., `"0001748680"` → `1748680`).
 
-**Important — do NOT open this CSV in Excel and save it.** Excel auto-reformats the
-`last_filing_date` / `last_checked` columns from ISO `YYYY-MM-DD` into US `M/D/YYYY` on save,
-corrupting the format. To view it in a spreadsheet, open a *copy* or import it as text. Dates
-in this file should always be ISO `YYYY-MM-DD`.
+**Important — do NOT open this CSV in Excel and save it.** Excel auto-reformats the date
+columns (`last_filing_date`, `deregistration_date`) from ISO `YYYY-MM-DD` into US `M/D/YYYY` on
+save, corrupting the format. To view it in a spreadsheet, open a *copy* or import it as text.
+Dates in this file should always be ISO `YYYY-MM-DD`.
 
-### Interval & tender-offer extraction (not yet built)
+### Interval & tender-offer extraction (built through M3)
 
-Extracting financial data from interval and tender-offer funds is the next major extraction
-phase and is **not started**. Unlike BDCs, these funds' **financial statements are not
-XBRL-tagged** — their N-CSR / N-CSRS filings carry only thin `cef:` / `oef:` cover-page tags
-(NAV/share, expense ratios), not the balance sheet, income statement, cash flow, or schedule
-of investments. This was verified at the raw-fact level, not assumed.
+**Runbook: [`docs/NCSR_LLM_PLAN.md`](docs/NCSR_LLM_PLAN.md) — read that, not this section, for
+the architecture and milestones.** This is a summary.
+
+Unlike BDCs, these funds' **financial statements are not XBRL-tagged** — their N-CSR / N-CSRS
+filings carry only thin `cef:` / `oef:` cover-page tags (NAV/share, expense ratios), not the
+balance sheet, income statement, cash flow, or schedule of investments. This was verified at
+the raw-fact level, not assumed.
+
+**Status: M0–M3 built and verified; nothing has been spent.** Measured full-corpus cost is
+**$96** on Sonnet batch.
+
+| Milestone | State |
+|---|---|
+| **M1** — section locator (`ncsr_sections.py`) + free corpus census (`ncsr_inventory.py`) | **Done.** Locator gate **99.1%** (2,323/2,343), 3,026 filings located, 27 true misses |
+| **M3** — schema, prompt, XBRL anchors, mapper, API module | **Done.** `ncsr_raw.py`, `ncsr_prompt.py`, `ncsr_anchors.py`, `ncsr_map.py`, `ncsr_llm.py` |
+| **M4** — ~25-filing hand-verified gold sample | **Next. Gates all spend.** |
+| **M5** — batch backfill (~$96) | Blocked on M4 |
+| **M2** — multi-series slicer (429 multi-block filings) | Deliberately not an M5 prerequisite |
+
+Two design points worth knowing before touching it:
+
+- **The prompt is generated FROM the schema** (`ncsr_prompt.py` reads `ncsr_raw.py`'s
+  `Field(description=...)`), so the two cannot drift apart.
+- **Only the middle of the pipeline is new, and that was tested rather than asserted.** A
+  hand-built raw record runs through the mapper into the **unchanged** `validate()` and
+  `compute_derived()` from Workflow 1 — same schema, same C-rules, same review queue.
 
 The path therefore splits in two:
 
@@ -443,8 +530,20 @@ The path therefore splits in two:
 > (XBRL facts, company financials) for an LLM/agent. For untagged N-CSR financials there is
 > nothing parsed to serialize. The document-text tooling above is the actual path.
 
-When this phase begins, it plugs into the same schema, validation layer, review queue, and
-spreadsheet assembler as Workflow 1 — only the front-end extractor differs.
+It plugs into the same schema, validation layer, review queue, and spreadsheet assembler as
+Workflow 1 — only the front-end extractor differs.
+
+The census that measures locator coverage is **free** (no API calls), so it can be re-run
+freely after any locator change:
+
+```bash
+uv run python src/analysis/ncsr_inventory.py       # → data/dataset/ncsr_inventory.csv
+```
+
+> **Never pass `--resume` after changing the locator** — it would mix results from two code
+> versions in one census. Back up `ncsr_inventory.csv`, re-run clean, and diff both the
+> located/not-located flips **and** `serialized_chars` (the gate measures whether a block was
+> *found*, never whether it was read *correctly*).
 
 ---
 
@@ -462,18 +561,43 @@ section is the mechanics.
 # 1. (prereq) The core dataset, from Workflow 1
 uv run python src/output/build_spreadsheet.py
 
-# 2. Holdings matcher: consolidate + clean + cluster + match, then build the workbook
+# 2. Holdings matcher: consolidate + clean + cluster + match  (~30 min, the expensive step)
 uv run python src/analysis/holdings_compare.py --build      # writes holdings_consolidated/matched/issues.csv
-uv run python src/analysis/holdings_compare.py --workbook   # writes holdings_marks_comparison.xlsx (9 tabs)
 #   (diagnostics: --diagnose | --cluster | --issues ; --threshold N tunes the fuzzy merge)
 
-# 3. Fund → manager map (needed by marking bias)
-uv run python src/analysis/managers.py                      # writes fund_manager_map.csv  (--review prints flags)
+# 3. Fund → manager map (needed by marking bias); reads step 2's consolidated CSV
+uv run python src/analysis/managers.py                      # writes fund_manager_map.csv + prints VERIFY flags
 
-# 4. Cross-fund studies
+# 4. The marks workbook — reuse step 2's output instead of re-clustering  (SECONDS, not 70 min)
+uv run python src/analysis/holdings_compare.py --workbook --from-cache   # → holdings_marks_comparison.xlsx (12 tabs)
+
+# 5. Cross-fund studies  (each still re-clusters internally, ~70 min apiece)
+uv run python src/analysis/marking_bias.py                  # writes marking_bias.xlsx
 uv run python src/analysis/portfolio_overlap.py             # writes portfolio_overlap.xlsx
-uv run python src/analysis/marking_bias.py                 # writes marking_bias.xlsx
+
+# 6. Credit migration + fund attribution (standalone workbook, its own window)
+uv run python src/analysis/credit_migration.py --gate       # CHECK THIS FIRST (see below)
+uv run python src/analysis/credit_migration.py --build      # → credit_migration.xlsx (9 tabs)
+
+# 7. BDC churn / survival (independent EDGAR pull; not driven by holdings)
+uv run python src/analysis/churn_sizing.py                  # N-54A/N-54C pulls → churn_*_raw.csv
+uv run python src/analysis/bdc_churn.py                     # census + workbook → bdc_churn.xlsx (7 tabs)
+uv run python src/analysis/churn_enrich.py                  # death-mechanism classification
 ```
+
+> **`--from-cache` (step 4) reads the CSVs step 2 already wrote** rather than re-running the
+> clustering, turning a workbook-only change from ~70 minutes into seconds. It is valid **only**
+> while those CSVs are current — re-run `--build` after any parsing change. It raises rather
+> than falling back if the cache is missing, so it can never silently run on stale input.
+> `marking_bias.py` and `portfolio_overlap.py` have no cache path yet.
+
+> **Always run `credit_migration.py --gate` before `--build`.** It reports how many funds'
+> dollar figures reconcile against their own XBRL-tagged portfolio total; the expected result is
+> **~43 usable funds / ~88.9% of BDC assets**. Materially lower means the dollar answers are
+> unsafe and the fallback is issuer counts only.
+
+> **A `PermissionError` writing any workbook is usually OneDrive sync, not Excel — retry once**
+> before closing anything. A genuine Excel lock leaves a `~$` file in `data/dataset/`.
 
 Supporting probes (not part of the main pipeline): `survivorship_enrich.py` (deregistered-BDC
 gap list + XBRL availability → `survivorship_gap_*.csv`) and `xbrl_by_vehicle_type.py`
@@ -483,7 +607,7 @@ gap list + XBRL availability → `survivorship_gap_*.csv`) and `xbrl_by_vehicle_
 
 ## Research — What This Data Can Do
 
-The pipeline turns thousands of filings into a comparable, validated dataset. Four research
+The pipeline turns thousands of filings into a comparable, validated dataset. **Nine** research
 workflows are **live today**; several more are scoped as **future** work.
 
 ### Live today
@@ -509,10 +633,35 @@ marked down before the others catch up?* The matcher cleans 375k+ messy holding 
 groups the same borrower across a dozen spellings, separates each borrower's distinct loans,
 and compares the marks — surfacing real situations (e.g. Pluralsight: Ares 73.5 vs four Blue
 Owl funds 97.7) and quarter-by-quarter deterioration (First Brands −54 points) as early
-warnings. → `holdings_compare.py` → `data/dataset/holdings_marks_comparison.xlsx` (9 tabs).
+warnings. → `holdings_compare.py` → `data/dataset/holdings_marks_comparison.xlsx` (12 tabs).
 Plain-English guide: `docs/HOLDINGS_RESEARCH_EXPLAINER.md`.
 
-**3. Manager marking bias.**
+**3. Who owns the moving credits, and the arc of each holding.**
+Identifying the credits that moved most is only half the question; the median that makes a
+trend legible discards *who holds it*. The `TrendOwners` tab puts the holders back — each one's
+own mark, its deviation from the cross-holder consensus, the position in dollars, and the
+position as a share of that holder's portfolio — and `LoanHistory` shows the whole arc, one row
+per (issuer, fund) across six semiannual as-of dates. Three guards keep it honest, each of them
+measured: credits whose series *stopped* are quarantined to `TrendEnded` rather than ranked
+beside live declines; each move is recomputed on a **constant holder set**, because a fund with
+a later fiscal year-end drops out and takes its mark with it (one credit reads −38.7pts raw but
+−13.0 once holders are held constant); and a wide spread across current holders is flagged as a
+likely tranche mis-merge rather than real disagreement. → same workbook.
+
+**4. Credit migration & fund attribution.**
+For a fixed window, how much of each fund went from healthy to impaired, which borrowers did the
+most damage to the whole BDC book, and what that cost each fund. A start-bucket × end-bucket
+migration matrix (in dollars and issuer counts, with an **exited** column so a fund that *sold*
+its deteriorating loans isn't read as having underwritten well), per-issuer exposure-weighted
+price change ranked by contribution to the entire universe, and a per-fund valuation drag against
+both an asset-weighted universe benchmark and the fund's **actual reported total return**. That
+last pairing matters: the drag is *not* a return — funds here carry −2 to −4 points of valuation
+drag and still reported returns above +10%, because interest income dominates. →
+`credit_migration.py` → `data/dataset/credit_migration.xlsx` (9 tabs, including a **Definitions**
+tab that is validated against the columns actually written). Plan + the five guards:
+`docs/CREDIT_MIGRATION_PLAN.md`.
+
+**5. Manager marking bias.**
 Aggregating across every loan two or more managers share, does a given manager *systematically*
 mark richer or cheaper than its peers on the same credits? Using a within-loan leave-one-out
 deviation (each manager's mark vs. the others on the identical loan), with bootstrap confidence
@@ -521,7 +670,7 @@ noise — revealing which managers are consistently aggressive vs. conservative 
 Prospect / CION mark rich; Barings / Goldman mark cheap). → `marking_bias.py` (with the curated
 fund→manager map from `managers.py`) → `data/dataset/marking_bias.xlsx`.
 
-**4. Portfolio overlap & co-lending network.**
+**6. Portfolio overlap & co-lending network.**
 Which funds hold the same borrowers, and how concentrated is that overlap? This computes
 pairwise fund overlap at both the issuer and the individual-loan grain (common count,
 directional share, Jaccard, dollar-weighted overlap, and a hypergeometric "lift" that flags
@@ -531,27 +680,32 @@ sister funds nearly identical) and the interesting (cross-manager club deals —
 and HPS sharing 121 actual loans). → `portfolio_overlap.py` →
 `data/dataset/portfolio_overlap.xlsx`.
 
+**7. BDC churn & survival analysis.**
+The full life-cycle of the BDC universe from EDGAR's filing index alone — **N-54A = births**
+(election to be a BDC), **N-54C = deaths** (withdrawal), `fund_universe` = current survivors.
+Births/deaths and active-count over time, survival rates and observed median lifespan, and the
+**death-mechanism split** (liquidation vs. merger vs. conversion vs. scheduled wind-down — where
+merging a weak fund into a stronger sibling is itself a survivorship-bias mechanism, not a benign
+event), with low-confidence classifications flagged for manual review. Mirrors Morningstar's
+fund-survival methodology (a fund "doesn't survive" if liquidated *or* merged). →
+`churn_sizing.py` → `bdc_churn.py` → `churn_enrich.py` → `data/dataset/bdc_churn.xlsx` (7 tabs).
+
+**8. Survivorship-bias correction (the extractable subset).**
+The universe was survivor-only. The 26 deregistered BDCs with extractable XBRL are now **in the
+main extraction run**, capped at each fund's N-54C date so no post-BDC data leaks in. The wider
+gap list is reconstructed in `survivorship_gap_*.csv` (76 candidates, 30 with extractable XBRL);
+the pre-XBRL remainder is LLM-only territory.
+
+**9. Manager-level rollups.** Every fund-level cut above also rolls up to the parent asset
+manager via the curated `managers.py` CIK map, which is where family-level concentration shows
+up — several managers run five or more vehicles, and a per-fund table buries that.
+
 ### Future research ideas
 
-- **A. BDC churn & survival analysis.** Quantify the full life-cycle of the BDC universe
-  (listed + unlisted) using EDGAR's filing index alone — **N-54A = births** (election to be a
-  BDC), **N-54C = deaths** (withdrawal), `fund_universe` = current survivors. Births/deaths and
-  active-count over time; overall and per-cohort **survival rate**; a Kaplan–Meier survival
-  curve and median lifespan; the **death-mechanism split** (liquidation vs. merger — where
-  merging a weak fund into a stronger sibling is itself a survivorship-bias mechanism, not a
-  benign event); whether attrition was an early wave (2016–2020 non-traded-BDC mortality) or a
-  recent consolidation wave; listed vs. unlisted survival; and manager-level churn. Mirrors
-  Morningstar's fund-survival methodology (a fund "doesn't survive" if liquidated *or* merged).
-
-- **B. Survivorship-bias correction.** The current universe is survivor-only. Add the
-  deregistered BDCs back (the gap list is reconstructed in `survivorship_gap_*.csv`: 76
-  candidates, 30 with extractable XBRL), re-run, and document how the headline averages (yields,
-  marks, returns) shift once the dead funds are included. Tightly coupled to (A).
-
-- **C. Extend analyses 1–4 to interval & tender-offer funds.** Their holdings are already
-  available as structured **N-PORT** data (in-house), and their financials can be added via the
-  **LLM-over-clean-text** path. This would extend the holdings/marks/overlap/bias engine well
-  beyond BDCs to the much larger registered-fund universe.
+- **C. Extend the holdings analyses to interval & tender-offer funds.** Their holdings are already
+  available as structured **N-PORT** data (in-house), and their financials come from the
+  **LLM-over-clean-text** path once M4/M5 run. This would extend the holdings/marks/overlap/bias
+  engine well beyond BDCs to the much larger registered-fund universe.
 
 - **D. Unlisted REITs.** They file XBRL-tagged 10-K/10-Q, so they're extractable — but they
   have no CIKs in the universe yet (need sourcing) and need REIT-specific concept maps.
@@ -567,14 +721,26 @@ and HPS sharing 121 actual loans). → `portfolio_overlap.py` →
 
 ## Notes for New Users
 
-- The `filings/` folder is **not** included if you received only the code. You will need to
-  run `initial_pull.py` to populate it (this takes 1.5–3 hours). Note this is only required for
-  the future interval/tender extraction — the live BDC XBRL workflow fetches from EDGAR directly
-  and does not need it.
+- **Start with `PROJECT_STATUS.md`'s `⏩ RESUME HERE` block**, not this README. It carries the
+  live counts, the quarterly-refresh runbook, and the open follow-ups. One warning it makes
+  about itself is worth repeating: the history below that block **records hypotheses in the same
+  confident voice as measured results**, and several recorded "diagnoses" have turned out to be
+  wrong. From session 21 on it uses explicit **MEASURED** / **ASSUMED** markers. Before acting on
+  any diagnosis in that history, check which it is — re-measuring is cheap here.
+- `uv sync` builds the environment from the lock file. All scripts run as
+  `uv run python <script>` **from inside `sec-extraction-v3/`** — not from the parent directory.
+- The `filings/` folder is **not** included if you received only the code. Run `initial_pull.py`
+  to populate it (1.5–3 hours). It is needed only for the **N-CSR** path; the BDC XBRL workflow
+  fetches from EDGAR directly and never reads it.
 - EDGAR requires you to identify yourself with an email address for API access. The scripts use
   a hardcoded `EDGAR_IDENTITY` — if you're running this yourself, update that constant at the
   top of each EDGAR-touching script to your own email.
-- All scripts are run with `uv run python <script>` from inside the `sec-extraction-v3/`
-  folder. Do not run them from the parent directory.
-- `PROJECT_STATUS.md` is the running log of decisions, progress, and hard-won quirks — read it
-  to understand the current state and why things are the way they are.
+- `data/` is gitignored in its entirety and fully regenerable. Nothing there is a source of
+  truth except the filings themselves; on a fresh clone you rebuild it.
+- **Windows/PowerShell quirks that have each cost real time** (the full list is in
+  `PROJECT_STATUS.md`): use `git commit -F <file>` for multiline messages, never `-m` with a
+  here-string, which leaks its delimiters; never background a long run with a shell `&` (it makes
+  the *shell* the tracked process and reports success while the real work continues); don't
+  diagnose file encoding in PowerShell, whose `Get-Content` reads UTF-8 as ANSI and once produced
+  a false mojibake diagnosis; and avoid non-ASCII in printed output, which the console codepage
+  mangles into something that reads like data corruption.
